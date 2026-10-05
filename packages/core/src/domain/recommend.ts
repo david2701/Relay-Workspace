@@ -1,6 +1,6 @@
-import type { WorkItem } from "../schemas/work_item.js";
-import type { Recommendation } from "../schemas/inbox.js";
 import type { Agent } from "../schemas/agent.js";
+import type { Recommendation } from "../schemas/inbox.js";
+import type { WorkItem } from "../schemas/work_item.js";
 import { hoursBetween, THRESHOLDS } from "./time.js";
 
 function agentName(agents: readonly Agent[], id: string | null): string {

@@ -1,10 +1,11 @@
 import { expect, test } from "@playwright/test";
 import { execSync } from "node:child_process";
-import { mkdirSync, copyFileSync, existsSync } from "node:fs";
+import { mkdirSync, copyFileSync, existsSync, writeFileSync } from "node:fs";
 import { resolve } from "node:path";
 import {
   expectHechosOnlyTerminal,
   expectNoDuplicateTitles,
+  expectRailMatchesTeNecesita,
   expectSectionCountsMatch,
   waitInboxView,
 } from "./helpers";
@@ -12,6 +13,9 @@ import {
 const API = "http://127.0.0.1:7430";
 const ART = "/opt/cursor/artifacts";
 const E2E_DB = "/tmp/relay-e2e.db";
+const SLA_MS = 2000;
+
+type Stamp = { label: string; tMs: number };
 
 function reseedCleanDemo(): void {
   execSync(
@@ -52,12 +56,20 @@ test.use({
 test("AC3 paced loop on clean seed", async ({ page }, testInfo) => {
   mkdirSync(ART, { recursive: true });
   reseedCleanDemo();
+  const stamps: Stamp[] = [];
+  const t0 = Date.now();
+  const mark = (label: string) => {
+    stamps.push({ label, tMs: Date.now() - t0 });
+  };
+
   await page.goto("/");
   await page.waitForTimeout(500);
+  mark("start Atención seed");
 
   // —— (a) Stay on Con agentes: assigned → in_progress → done ——
   await page.getByRole("button", { name: /Con agentes/ }).click();
   await waitInboxView(page, "agent_wip");
+  mark("Con agentes");
   await expect(
     page.locator('.rail button:has-text("Con agentes") .rail-count'),
   ).toHaveCount(0);
@@ -70,29 +82,37 @@ test("AC3 paced loop on clean seed", async ({ page }, testInfo) => {
   const row = page.getByRole("option", {
     name: new RegExp(created.item.title),
   });
-  await expect(row).toBeVisible({ timeout: 4000 });
+  await expect(row).toBeVisible({ timeout: SLA_MS });
   await expect(row).toHaveCount(1);
-  await page.waitForTimeout(2000);
+  mark("assigned visible");
+  await page.waitForTimeout(1800);
 
   await mcp("items_set_status", { id: created.item.id, status: "in_progress" });
-  await expect(row).toBeVisible({ timeout: 4000 });
+  await expect(row).toBeVisible({ timeout: SLA_MS });
   await expect(row.locator(".actor-mark")).toHaveAttribute("data-shape", "square");
-  await page.waitForTimeout(2000);
+  mark("in_progress visible");
+  await page.waitForTimeout(1800);
 
   await mcp("items_complete", { id: created.item.id });
-  await expect(row).toHaveCount(1, { timeout: 4000 });
-  await page.waitForTimeout(2000);
+  await expect(row).toHaveCount(1, { timeout: SLA_MS });
+  mark("complete linger");
+  await page.waitForTimeout(1800);
 
   await page.getByRole("button", { name: /^Hechos$/ }).click();
   await waitInboxView(page, "done");
   await expectNoDuplicateTitles(page, created.item.title);
   await expect(page.getByText(/Completado por Grok Bot/i).first()).toBeVisible();
   await expectHechosOnlyTerminal(page);
-  await page.waitForTimeout(1500);
+  mark("Hechos");
+  await page.waitForTimeout(1400);
 
   // —— (b) Atención: blocked arrives live in Atascado ——
   await page.getByRole("button", { name: /Atención/ }).click();
   await waitInboxView(page, "attention");
+  mark("Atención");
+  await expectSectionCountsMatch(page);
+  await expectRailMatchesTeNecesita(page);
+
   const blocked = (await mcp("items_create", {
     title: "Publicar build en staging",
   })) as { item: { id: string; title: string } };
@@ -105,10 +125,11 @@ test("AC3 paced loop on clean seed", async ({ page }, testInfo) => {
   const blockedRow = page
     .getByRole("group", { name: /Atascado/ })
     .getByRole("option", { name: new RegExp(blocked.item.title) });
-  await expect(blockedRow).toBeVisible({ timeout: 4000 });
+  await expect(blockedRow).toBeVisible({ timeout: SLA_MS });
   await expectNoDuplicateTitles(page, blocked.item.title);
   await expectSectionCountsMatch(page);
-  await page.waitForTimeout(1500);
+  mark("blocked in Atascado (counts match)");
+  await page.waitForTimeout(1400);
 
   // —— (c) ask_user live → open → type → Devolver → agent view ——
   const ask = (await mcp("items_create", {
@@ -122,10 +143,12 @@ test("AC3 paced loop on clean seed", async ({ page }, testInfo) => {
   const askRow = page
     .getByRole("group", { name: /Te necesita/ })
     .getByRole("option", { name: new RegExp(ask.item.title) });
-  await expect(askRow).toBeVisible({ timeout: 4000 });
+  await expect(askRow).toBeVisible({ timeout: SLA_MS });
   await expectNoDuplicateTitles(page, ask.item.title);
   await expectSectionCountsMatch(page);
-  await page.waitForTimeout(800);
+  await expectRailMatchesTeNecesita(page);
+  mark("needs_you in Te necesita (counts + rail match)");
+  await page.waitForTimeout(900);
 
   await askRow.click();
   const banner = page.locator(".reason-banner.needs_you");
@@ -134,19 +157,36 @@ test("AC3 paced loop on clean seed", async ({ page }, testInfo) => {
   await expect(
     page.getByRole("button", { name: /Devolver a Grok Bot/ }),
   ).toBeVisible();
+  mark("detail needs_you open");
   await page.waitForTimeout(600);
   await banner.locator("textarea").fill("Publica la opción A.");
   await page.waitForTimeout(500);
   await page.getByRole("button", { name: /Devolver a Grok Bot/ }).click();
   await expect(page.getByText(/Decisión:/i).first()).toBeVisible({
-    timeout: 4000,
+    timeout: SLA_MS,
   });
+  mark("decisión note created");
   await page.waitForTimeout(700);
+
+  // V4 — open agent view and hold so the frame shows «Lo que ve el agente»
+  // with the decisión note (not only NOTAS).
   await page.getByRole("button", { name: /Lo que ve el agente/ }).click();
-  await expect(
-    page.locator(".agent-view").getByText(/Publica la opción A/),
-  ).toBeVisible({ timeout: 4000 });
-  await page.waitForTimeout(1600);
+  const agentView = page.locator(".agent-view");
+  await expect(agentView).toBeVisible({ timeout: SLA_MS });
+  await expect(agentView.locator("h1")).toBeVisible();
+  await expect(agentView.getByText(/Publica la opción A/)).toBeVisible({
+    timeout: SLA_MS,
+  });
+  await expect(agentView.getByText(/\[decision\]|Decisión/i).first()).toBeVisible();
+  // Hold long enough for the recording to capture the full agent-view frame.
+  mark("Lo que ve el agente + decisión");
+  await page.waitForTimeout(2400);
+  mark("end");
+
+  writeFileSync(
+    resolve(ART, "ac3-loop-timestamps.json"),
+    JSON.stringify({ stamps, totalMs: Date.now() - t0 }, null, 2),
+  );
 
   const video = testInfo.attachments.find((a) => a.name === "video");
   if (video?.path && existsSync(video.path)) {

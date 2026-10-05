@@ -6,8 +6,8 @@
       "apps/**/*.tsx",
       "packages/**/*.ts",
       "scripts/**/*.mjs",
-      "!**/dist/**",
-      "!**/node_modules/**"
+      "!**/dist",
+      "!**/node_modules"
     ]
   },
   "formatter": {

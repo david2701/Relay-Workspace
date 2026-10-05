@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+import { ValidationError } from "../src/domain/errors.js";
 import {
   applyStatusChange,
   askUser,
@@ -6,7 +7,6 @@ import {
   reopenItem,
 } from "../src/domain/transitions.js";
 import type { WorkItem } from "../src/schemas/work_item.js";
-import { ValidationError } from "../src/domain/errors.js";
 
 function baseItem(overrides: Partial<WorkItem> = {}): WorkItem {
   return {

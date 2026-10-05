@@ -1,6 +1,6 @@
-import type { WorkItem } from "../schemas/work_item.js";
 import type { InboxView } from "../schemas/enums.js";
 import type { InboxQueryResult } from "../schemas/inbox.js";
+import type { WorkItem } from "../schemas/work_item.js";
 import {
   addDays,
   endOfLocalDay,

@@ -1,5 +1,5 @@
-import type { Actor, SetStatusInput, WorkItem } from "../schemas/work_item.js";
 import type { Source, Status } from "../schemas/enums.js";
+import type { Actor, SetStatusInput, WorkItem } from "../schemas/work_item.js";
 import { ValidationError } from "./errors.js";
 import { nowIso } from "./time.js";
 

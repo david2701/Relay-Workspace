@@ -1,8 +1,8 @@
 import type { Agent } from "../schemas/agent.js";
+import { USER_ACTOR_ID, USER_DISPLAY_NAME } from "../schemas/enums.js";
 import type { ContextPack } from "../schemas/inbox.js";
 import type { ItemNoteLink, Note } from "../schemas/note.js";
 import type { WorkItem } from "../schemas/work_item.js";
-import { USER_ACTOR_ID, USER_DISPLAY_NAME } from "../schemas/enums.js";
 
 function previewBody(body: string, lines = 3): string {
   return body.split("\n").slice(0, lines).join("\n");

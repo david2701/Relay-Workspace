@@ -136,13 +136,15 @@ export function buildViewSections(args: {
     );
   }
   const pending = args.pendingRows.filter((p) => !inboxIds.has(p.id));
-  const lingerItems = linger.map((r) => r.item).filter((i) => {
-    if (args.inboxView === "agent_wip") {
-      // Linger may show the new status after leaving; keep it only while scoped here.
+  const lingerItems = linger
+    .map((r) => r.item)
+    .filter((i) => {
+      if (args.inboxView === "agent_wip") {
+        // Never linger needs_you / inbox / done into Con agentes.
+        return i.assignee_type === "agent" && isAgentWipStatus(i.status);
+      }
       return true;
-    }
-    return true;
-  });
+    });
   const items = dedupeItems([...lingerItems, ...pending, ...base]).filter((i) =>
     matchesFilter(i, filter),
   );

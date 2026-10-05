@@ -1,7 +1,7 @@
 import { z } from "zod";
 import {
-  AssigneeTypeSchema,
   ActorTypeSchema,
+  AssigneeTypeSchema,
   PrioritySchema,
   SourceSchema,
   StatusSchema,

@@ -1,11 +1,19 @@
 import {
+  Children,
+  type ReactNode,
   useCallback,
   useEffect,
   useMemo,
   useRef,
   useState,
-  type ReactNode,
 } from "react";
+import { ActorMark } from "./components/ActorMark";
+import { DetailPanel } from "./components/DetailPanel";
+import { ItemRow } from "./components/ItemRow";
+import { ThemeSwitch } from "./components/ThemeSwitch";
+import { usePoll } from "./hooks/usePoll";
+import { useTheme } from "./hooks/useTheme";
+import { markForOwner } from "./lib/actor_mark";
 import { api } from "./lib/api";
 import { copy } from "./lib/copy";
 import type {
@@ -17,13 +25,6 @@ import type {
   Recommendation,
   WorkItem,
 } from "./lib/types";
-import { usePoll } from "./hooks/usePoll";
-import { useTheme } from "./hooks/useTheme";
-import { DetailPanel } from "./components/DetailPanel";
-import { ItemRow } from "./components/ItemRow";
-import { ActorMark } from "./components/ActorMark";
-import { ThemeSwitch } from "./components/ThemeSwitch";
-import { markForOwner } from "./lib/actor_mark";
 import {
   assertNoDuplicateIds,
   buildViewSections,
@@ -73,8 +74,22 @@ export default function App() {
   const prevUpdated = useRef<Map<string, string>>(new Map());
   const prevItems = useRef<Map<string, WorkItem>>(new Map());
   const prevView = useRef<InboxView>("attention");
+  const viewEpoch = useRef(0);
+  const hydratedView = useRef<InboxView | null>(null);
   const syncAge = useRef(0);
   const [tick, setTick] = useState(0);
+
+  const selectView = useCallback((next: AppView) => {
+    if (next === view) return;
+    // Wipe linger synchronously so the first paint of the new view never
+    // inherits rows from the previous lens (BUG-2).
+    viewEpoch.current += 1;
+    hydratedView.current = null;
+    prevItems.current = new Map();
+    prevUpdated.current = new Map();
+    setLingerRows([]);
+    setView(next);
+  }, [view]);
 
   useEffect(() => {
     void api.agents().then((r) => setAgents(r.agents));
@@ -96,13 +111,6 @@ export default function App() {
   // Ignore a previous view's payload while the matching fetch is in flight.
   const inbox =
     inboxRaw && inboxRaw.view === inboxView ? inboxRaw : null;
-  // Rail counter must stay coherent across view switches (AC6).
-  const needsYouCount = inboxRaw?.counters.needs_you ?? 0;
-
-  useEffect(() => {
-    if (view !== "attention") return;
-    void api.recommend().then((r) => setRecs(r.recommendations));
-  }, [view, needsYouCount, dismissTick]);
 
   useEffect(() => {
     if (view !== "notes") return;
@@ -128,20 +136,18 @@ export default function App() {
           return r.item;
         });
       });
-    }, 2000);
+    }, 750);
     return () => window.clearInterval(id);
   }, [selectedId]);
 
-  // Drop all linger rows on view change — never leak rows into the next lens.
+  // Keep prevView in sync when the lens changes (linger already wiped in selectView).
   useEffect(() => {
-    setLingerRows([]);
-    prevItems.current = new Map();
-    prevUpdated.current = new Map();
     prevView.current = inboxView;
   }, [inboxView]);
 
   useEffect(() => {
     if (!inbox) return;
+    const epoch = viewEpoch.current;
     const nextMap = new Map<string, string>();
     const nextItems = new Map<string, WorkItem>();
     for (const item of inbox.items) {
@@ -159,13 +165,19 @@ export default function App() {
           r.until > Date.now(),
       ),
     );
-    if (prevView.current === inboxView) {
+    // Only detect departures after this view has hydrated once — never treat
+    // the first payload after a switch as "everything left" (BUG-2).
+    const canLinger =
+      hydratedView.current === inboxView && prevView.current === inboxView;
+    if (canLinger) {
       const leftIds = [...prevItems.current.keys()].filter(
         (id) => !nextItems.has(id),
       );
       for (const id of leftIds) {
         const fromView = inboxView;
+        const captureEpoch = epoch;
         void api.getItem(id).then(({ item }) => {
+          if (viewEpoch.current !== captureEpoch) return;
           if (prevView.current !== fromView) return;
           if (prevItems.current.has(id)) return;
           const until = Date.now() + 2000;
@@ -175,6 +187,7 @@ export default function App() {
           ]);
           flash(item.id);
           window.setTimeout(() => {
+            if (viewEpoch.current !== captureEpoch) return;
             setLingerRows((rows) => rows.filter((r) => r.item.id !== id));
           }, 2100);
         });
@@ -183,6 +196,7 @@ export default function App() {
     prevUpdated.current = nextMap;
     prevItems.current = nextItems;
     prevView.current = inboxView;
+    hydratedView.current = inboxView;
   }, [inbox, inboxView]);
 
   useEffect(() => {
@@ -225,6 +239,22 @@ export default function App() {
     () => viewSections.flatMap((s) => s.items),
     [viewSections],
   );
+
+  // Rail Atención counter: when Atención is painted, use the rendered
+  // Te necesita row count (same list as the header · N). Otherwise use
+  // the last known server counter so the rail stays coherent off-view.
+  const renderedNeedsYou = viewSections.find(
+    (s) => s.key === "needs_you",
+  )?.items.length;
+  const needsYouCount =
+    renderedNeedsYou !== undefined
+      ? renderedNeedsYou
+      : (inboxRaw?.counters.needs_you ?? 0);
+
+  useEffect(() => {
+    if (view !== "attention") return;
+    void api.recommend().then((r) => setRecs(r.recommendations));
+  }, [view, needsYouCount, dismissTick]);
 
   const visibleRecs = recs.filter(
     (r) => sessionStorage.getItem(dismissedKey(r.item_id)) !== "1",
@@ -339,7 +369,7 @@ export default function App() {
         };
         const v = map[e.key.toLowerCase()];
         if (v) {
-          setView(v);
+          selectView(v);
           setGPending(false);
         }
         return;
@@ -420,7 +450,7 @@ export default function App() {
                 type="button"
                 className={view === v.id ? "active" : ""}
                 aria-current={view === v.id ? "page" : undefined}
-                onClick={() => setView(v.id)}
+                onClick={() => selectView(v.id)}
               >
                 <span className="rail-label">{v.label}</span>
                 {v.id === "attention" && needsYouCount > 0 ? (
@@ -440,7 +470,7 @@ export default function App() {
         <button
           type="button"
           className={view === "notes" ? "active" : ""}
-          onClick={() => setView("notes")}
+          onClick={() => selectView("notes")}
         >
           <span className="rail-label">{copy.nav.notes}</span>
         </button>
@@ -627,11 +657,7 @@ relay web   →  http://127.0.0.1:7421`}</pre>
             {inbox
               ? viewSections.map((section) =>
                   section.label ? (
-                    <Section
-                      key={section.key}
-                      label={section.label}
-                      count={section.items.length}
-                    >
+                    <Section key={section.key} label={section.label}>
                       {section.items.map((item) => (
                         <ItemRow
                           key={item.id}
@@ -669,7 +695,7 @@ relay web   →  http://127.0.0.1:7421`}</pre>
                   text={copy.empty.attention}
                   action={{
                     label: copy.empty.attentionCta,
-                    onClick: () => setView("agent_wip"),
+                    onClick: () => selectView("agent_wip"),
                   }}
                 />
               ) : (
@@ -777,20 +803,28 @@ relay web   →  http://127.0.0.1:7421`}</pre>
 
 function Section({
   label,
-  count,
   children,
 }: {
   label: string;
-  count: number;
   children: ReactNode;
 }) {
+  // Count is derived from the same children painted below — never a
+  // separate poll/state (V1).
+  const count = Children.toArray(children).filter(Boolean).length;
   if (!label && count === 0) return <>{children}</>;
   return (
-    <div role="group" aria-label={label || undefined}>
+    <div
+      role="group"
+      aria-label={label || undefined}
+      data-section-count={count}
+    >
       {label ? (
         <div className="section-label label-caps">
           {label}
-          <span className="mono"> · {count}</span>
+          <span className="mono" data-section-count-text>
+            {" "}
+            · {count}
+          </span>
         </div>
       ) : null}
       {children}

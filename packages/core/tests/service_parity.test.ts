@@ -2,8 +2,8 @@ import { mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
-import { RelayService } from "../src/services/relay_service.js";
 import { USER_ACTOR_ID } from "../src/schemas/enums.js";
+import { RelayService } from "../src/services/relay_service.js";
 
 describe("AC1 parity + service flows", () => {
   let dir: string;

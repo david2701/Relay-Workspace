@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 
-const INTERVAL_MS = 2000;
+/** Sub-second poll so MCP→UI worst case stays under the 2s AC3 SLA. */
+const INTERVAL_MS = 750;
 
 export function usePoll<T>(
   fetcher: () => Promise<T>,
@@ -20,10 +21,18 @@ export function usePoll<T>(
   const fails = useRef(0);
   const fetcherRef = useRef(fetcher);
   const generation = useRef(0);
+  const inFlight = useRef(false);
+  const pendingReload = useRef(false);
   fetcherRef.current = fetcher;
 
   const reload = useCallback(async () => {
+    if (typeof document !== "undefined" && document.hidden) return;
+    if (inFlight.current) {
+      pendingReload.current = true;
+      return;
+    }
     const gen = generation.current;
+    inFlight.current = true;
     try {
       const next = await fetcherRef.current();
       if (gen !== generation.current) return;
@@ -37,6 +46,12 @@ export function usePoll<T>(
       fails.current += 1;
       if (fails.current >= 3) setOffline(true);
       setError(err instanceof Error ? err.message : "Error");
+    } finally {
+      inFlight.current = false;
+      if (pendingReload.current && gen === generation.current) {
+        pendingReload.current = false;
+        void reload();
+      }
     }
   }, []);
 
@@ -47,7 +62,14 @@ export function usePoll<T>(
     const id = window.setInterval(() => {
       void reload();
     }, INTERVAL_MS);
-    return () => window.clearInterval(id);
+    const onVisibility = () => {
+      if (!document.hidden) void reload();
+    };
+    document.addEventListener("visibilitychange", onVisibility);
+    return () => {
+      window.clearInterval(id);
+      document.removeEventListener("visibilitychange", onVisibility);
+    };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, deps);
 

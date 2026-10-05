@@ -1,9 +1,9 @@
-import { ActorMark, isStaleWorking, isWorking } from "./ActorMark";
-import { StatusGlyph } from "./StatusGlyph";
 import { markForCompleter, markForWitness } from "../lib/actor_mark";
 import { copy } from "../lib/copy";
 import { formatDue, formatRelative } from "../lib/format";
 import type { Agent, WorkItem } from "../lib/types";
+import { ActorMark, isStaleWorking, isWorking } from "./ActorMark";
+import { StatusGlyph } from "./StatusGlyph";
 import "./ItemRow.css";
 
 type Props = {

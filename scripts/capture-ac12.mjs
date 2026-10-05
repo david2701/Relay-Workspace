@@ -1,12 +1,12 @@
 #!/usr/bin/env node
+import { createHash } from "node:crypto";
+import { mkdirSync, readFileSync } from "node:fs";
+import { resolve } from "node:path";
 /**
  * Capture AC12 screenshots against a clean seeded demo DB on the live ports.
  * Does not create test items. Run: pnpm seed && pnpm capture:ac12
  */
 import { chromium } from "@playwright/test";
-import { createHash } from "node:crypto";
-import { mkdirSync, readFileSync } from "node:fs";
-import { resolve } from "node:path";
 
 const WEB = process.env.RELAY_WEB ?? "http://127.0.0.1:7421";
 const ART = "/opt/cursor/artifacts";

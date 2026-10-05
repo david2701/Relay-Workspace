@@ -1,10 +1,10 @@
 import { describe, expect, it } from "vitest";
 import {
   assertMarkConsistent,
-  markForOwner,
-  markForWitness,
   markForActor,
   markForCompleter,
+  markForOwner,
+  markForWitness,
 } from "./actor_mark";
 import type { Agent, WorkItem } from "./types";
 

@@ -4,7 +4,7 @@
  * Exit 0 only if all required pairs pass for :root and .dark.
  */
 import { readFileSync } from "node:fs";
-import { resolve, dirname } from "node:path";
+import { dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
@@ -29,7 +29,7 @@ function parseBlock(css, selector) {
 
 function resolveColor(vars, name, depth = 0) {
   if (depth > 5) throw new Error(`Cycle resolving ${name}`);
-  let v = vars[name];
+  const v = vars[name];
   if (!v) throw new Error(`Missing --${name}`);
   if (v.startsWith("var(--") && v.endsWith(")")) {
     const inner = v.slice(6, -1).replace(/^--/, "");

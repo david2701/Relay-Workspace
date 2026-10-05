@@ -1,4 +1,4 @@
-import type { Agent, ActorType, AssigneeType, WorkItem } from "./types";
+import type { ActorType, Agent, AssigneeType, WorkItem } from "./types";
 
 export type ActorMarkModel = {
   kind: "user" | "agent" | "unassigned" | "system";

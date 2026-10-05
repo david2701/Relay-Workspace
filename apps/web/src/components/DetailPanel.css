@@ -13,9 +13,26 @@
 }
 
 .detail-empty-keys {
-  padding: 0 16px;
+  list-style: none;
+  margin: 0;
+  padding: 8px 16px 0;
   color: var(--ink-muted);
   font-size: var(--step-data);
+  display: grid;
+  gap: 6px;
+  max-width: 100%;
+  overflow: hidden;
+}
+
+.detail-empty-keys li {
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.detail-empty-keys kbd {
+  font: inherit;
+  color: var(--ink-2);
 }
 
 .detail-head {

@@ -1,7 +1,7 @@
 import type { CSSProperties } from "react";
 import {
-  assertMarkConsistent,
   type ActorMarkModel,
+  assertMarkConsistent,
 } from "../lib/actor_mark";
 import { hoursSince } from "../lib/format";
 

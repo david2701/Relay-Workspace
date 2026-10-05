@@ -12,13 +12,16 @@
     "dev:web": "pnpm --filter @relay/web dev",
     "build": "pnpm -r run build",
     "typecheck": "pnpm -r run typecheck",
-    "lint": "biome lint .",
+    "lint": "biome check .",
+    "lint:fix": "biome check --write .",
+    "check": "biome check .",
     "test": "pnpm --filter @relay/core test && pnpm --filter @relay/server test && pnpm --filter @relay/web test",
     "test:e2e": "pnpm exec playwright test",
     "seed": "pnpm --filter @relay/server seed",
     "demo:ac3": "pnpm --filter @relay/server demo:ac3",
     "contrast": "node scripts/contrast-matrix.mjs",
-    "capture:ac12": "node scripts/capture-ac12.mjs"
+    "capture:ac12": "node scripts/capture-ac12.mjs",
+    "benchmark:ac3": "node scripts/benchmark-ac3-sla.mjs"
   },
   "devDependencies": {
     "@biomejs/biome": "^2.5.15",

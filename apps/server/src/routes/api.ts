@@ -4,10 +4,10 @@ import {
   InboxViewSchema,
   LinkNoteInputSchema,
   NoteRoleSchema,
+  type RelayService,
   SetStatusInputSchema,
   UpdateItemInputSchema,
   UpdateNoteInputSchema,
-  type RelayService,
 } from "@relay/core";
 import { Hono } from "hono";
 import { z } from "zod";

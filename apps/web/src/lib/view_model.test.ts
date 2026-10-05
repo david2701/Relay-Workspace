@@ -1,10 +1,10 @@
 import { describe, expect, it } from "vitest";
+import type { InboxResult, WorkItem } from "./types";
 import {
   assertNoDuplicateIds,
   buildViewSections,
   type LingerRow,
 } from "./view_model";
-import type { InboxResult, WorkItem } from "./types";
 
 function item(patch: Partial<WorkItem> & Pick<WorkItem, "id" | "title" | "status">): WorkItem {
   return {
@@ -54,7 +54,7 @@ describe("buildViewSections", () => {
     ).toEqual([]);
   });
 
-  it("excludes needs_you from agent_wip and never duplicates", () => {
+  it("excludes needs_you from agent_wip including linger, and never duplicates", () => {
     const needs = item({
       id: "n1",
       title: "Elegir titular",
@@ -82,7 +82,8 @@ describe("buildViewSections", () => {
       filter: "",
     });
     expect(sections).toHaveLength(1);
-    expect(sections[0]?.items.map((i) => i.id)).toEqual(["n1", "w1"]);
+    expect(sections[0]?.items.map((i) => i.id)).toEqual(["w1"]);
+    expect(sections[0]?.items.every((i) => i.status !== "needs_you")).toBe(true);
     expect(() => assertNoDuplicateIds(sections, "agent_wip")).not.toThrow();
   });
 

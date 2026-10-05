@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { NoteRoleSchema, type NoteRole } from "./enums.js";
+import { type NoteRole, NoteRoleSchema } from "./enums.js";
 import { ItemIdSchema, NoteIdSchema } from "./ids.js";
 
 export type { NoteRole };

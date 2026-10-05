@@ -1,10 +1,31 @@
-import { DEFAULT_AGENTS, type Agent } from "../schemas/agent.js";
 import {
-  USER_ACTOR_ID,
+  buildContextPack,
+  contextPackToMarkdown,
+} from "../domain/context_pack.js";
+import { NotFoundError, ValidationError } from "../domain/errors.js";
+import { queryInbox } from "../domain/inbox_query.js";
+import { recommendInbox } from "../domain/recommend.js";
+import { nowIso } from "../domain/time.js";
+import {
+  applyStatusChange,
+  askUser,
+  completeItem,
+  delegateItem,
+  reopenItem,
+  stampActor,
+} from "../domain/transitions.js";
+import { type Agent, DEFAULT_AGENTS } from "../schemas/agent.js";
+import {
   type InboxView,
   type Source,
+  USER_ACTOR_ID,
 } from "../schemas/enums.js";
 import { createId } from "../schemas/ids.js";
+import type {
+  ContextPack,
+  InboxQueryResult,
+  Recommendation,
+} from "../schemas/inbox.js";
 import type {
   CreateNoteInput,
   ItemNoteLink,
@@ -13,33 +34,12 @@ import type {
   UpdateNoteInput,
 } from "../schemas/note.js";
 import type {
-  ContextPack,
-  InboxQueryResult,
-  Recommendation,
-} from "../schemas/inbox.js";
-import type {
   Actor,
   CreateItemInput,
   SetStatusInput,
   UpdateItemInput,
   WorkItem,
 } from "../schemas/work_item.js";
-import {
-  buildContextPack,
-  contextPackToMarkdown,
-} from "../domain/context_pack.js";
-import { queryInbox } from "../domain/inbox_query.js";
-import { NotFoundError, ValidationError } from "../domain/errors.js";
-import { recommendInbox } from "../domain/recommend.js";
-import { nowIso } from "../domain/time.js";
-import {
-  askUser,
-  completeItem,
-  delegateItem,
-  reopenItem,
-  applyStatusChange,
-  stampActor,
-} from "../domain/transitions.js";
 import { openDatabase, type RelayDb } from "../store/db.js";
 import {
   AgentRepository,
@@ -119,7 +119,7 @@ export class RelayService {
   createItem(input: CreateItemInput, actor: Actor, source: Source): WorkItem {
     const at = nowIso();
     let status = input.status ?? "inbox";
-    let assigneeType = input.assignee_type ?? "unassigned";
+    const assigneeType = input.assignee_type ?? "unassigned";
     let assigneeId = input.assignee_id ?? null;
     if (assigneeType === "agent" && !assigneeId) {
       throw new ValidationError("assignee_id required when assignee_type=agent");
@@ -172,7 +172,7 @@ export class RelayService {
 
   updateItem(id: string, input: UpdateItemInput, actor: Actor): WorkItem {
     const current = this.getItem(id);
-    let assigneeType = input.assignee_type ?? current.assignee_type;
+    const assigneeType = input.assignee_type ?? current.assignee_type;
     let assigneeId =
       input.assignee_id !== undefined ? input.assignee_id : current.assignee_id;
     if (assigneeType === "agent") {

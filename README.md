@@ -13,7 +13,7 @@ Plan: [`docs/PLAN.md`](docs/PLAN.md)
 - Node.js **24.21+** · TypeScript 7 · pnpm workspaces · Vitest · Playwright
 - `packages/core` — domain, zod schemas, SQLite (`node:sqlite` WAL)
 - `apps/server` — Hono HTTP API + MCP (Streamable HTTP + stdio), same store
-- `apps/web` — Vite + React SPA, 2 s polling
+- `apps/web` — Vite + React SPA, 750 ms polling (visibility-aware, in-flight dedupe)
 
 ## Install
 

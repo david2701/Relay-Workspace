@@ -1,9 +1,13 @@
-import { useEffect, useMemo, useState } from "react";
 import { Bell, CalendarBlank, LinkSimple, X } from "@phosphor-icons/react";
+import { useEffect, useMemo, useState } from "react";
+import {
+  markForActor,
+  markForCompleter,
+  markForOwner,
+} from "../lib/actor_mark";
 import { api } from "../lib/api";
 import { copy } from "../lib/copy";
 import { formatAbsolute, formatRelative } from "../lib/format";
-import { DateTimeField } from "./DateTimeField";
 import type {
   Agent,
   ContextPack,
@@ -13,12 +17,8 @@ import type {
   WorkItem,
 } from "../lib/types";
 import { ActorMark, isStaleWorking, isWorking } from "./ActorMark";
+import { DateTimeField } from "./DateTimeField";
 import { StatusGlyph } from "./StatusGlyph";
-import {
-  markForActor,
-  markForCompleter,
-  markForOwner,
-} from "../lib/actor_mark";
 import "./DetailPanel.css";
 
 type Props = {
@@ -83,9 +83,26 @@ export function DetailPanel({
     return (
       <aside className="detail-zone" aria-label="Detalle del ítem">
         <div className="detail-empty">{copy.detailEmpty}</div>
-        <div className="detail-empty-keys mono">
-          N captura · J/K navega · Enter abre · X completa · D delega · ? atajos
-        </div>
+        <ul className="detail-empty-keys mono" aria-label="Atajos rápidos">
+          <li>
+            <kbd>N</kbd> captura
+          </li>
+          <li>
+            <kbd>J</kbd>/<kbd>K</kbd> navega
+          </li>
+          <li>
+            <kbd>Enter</kbd> abre
+          </li>
+          <li>
+            <kbd>X</kbd> completa
+          </li>
+          <li>
+            <kbd>D</kbd> delega
+          </li>
+          <li>
+            <kbd>?</kbd> atajos
+          </li>
+        </ul>
       </aside>
     );
   }

@@ -1,6 +1,6 @@
-import { DatabaseSync } from "node:sqlite";
 import { mkdirSync } from "node:fs";
 import { dirname } from "node:path";
+import { DatabaseSync } from "node:sqlite";
 import { DEFAULT_AGENTS } from "../schemas/agent.js";
 import { MIGRATIONS } from "./migrations.js";
 

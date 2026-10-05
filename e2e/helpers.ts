@@ -8,7 +8,7 @@ export async function waitInboxView(page: Page, view: string): Promise<void> {
 
 /** Assert every labeled section's «· N» matches its visible option rows. */
 export async function expectSectionCountsMatch(page: Page): Promise<void> {
-  const groups = page.locator('[role="group"]');
+  const groups = page.locator('.item-list [role="group"]');
   const n = await groups.count();
   for (let i = 0; i < n; i += 1) {
     const group = groups.nth(i);
@@ -18,9 +18,24 @@ export async function expectSectionCountsMatch(page: Page): Promise<void> {
     const match = text.match(/·\s*(\d+)\s*$/);
     if (!match) continue;
     const expected = Number(match[1]);
+    const attr = await group.getAttribute("data-section-count");
+    if (attr !== null) expect(Number(attr)).toBe(expected);
     const rows = group.getByRole("option");
     await expect(rows).toHaveCount(expected);
   }
+}
+
+/** Rail Atención counter must equal Te necesita row count when that section is shown. */
+export async function expectRailMatchesTeNecesita(page: Page): Promise<void> {
+  const te = page.getByRole("group", { name: /^Te necesita$/ });
+  if ((await te.count()) === 0) return;
+  const rows = await te.getByRole("option").count();
+  const counter = page.locator('[data-rail-counter="attention"]');
+  if (rows === 0) {
+    await expect(counter).toHaveCount(0);
+    return;
+  }
+  await expect(counter).toHaveText(String(rows));
 }
 
 export async function expectHechosOnlyTerminal(page: Page): Promise<void> {
@@ -57,5 +72,42 @@ export async function expectAgentMarksAreSquares(scope: Locator): Promise<void> 
     await expect(mark).toHaveAttribute("data-shape", "square");
     const radius = await mark.evaluate((el) => getComputedStyle(el).borderRadius);
     expect(radius).not.toBe("50%");
+    expect(Number.parseFloat(radius)).toBeLessThan(50);
   }
+}
+
+export async function expectUserMarksAreCircles(scope: Locator): Promise<void> {
+  const users = scope.locator('.actor-mark[data-kind="user"]');
+  const n = await users.count();
+  for (let i = 0; i < n; i += 1) {
+    const mark = users.nth(i);
+    await expect(mark).toHaveAttribute("data-shape", "circle");
+    const radius = await mark.evaluate((el) => getComputedStyle(el).borderRadius);
+    expect(radius).toBe("50%");
+  }
+}
+
+/** Sample Hechos (or any view) at fixed delays after a click; assert terminal-only. */
+export async function sampleViewAfterClick(
+  page: Page,
+  clickName: RegExp,
+  view: string,
+  delaysMs: readonly number[],
+  assertFn: (page: Page) => Promise<void>,
+): Promise<void> {
+  await page.getByRole("button", { name: clickName }).click();
+  const t0 = Date.now();
+  for (const delay of delaysMs) {
+    const wait = Math.max(0, delay - (Date.now() - t0));
+    if (wait > 0) await page.waitForTimeout(wait);
+    // While skeleton, data-inbox-view may be empty — that's OK (no ghost rows).
+    const ready = page.locator(`[data-inbox-view="${view}"]`);
+    if ((await ready.count()) > 0) {
+      await assertFn(page);
+    } else {
+      await expect(page.getByRole("option")).toHaveCount(0);
+    }
+  }
+  await waitInboxView(page, view);
+  await assertFn(page);
 }

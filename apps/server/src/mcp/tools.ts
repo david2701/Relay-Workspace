@@ -3,10 +3,10 @@ import {
   CreateNoteInputSchema,
   InboxViewSchema,
   NoteRoleSchema,
+  type RelayService,
   SetStatusInputSchema,
   UpdateItemInputSchema,
   UpdateNoteInputSchema,
-  type RelayService,
 } from "@relay/core";
 import { z } from "zod";
 

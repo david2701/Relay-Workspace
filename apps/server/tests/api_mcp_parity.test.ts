@@ -1,8 +1,8 @@
 import { mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { RelayService, USER_ACTOR_ID } from "@relay/core";
+import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { createApp } from "../src/index.js";
 import { invokeMcpTool } from "../src/mcp/http.js";
 
