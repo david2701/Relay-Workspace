@@ -1,0 +1,188 @@
+{
+  "api": "http://127.0.0.1:7420",
+  "web": "http://127.0.0.1:7421",
+  "metric": "mcp_return_to_dom_visible_ms",
+  "maxAllowedMs": 2000,
+  "results": [
+    {
+      "variant": "needs_you",
+      "samples": [
+        {
+          "mcpReturnMs": 6,
+          "uiMs": 287,
+          "totalMs": 293
+        },
+        {
+          "mcpReturnMs": 3,
+          "uiMs": 694,
+          "totalMs": 697
+        },
+        {
+          "mcpReturnMs": 4,
+          "uiMs": 690,
+          "totalMs": 694
+        },
+        {
+          "mcpReturnMs": 3,
+          "uiMs": 703,
+          "totalMs": 706
+        },
+        {
+          "mcpReturnMs": 10,
+          "uiMs": 692,
+          "totalMs": 702
+        },
+        {
+          "mcpReturnMs": 5,
+          "uiMs": 691,
+          "totalMs": 696
+        },
+        {
+          "mcpReturnMs": 3,
+          "uiMs": 690,
+          "totalMs": 693
+        },
+        {
+          "mcpReturnMs": 3,
+          "uiMs": 690,
+          "totalMs": 693
+        },
+        {
+          "mcpReturnMs": 2,
+          "uiMs": 708,
+          "totalMs": 710
+        },
+        {
+          "mcpReturnMs": 3,
+          "uiMs": 713,
+          "totalMs": 716
+        }
+      ],
+      "p50": 691,
+      "p95": 713,
+      "max": 713
+    },
+    {
+      "variant": "blocked",
+      "samples": [
+        {
+          "mcpReturnMs": 4,
+          "uiMs": 691,
+          "totalMs": 695
+        },
+        {
+          "mcpReturnMs": 5,
+          "uiMs": 708,
+          "totalMs": 713
+        },
+        {
+          "mcpReturnMs": 4,
+          "uiMs": 696,
+          "totalMs": 700
+        },
+        {
+          "mcpReturnMs": 8,
+          "uiMs": 693,
+          "totalMs": 701
+        },
+        {
+          "mcpReturnMs": 3,
+          "uiMs": 694,
+          "totalMs": 697
+        },
+        {
+          "mcpReturnMs": 3,
+          "uiMs": 694,
+          "totalMs": 697
+        },
+        {
+          "mcpReturnMs": 3,
+          "uiMs": 696,
+          "totalMs": 699
+        },
+        {
+          "mcpReturnMs": 4,
+          "uiMs": 693,
+          "totalMs": 697
+        },
+        {
+          "mcpReturnMs": 3,
+          "uiMs": 693,
+          "totalMs": 696
+        },
+        {
+          "mcpReturnMs": 6,
+          "uiMs": 707,
+          "totalMs": 713
+        }
+      ],
+      "p50": 694,
+      "p95": 708,
+      "max": 708
+    },
+    {
+      "variant": "complete",
+      "samples": [
+        {
+          "mcpReturnMs": 7,
+          "uiMs": 3,
+          "totalMs": 103
+        },
+        {
+          "mcpReturnMs": 7,
+          "uiMs": 4,
+          "totalMs": 109
+        },
+        {
+          "mcpReturnMs": 5,
+          "uiMs": 3,
+          "totalMs": 105
+        },
+        {
+          "mcpReturnMs": 6,
+          "uiMs": 3,
+          "totalMs": 105
+        },
+        {
+          "mcpReturnMs": 5,
+          "uiMs": 2,
+          "totalMs": 79
+        },
+        {
+          "mcpReturnMs": 4,
+          "uiMs": 3,
+          "totalMs": 76
+        },
+        {
+          "mcpReturnMs": 12,
+          "uiMs": 2,
+          "totalMs": 108
+        },
+        {
+          "mcpReturnMs": 4,
+          "uiMs": 3,
+          "totalMs": 86
+        },
+        {
+          "mcpReturnMs": 6,
+          "uiMs": 2,
+          "totalMs": 89
+        },
+        {
+          "mcpReturnMs": 7,
+          "uiMs": 4,
+          "totalMs": 107
+        }
+      ],
+      "p50": 3,
+      "p95": 4,
+      "max": 4
+    }
+  ],
+  "overall": {
+    "n": 30,
+    "p50": 691,
+    "p95": 708,
+    "max": 713
+  }
+}

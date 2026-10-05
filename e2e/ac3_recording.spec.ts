@@ -53,7 +53,7 @@ test.use({
   viewport: { width: 1440, height: 900 },
 });
 
-test("AC3 paced loop on clean seed", async ({ page }, testInfo) => {
+test("AC3 paced loop on clean seed", async ({ page }) => {
   mkdirSync(ART, { recursive: true });
   reseedCleanDemo();
   const stamps: Stamp[] = [];
@@ -188,16 +188,22 @@ test("AC3 paced loop on clean seed", async ({ page }, testInfo) => {
     JSON.stringify({ stamps, totalMs: Date.now() - t0 }, null, 2),
   );
 
-  const video = testInfo.attachments.find((a) => a.name === "video");
-  if (video?.path && existsSync(video.path)) {
-    copyFileSync(video.path, resolve(ART, "ac3-loop-recording.webm"));
-  }
 });
 
 test.afterEach(async ({}, testInfo) => {
+  // Video path is only finalized after the test body; copy from attachments
+  // and fall back to the Playwright test-results folder.
   for (const a of testInfo.attachments) {
     if (a.name === "video" && a.path && existsSync(a.path)) {
       copyFileSync(a.path, resolve(ART, "ac3-loop-recording.webm"));
+      return;
     }
+  }
+  const fallback = resolve(
+    import.meta.dirname,
+    "../test-results/ac3_recording-AC3-paced-loop-on-clean-seed/video.webm",
+  );
+  if (existsSync(fallback)) {
+    copyFileSync(fallback, resolve(ART, "ac3-loop-recording.webm"));
   }
 });
