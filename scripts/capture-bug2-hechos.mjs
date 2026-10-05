@@ -1,10 +1,10 @@
 #!/usr/bin/env node
+import { mkdirSync } from "node:fs";
+import { resolve } from "node:path";
 /**
  * Capture Hechos after Atención→Hechos at 300ms and 2800ms for BUG-2 evidence.
  */
 import { chromium } from "@playwright/test";
-import { mkdirSync } from "node:fs";
-import { resolve } from "node:path";
 
 const WEB = process.env.RELAY_WEB ?? "http://127.0.0.1:7421";
 const ART = "/opt/cursor/artifacts";

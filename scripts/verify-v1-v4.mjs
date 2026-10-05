@@ -1,10 +1,10 @@
 #!/usr/bin/env node
+import { mkdirSync, writeFileSync } from "node:fs";
+import { resolve } from "node:path";
 /**
  * Live DOM verification for V1–V4 against the running web app.
  */
 import { chromium } from "@playwright/test";
-import { mkdirSync, writeFileSync } from "node:fs";
-import { resolve } from "node:path";
 
 const API = process.env.RELAY_API ?? "http://127.0.0.1:7420";
 const WEB = process.env.RELAY_WEB ?? "http://127.0.0.1:7421";
