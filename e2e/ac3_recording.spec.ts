@@ -1,4 +1,5 @@
 import { expect, test } from "@playwright/test";
+import { execSync } from "node:child_process";
 import { mkdirSync, copyFileSync, existsSync } from "node:fs";
 import { resolve } from "node:path";
 import {
@@ -10,6 +11,14 @@ import {
 
 const API = "http://127.0.0.1:7430";
 const ART = "/opt/cursor/artifacts";
+const E2E_DB = "/tmp/relay-e2e.db";
+
+function reseedCleanDemo(): void {
+  execSync(
+    `RELAY_DB=${E2E_DB} pnpm --filter @relay/server exec tsx scripts/seed.ts`,
+    { cwd: resolve(import.meta.dirname, ".."), stdio: "inherit" },
+  );
+}
 
 async function mcp(
   name: string,
@@ -42,7 +51,9 @@ test.use({
 
 test("AC3 paced loop on clean seed", async ({ page }, testInfo) => {
   mkdirSync(ART, { recursive: true });
+  reseedCleanDemo();
   await page.goto("/");
+  await page.waitForTimeout(500);
 
   // —— (a) Stay on Con agentes: assigned → in_progress → done ——
   await page.getByRole("button", { name: /Con agentes/ }).click();
