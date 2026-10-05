@@ -80,7 +80,7 @@ pnpm --filter @relay/server mcp:stdio
 
 ### AC3 demo loop
 
-With server running:
+Isolated by default (temp SQLite — does **not** pollute `data/relay.db`):
 
 ```bash
 pnpm demo:ac3                      # complete
@@ -88,7 +88,13 @@ pnpm demo:ac3 -- --variant=needs_you
 pnpm demo:ac3 -- --variant=blocked
 ```
 
-Watch the web reflect each change within 2 seconds.
+To drive the live web session (mutates the live DB):
+
+```bash
+RELAY_API=http://127.0.0.1:7420 pnpm demo:ac3 -- --variant=needs_you
+```
+
+`pnpm seed` always reset-and-seeds `RELAY_DB` (default `data/relay.db`). Playwright uses `/tmp/relay-e2e.db` on ports 7430/7431.
 
 ## Verify
 

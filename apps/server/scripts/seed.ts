@@ -1,6 +1,10 @@
 import { resolve } from "node:path";
 import { RelayService, USER_ACTOR_ID } from "@relay/core";
 
+/**
+ * Deterministic reset-and-seed. Always wipes work_items/notes/links first.
+ * Target DB: RELAY_DB or ../../data/relay.db from apps/server.
+ */
 const resolvedDb =
   process.env.RELAY_DB ?? resolve(process.cwd(), "../../data/relay.db");
 
@@ -12,8 +16,13 @@ function hoursFromNow(h: number): string {
   return new Date(Date.now() + h * 3600_000).toISOString();
 }
 
-function main(): void {
-  const svc = new RelayService({ dbPath: resolvedDb });
+export function seedDatabase(dbPath: string = resolvedDb): {
+  dbPath: string;
+  needsYouId: string;
+  blockedId: string;
+  inProgressId: string;
+} {
+  const svc = new RelayService({ dbPath });
   svc.resetData();
   const david = { type: "user" as const, id: USER_ACTOR_ID };
   const grok = { type: "agent" as const, id: "grok-bot" };
@@ -39,6 +48,8 @@ function main(): void {
       title: "Elegir titular del post de lanzamiento",
       goal: "Post publicado en el blog con titular aprobado por David",
       due_at: hoursFromNow(18),
+      reminder_at: hoursFromNow(4),
+      reminder_intent: "Revisar el borrador antes de la demo",
     },
     grok,
     "mcp",
@@ -89,11 +100,7 @@ function main(): void {
     david,
   );
 
-  const domain = svc.createItem(
-    { title: "Comprar dominio relay.dev" },
-    david,
-    "ui",
-  );
+  svc.createItem({ title: "Comprar dominio relay.dev" }, david, "ui");
 
   const brief = svc.createNote({
     title: "Brief de lanzamiento",
@@ -120,15 +127,25 @@ function main(): void {
   svc.delegate(done.id, "redactor", david, "ui");
   svc.complete(done.id, { type: "agent", id: "redactor" }, "mcp");
 
-  console.info("Seeded Relay demo data:");
-  console.info(`  db: ${resolvedDb}`);
+  const result = {
+    dbPath,
+    needsYouId: titular.id,
+    blockedId: migrate.id,
+    inProgressId: demo.id,
+  };
+  console.info("Seeded Relay demo data (reset-and-seed):");
+  console.info(`  db: ${dbPath}`);
   console.info(`  items: ${svc.listItems().length}`);
   console.info(`  notes: ${svc.listNotes().length}`);
   console.info(`  needs_you: ${titular.id}`);
   console.info(`  blocked: ${migrate.id}`);
   console.info(`  in_progress: ${demo.id}`);
-  console.info(`  inbox: ${domain.id}`);
   svc.close();
+  return result;
 }
 
-main();
+const isMain =
+  process.argv[1]?.endsWith("seed.ts") || process.argv[1]?.endsWith("seed.js");
+if (isMain) {
+  seedDatabase();
+}

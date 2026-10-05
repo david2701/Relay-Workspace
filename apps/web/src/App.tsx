@@ -22,6 +22,7 @@ import { useTheme } from "./hooks/useTheme";
 import { DetailPanel } from "./components/DetailPanel";
 import { ItemRow } from "./components/ItemRow";
 import { ActorMark } from "./components/ActorMark";
+import { ThemeSwitch } from "./components/ThemeSwitch";
 import "./components/ActorMark.css";
 import "./App.css";
 
@@ -387,15 +388,7 @@ export default function App() {
           <button type="button" className="linkish" onClick={() => setShowShortcuts(true)}>
             ? {copy.nav.shortcuts}
           </button>
-          <select
-            aria-label="Tema"
-            value={theme}
-            onChange={(e) => setTheme(e.target.value as "light" | "dark" | "system")}
-          >
-            <option value="system">Sistema</option>
-            <option value="light">Claro</option>
-            <option value="dark">Oscuro</option>
-          </select>
+          <ThemeSwitch theme={theme} onChange={setTheme} />
         </div>
       </nav>
 

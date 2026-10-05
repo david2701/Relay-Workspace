@@ -103,7 +103,10 @@
 
 .due-chip {
   font-size: var(--step-data);
+  font-family: var(--font-data);
+  font-variant-numeric: tabular-nums;
   color: var(--ink-muted);
+  white-space: nowrap;
 }
 
 .due-chip.tone-warn {
@@ -137,10 +140,16 @@
 }
 
 .rel {
-  width: 48px;
+  flex: 0 0 5.75rem;
+  width: 5.75rem;
+  min-width: 5.75rem;
   text-align: right;
   font-size: var(--step-data);
+  font-family: var(--font-data);
+  font-variant-numeric: tabular-nums;
   color: var(--ink-muted);
+  white-space: nowrap;
+  overflow: hidden;
 }
 
 .chat-badge {

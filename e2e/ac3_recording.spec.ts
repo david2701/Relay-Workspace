@@ -2,7 +2,7 @@ import { expect, test } from "@playwright/test";
 import { mkdirSync, copyFileSync, existsSync } from "node:fs";
 import { resolve } from "node:path";
 
-const API = "http://127.0.0.1:7420";
+const API = "http://127.0.0.1:7430";
 const ART = "/opt/cursor/artifacts";
 
 async function mcp(
@@ -34,14 +34,16 @@ test.use({
   viewport: { width: 1440, height: 900 },
 });
 
-test("AC3 loop recording complete → needs_you → blocked", async ({ page }, testInfo) => {
+test("AC3 loop recording complete → needs_you → blocked", async ({
+  page,
+}, testInfo) => {
   mkdirSync(ART, { recursive: true });
   await page.goto("/");
   await page.getByRole("button", { name: /Con agentes/ }).click();
-  await page.waitForTimeout(600);
+  await page.waitForTimeout(500);
 
   const created = (await mcp("items_create", {
-    title: `Demo loop ${Date.now()}`,
+    title: "Cerrar borrador del post de Acme",
     goal: "Grabación AC3",
   })) as { item: { id: string; title: string } };
   await mcp("items_delegate", { id: created.item.id, agent_id: "grok-bot" });
@@ -49,18 +51,18 @@ test("AC3 loop recording complete → needs_you → blocked", async ({ page }, t
   await expect(page.getByText(created.item.title).first()).toBeVisible({
     timeout: 4000,
   });
-  await page.waitForTimeout(1200);
+  await page.waitForTimeout(1000);
 
   await mcp("items_complete", { id: created.item.id });
   await page.getByRole("button", { name: /^Hechos$/ }).click();
   await expect(page.getByText(created.item.title).first()).toBeVisible({
     timeout: 4000,
   });
-  await page.waitForTimeout(1000);
+  await page.waitForTimeout(800);
 
   await page.getByRole("button", { name: /Atención/ }).click();
   const ask = (await mcp("items_create", {
-    title: `Demo needs_you ${Date.now()}`,
+    title: "Revisar copy del correo de lanzamiento",
   })) as { item: { id: string; title: string } };
   await mcp("items_delegate", { id: ask.item.id, agent_id: "grok-bot" });
   await mcp("items_ask_user", {
@@ -70,10 +72,10 @@ test("AC3 loop recording complete → needs_you → blocked", async ({ page }, t
   await expect(
     page.getByRole("option", { name: new RegExp(ask.item.title) }),
   ).toBeVisible({ timeout: 4000 });
-  await page.waitForTimeout(1000);
+  await page.waitForTimeout(800);
 
   const blocked = (await mcp("items_create", {
-    title: `Demo blocked ${Date.now()}`,
+    title: "Publicar build en staging",
   })) as { item: { id: string; title: string } };
   await mcp("items_delegate", { id: blocked.item.id, agent_id: "grok-bot" });
   await mcp("items_set_status", {
@@ -84,9 +86,8 @@ test("AC3 loop recording complete → needs_you → blocked", async ({ page }, t
   await expect(
     page.getByRole("option", { name: new RegExp(blocked.item.title) }),
   ).toBeVisible({ timeout: 4000 });
-  await page.waitForTimeout(1200);
+  await page.waitForTimeout(1000);
 
-  // Copy video after test via fixture path
   const video = testInfo.attachments.find((a) => a.name === "video");
   if (video?.path && existsSync(video.path)) {
     copyFileSync(video.path, resolve(ART, "ac3-loop-recording.webm"));

@@ -2,6 +2,7 @@
 
 Evidence: screenshots in `/opt/cursor/artifacts/ac12-*.png` (1440×900, light+dark).
 `contrast-matrix.mjs` exit 0 for `:root` and `.dark`.
+Clean seed only (no E2E/demo residue); relative times nowrap; agent-view dates formatted.
 
 | # | Prohibido | Result |
 |---|---|---|
@@ -27,3 +28,11 @@ Evidence: screenshots in `/opt/cursor/artifacts/ac12-*.png` (1440×900, light+da
 | 20 | Chat/prompt box in app | **pass** — none |
 
 North-star row audit: each Atención row shows witness (ActorMark), status+why (glyph+reason), next step (open/respond).
+
+## Known gaps (honest, vs specs v1.1)
+
+1. **DateTimeField** still uses a native `type=date` / `type=time` inside a token-styled popover (Spanish display + 24 h + Europe/Paris on the face). Not a full custom calendar grid; UA chrome can peek on the inner inputs.
+2. **SuggestedStrip ActorMark** for `needs_you` shows David (witness); blocked/stale show the agent — correct, but dense seed can still feel busy vs a marketing still.
+3. **FilterBar** is title-only (no Dueño/Prioridad chips yet); acceptable for P0 attention, not full §6.18.
+4. **Markdown note preview** is plain text extract, not rendered markdown.
+5. **Virtualization** at 200+ rows not implemented (demo seed is small).

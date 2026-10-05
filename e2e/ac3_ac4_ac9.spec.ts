@@ -1,9 +1,6 @@
 import { expect, test } from "@playwright/test";
-import { mkdirSync } from "node:fs";
-import { resolve } from "node:path";
 
-const API = "http://127.0.0.1:7420";
-const ART = "/opt/cursor/artifacts";
+const API = "http://127.0.0.1:7430";
 
 async function mcp(
   name: string,
@@ -30,15 +27,11 @@ async function mcp(
   return json.result ?? {};
 }
 
-test.beforeAll(() => {
-  mkdirSync(ART, { recursive: true });
-});
-
 test("AC9 quick capture creates item from title only", async ({ page }) => {
   await page.goto("/");
   await page.getByRole("button", { name: /^Todo$/ }).click();
   await page.keyboard.press("n");
-  const title = `Captura rápida ${Date.now()}`;
+  const title = "Anotar idea para la landing";
   const input = page.locator("#quick-capture");
   await expect(input).toBeFocused({ timeout: 2000 });
   await input.fill(title);
@@ -48,10 +41,10 @@ test("AC9 quick capture creates item from title only", async ({ page }) => {
 
 test("AC4 note link and unlink on item detail", async ({ page }) => {
   const created = (await mcp("items_create", {
-    title: `Nota link ${Date.now()}`,
+    title: "Preparar brief de onboarding",
   })) as { item: { id: string; title: string } };
   const note = (await mcp("notes_create", {
-    title: `Contexto ${Date.now()}`,
+    title: "Notas de entrevista con Acme",
     body_md: "Línea de contexto para el agente",
   })) as { note: { id: string; title: string } };
 
@@ -73,7 +66,7 @@ test("AC3 complete via MCP appears in Hechos within 2s", async ({ page }) => {
   await page.getByRole("button", { name: /Con agentes/ }).click();
 
   const created = (await mcp("items_create", {
-    title: `AC3 complete ${Date.now()}`,
+    title: "Cerrar borrador del post de Acme",
     goal: "Visible en Hechos",
   })) as { item: { id: string; title: string } };
   await mcp("items_delegate", { id: created.item.id, agent_id: "grok-bot" });
@@ -98,7 +91,7 @@ test("AC3 needs_you via MCP appears in Atención within 2s", async ({
 }) => {
   await page.goto("/");
   const created = (await mcp("items_create", {
-    title: `AC3 needs_you ${Date.now()}`,
+    title: "Revisar copy del correo de lanzamiento",
   })) as { item: { id: string; title: string } };
   await mcp("items_delegate", { id: created.item.id, agent_id: "grok-bot" });
   await mcp("items_ask_user", {
@@ -115,7 +108,7 @@ test("AC3 needs_you via MCP appears in Atención within 2s", async ({
 test("AC3 blocked via MCP appears in Atascado within 2s", async ({ page }) => {
   await page.goto("/");
   const created = (await mcp("items_create", {
-    title: `AC3 blocked ${Date.now()}`,
+    title: "Publicar build en staging",
   })) as { item: { id: string; title: string } };
   await mcp("items_delegate", { id: created.item.id, agent_id: "grok-bot" });
   await mcp("items_set_status", {
@@ -129,93 +122,4 @@ test("AC3 blocked via MCP appears in Atascado within 2s", async ({ page }) => {
   await expect(row.getByText(/Atascado: el entorno/)).toBeVisible({
     timeout: 4000,
   });
-});
-
-test("AC12 screenshots light and dark", async ({ page }) => {
-  test.setTimeout(120_000);
-  const titular = (await mcp("items_create", {
-    title: "Elegir titular del post de lanzamiento",
-    goal: "Post publicado con titular aprobado",
-  })) as { item: { id: string } };
-  await mcp("items_delegate", { id: titular.item.id, agent_id: "grok-bot" });
-  await mcp("items_ask_user", {
-    id: titular.item.id,
-    reason: "¿Publico la versión A («Relay») o la B («Relevo»)?",
-  });
-  const note = (await mcp("notes_create", {
-    title: "Brief de lanzamiento",
-    body_md: "Público: equipos pequeños que usan varias IAs.",
-  })) as { note: { id: string } };
-  await mcp("notes_link", {
-    item_id: titular.item.id,
-    note_id: note.note.id,
-    role: "context",
-  });
-
-  const blocked = (await mcp("items_create", {
-    title: "Migrar notas antiguas al store",
-  })) as { item: { id: string } };
-  await mcp("items_delegate", { id: blocked.item.id, agent_id: "dev-senior" });
-  await mcp(
-    "items_set_status",
-    {
-      id: blocked.item.id,
-      status: "blocked",
-      blocked_reason: "falta acceso de lectura a la carpeta /archive",
-    },
-    "dev-senior",
-  );
-
-  const wip = (await mcp("items_create", {
-    title: "Preparar demo para cliente Acme",
-  })) as { item: { id: string } };
-  await mcp("items_delegate", { id: wip.item.id, agent_id: "grok-bot" });
-  await mcp("items_set_status", {
-    id: wip.item.id,
-    status: "in_progress",
-  });
-
-  await page.goto("/");
-  await page.waitForTimeout(800);
-
-  for (const mode of ["light", "dark"] as const) {
-    await page.evaluate((m) => {
-      localStorage.setItem("relay.theme", m);
-      document.documentElement.classList.toggle("dark", m === "dark");
-    }, mode);
-    await page.reload();
-    await page.getByRole("button", { name: /Atención/ }).click();
-    await page.waitForTimeout(500);
-    await page.screenshot({
-      path: resolve(ART, `ac12-atencion-${mode}.png`),
-      fullPage: false,
-    });
-
-    await page.getByRole("button", { name: /Con agentes/ }).click();
-    await page.waitForTimeout(500);
-    await page.screenshot({
-      path: resolve(ART, `ac12-con-agentes-${mode}.png`),
-      fullPage: false,
-    });
-
-    await page.getByRole("button", { name: /Atención/ }).click();
-    await page
-      .getByRole("group", { name: "Te necesita" })
-      .getByText("Elegir titular")
-      .first()
-      .click();
-    await page.waitForTimeout(500);
-    await page.screenshot({
-      path: resolve(ART, `ac12-detail-needs-you-${mode}.png`),
-      fullPage: false,
-    });
-
-    await page.getByRole("button", { name: /Lo que ve el agente/ }).click();
-    await page.waitForTimeout(500);
-    await page.screenshot({
-      path: resolve(ART, `ac12-detail-contexto-${mode}.png`),
-      fullPage: false,
-    });
-    await page.getByRole("button", { name: /Volver/ }).click();
-  }
 });

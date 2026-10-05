@@ -3,6 +3,7 @@ import { Bell, CalendarBlank, LinkSimple, X } from "@phosphor-icons/react";
 import { api } from "../lib/api";
 import { copy } from "../lib/copy";
 import { formatAbsolute, formatRelative } from "../lib/format";
+import { DateTimeField } from "./DateTimeField";
 import type {
   Agent,
   ContextPack,
@@ -240,14 +241,20 @@ export function DetailPanel({
           </section>
           <section>
             <div className="label-caps">Para cuándo</div>
-            <p className="mono">{context.pack.due_at ?? "—"}</p>
+            <p className="mono">
+              {context.pack.due_at
+                ? formatAbsolute(context.pack.due_at)
+                : "—"}
+            </p>
           </section>
           <section>
             <div className="label-caps">Recordatorio</div>
             <p>
               {context.pack.reminder_at ? (
                 <>
-                  <span className="mono">{context.pack.reminder_at}</span>
+                  <span className="mono">
+                    {formatAbsolute(context.pack.reminder_at)}
+                  </span>
                   {context.pack.reminder_intent
                     ? ` · ${context.pack.reminder_intent}`
                     : ""}
@@ -605,32 +612,24 @@ export function DetailPanel({
       <section className="detail-section">
         <div className="label-caps">Recordatorio</div>
         <div className="reminder-grid">
-          <label>
-            <CalendarBlank size={14} /> {copy.field.due}
-            <input
-              type="datetime-local"
-              disabled={offline}
-              defaultValue={toLocalInput(item.due_at)}
-              key={`${item.id}-due`}
-              onBlur={(e) => {
-                const iso = fromLocalInput(e.target.value);
-                if (iso !== item.due_at) void patch({ due_at: iso });
-              }}
-            />
-          </label>
-          <label>
-            <Bell size={14} /> {copy.field.reminder}
-            <input
-              type="datetime-local"
-              disabled={offline}
-              defaultValue={toLocalInput(item.reminder_at)}
-              key={`${item.id}-rem`}
-              onBlur={(e) => {
-                const iso = fromLocalInput(e.target.value);
-                if (iso !== item.reminder_at) void patch({ reminder_at: iso });
-              }}
-            />
-          </label>
+          <DateTimeField
+            label={copy.field.due}
+            icon={<CalendarBlank size={14} />}
+            value={item.due_at}
+            disabled={offline}
+            onChange={(iso) => {
+              if (iso !== item.due_at) void patch({ due_at: iso });
+            }}
+          />
+          <DateTimeField
+            label={copy.field.reminder}
+            icon={<Bell size={14} />}
+            value={item.reminder_at}
+            disabled={offline}
+            onChange={(iso) => {
+              if (iso !== item.reminder_at) void patch({ reminder_at: iso });
+            }}
+          />
           <label className="span2">
             {copy.field.intent}
             <input
@@ -778,16 +777,4 @@ export function DetailPanel({
       </footer>
     </aside>
   );
-}
-
-function toLocalInput(iso: string | null): string {
-  if (!iso) return "";
-  const d = new Date(iso);
-  const pad = (n: number) => String(n).padStart(2, "0");
-  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
-}
-
-function fromLocalInput(value: string): string | null {
-  if (!value) return null;
-  return new Date(value).toISOString();
 }

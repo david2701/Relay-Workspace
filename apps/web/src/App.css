@@ -81,12 +81,35 @@
   color: var(--ink-muted);
 }
 
-.rail-foot select {
-  border: 1px solid var(--control);
+.theme-switch {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 2px;
+  padding: 2px;
+  border: 1px solid var(--line);
   border-radius: var(--radius-sm);
+  background: var(--paper);
+}
+
+.theme-switch button {
+  height: 26px;
+  border-radius: var(--radius-xs);
+  font-size: 11px;
+  font-weight: 500;
+  color: var(--ink-muted);
+  justify-content: center;
+  padding: 0 4px;
+}
+
+.theme-switch button.on {
   background: var(--raised);
-  padding: 4px 6px;
-  font-size: var(--step-data);
+  color: var(--ink);
+  box-shadow: inset 0 0 0 1px var(--line-strong);
+}
+
+.theme-switch button:hover:not(.on) {
+  color: var(--ink-2);
+  background: var(--line);
 }
 
 .list-zone {
