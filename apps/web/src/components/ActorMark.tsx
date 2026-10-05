@@ -1,7 +1,11 @@
 import type { CSSProperties } from "react";
+import {
+  assertMarkConsistent,
+  type ActorMarkModel,
+} from "../lib/actor_mark";
 import { hoursSince } from "../lib/format";
 
-type Kind = "user" | "agent" | "unassigned" | "system";
+type Kind = ActorMarkModel["kind"];
 
 type Props = {
   kind: Kind;
@@ -20,6 +24,9 @@ export function ActorMark({
   working = false,
   stale = false,
 }: Props) {
+  if (import.meta.env.DEV) {
+    assertMarkConsistent({ kind, name, monogram });
+  }
   const radius =
     kind === "user" || kind === "unassigned" ? "50%" : `${size * 0.25}px`;
   const isDashed = kind === "unassigned" || kind === "system";
@@ -64,8 +71,17 @@ export function ActorMark({
           ? "Sistema"
           : "Sin asignar";
   const label = `${name} · ${role}`;
+  const shape = kind === "user" || kind === "unassigned" ? "circle" : "square";
   return (
-    <span className="actor-mark" style={style} title={label} aria-label={label}>
+    <span
+      className={`actor-mark actor-${kind} actor-shape-${shape}`}
+      style={style}
+      title={label}
+      aria-label={label}
+      data-kind={kind}
+      data-shape={shape}
+      data-monogram={monogram}
+    >
       {kind === "unassigned" ? null : monogram}
       {working ? (
         <span

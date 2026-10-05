@@ -1,5 +1,6 @@
 import { ActorMark, isStaleWorking, isWorking } from "./ActorMark";
 import { StatusGlyph } from "./StatusGlyph";
+import { markForCompleter, markForWitness } from "../lib/actor_mark";
 import { copy } from "../lib/copy";
 import { formatDue, formatRelative } from "../lib/format";
 import type { Agent, WorkItem } from "../lib/types";
@@ -15,24 +16,6 @@ type Props = {
   onSelect: () => void;
 };
 
-function witnessActor(item: WorkItem, agents: Agent[]) {
-  if (item.status === "needs_you") {
-    return { kind: "user" as const, name: "David", monogram: "D" };
-  }
-  if (item.assignee_type === "user") {
-    return { kind: "user" as const, name: "David", monogram: "D" };
-  }
-  if (item.assignee_type === "agent" && item.assignee_id) {
-    const a = agents.find((x) => x.id === item.assignee_id);
-    return {
-      kind: "agent" as const,
-      name: a?.display_name ?? item.assignee_id,
-      monogram: a?.monogram ?? "??",
-    };
-  }
-  return { kind: "unassigned" as const, name: "Sin asignar", monogram: "" };
-}
-
 export function ItemRow({
   item,
   agents,
@@ -42,7 +25,7 @@ export function ItemRow({
   showCompletedBy,
   onSelect,
 }: Props) {
-  const witness = witnessActor(item, agents);
+  const witness = markForWitness(item, agents);
   const working = isWorking(item.status, item.assignee_type, item.updated_at);
   const stale = isStaleWorking(item.status, item.assignee_type, item.updated_at);
   const reasonLine =
@@ -104,10 +87,26 @@ export function ItemRow({
         {reasonLine ? <div className="item-reason">{reasonLine}</div> : null}
         {showCompletedBy &&
         (item.status === "done" || item.status === "cancelled") ? (
-          <div className="item-reason">
-            {item.completed_by_type === "user"
-              ? `Completado por ti · ${formatRelative(item.completed_at ?? item.updated_at)}`
-              : `Completado por ${agents.find((a) => a.id === item.completed_by_id)?.display_name ?? "agente"} · ${formatRelative(item.completed_at ?? item.updated_at)}`}
+          <div className="item-reason completed-by-line">
+            {(() => {
+              const completer = markForCompleter(item, agents);
+              if (!completer) return null;
+              return (
+                <>
+                  <ActorMark
+                    kind={completer.kind}
+                    name={completer.name}
+                    monogram={completer.monogram}
+                    size={16}
+                  />
+                  <span>
+                    {completer.kind === "user"
+                      ? `Completado por ti · ${formatRelative(item.completed_at ?? item.updated_at)}`
+                      : `Completado por ${completer.name} · ${formatRelative(item.completed_at ?? item.updated_at)}`}
+                  </span>
+                </>
+              );
+            })()}
           </div>
         ) : null}
       </div>

@@ -27,9 +27,20 @@ async function main() {
     await page.waitForTimeout(800);
 
     await page.getByRole("button", { name: /Atención/ }).click();
-    await page.waitForTimeout(400);
+    await page.waitForTimeout(500);
+    // Ensure Sugerido is expanded so ActorMark shapes are visible
+    const sugHead = page.locator(".suggested-head");
+    if (await sugHead.count()) {
+      const collapsed = await page.locator(".suggested-row").count();
+      if (collapsed === 0) await sugHead.click();
+    }
+    await page.waitForTimeout(300);
     await page.screenshot({
       path: resolve(ART, `ac12-atencion-${mode}.png`),
+    });
+    // Crop-friendly alias focused on Sugerido for AC10 review
+    await page.screenshot({
+      path: resolve(ART, `ac12-sugerido-${mode}.png`),
     });
 
     await page.getByRole("button", { name: /Con agentes/ }).click();

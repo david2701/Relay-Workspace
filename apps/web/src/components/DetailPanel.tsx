@@ -14,6 +14,11 @@ import type {
 } from "../lib/types";
 import { ActorMark, isStaleWorking, isWorking } from "./ActorMark";
 import { StatusGlyph } from "./StatusGlyph";
+import {
+  markForActor,
+  markForCompleter,
+  markForOwner,
+} from "../lib/actor_mark";
 import "./DetailPanel.css";
 
 type Props = {
@@ -444,10 +449,26 @@ export function DetailPanel({
 
       {(item.status === "done" || item.status === "cancelled") && (
         <div className="reason-banner terminal" role="region">
-          <div className="rb-title">
-            {item.completed_by_type === "user"
-              ? `Completado por ti · ${item.completed_at ? formatAbsolute(item.completed_at) : ""}`
-              : `Completado por ${agents.find((a) => a.id === item.completed_by_id)?.display_name ?? "agente"} · ${item.completed_at ? formatAbsolute(item.completed_at) : ""}`}
+          <div className="rb-title completed-by">
+            {(() => {
+              const completer = markForCompleter(item, agents);
+              if (!completer) return null;
+              return (
+                <>
+                  <ActorMark
+                    kind={completer.kind}
+                    name={completer.name}
+                    monogram={completer.monogram}
+                    size={20}
+                  />
+                  <span>
+                    {completer.kind === "user"
+                      ? `Completado por ti · ${item.completed_at ? formatAbsolute(item.completed_at) : ""}`
+                      : `Completado por ${completer.name} · ${item.completed_at ? formatAbsolute(item.completed_at) : ""}`}
+                  </span>
+                </>
+              );
+            })()}
           </div>
           <button
             type="button"
@@ -469,29 +490,30 @@ export function DetailPanel({
           <span className="kv-val">
             {item.assignee_type === "unassigned" ? (
               <>Sin dueño</>
-            ) : item.assignee_type === "user" ? (
-              <>
-                <ActorMark kind="user" name="David" monogram="D" size={24} /> Tú
-              </>
             ) : (
               <>
-                <ActorMark
-                  kind="agent"
-                  name={agent?.display_name ?? ""}
-                  monogram={agent?.monogram ?? "??"}
-                  size={24}
-                  working={isWorking(
-                    item.status,
-                    item.assignee_type,
-                    item.updated_at,
-                  )}
-                  stale={isStaleWorking(
-                    item.status,
-                    item.assignee_type,
-                    item.updated_at,
-                  )}
-                />{" "}
-                {agent?.display_name}
+                {(() => {
+                  const owner = markForOwner(item, agents);
+                  return (
+                    <ActorMark
+                      kind={owner.kind}
+                      name={owner.name}
+                      monogram={owner.monogram}
+                      size={24}
+                      working={isWorking(
+                        item.status,
+                        item.assignee_type,
+                        item.updated_at,
+                      )}
+                      stale={isStaleWorking(
+                        item.status,
+                        item.assignee_type,
+                        item.updated_at,
+                      )}
+                    />
+                  );
+                })()}{" "}
+                {item.assignee_type === "user" ? "Tú" : agent?.display_name}
               </>
             )}
             <button
@@ -563,7 +585,24 @@ export function DetailPanel({
         <div className="kv">
           <span>Último cambio</span>
           <span className="kv-val">
-            {lastActorName} · {formatRelative(item.updated_at)}
+            {(() => {
+              const last = markForActor(
+                item.last_actor_type,
+                item.last_actor_id,
+                agents,
+              );
+              return (
+                <>
+                  <ActorMark
+                    kind={last.kind}
+                    name={last.name}
+                    monogram={last.monogram}
+                    size={20}
+                  />{" "}
+                  {lastActorName} · {formatRelative(item.updated_at)}
+                </>
+              );
+            })()}
           </span>
         </div>
         <div className="rb-actions" style={{ marginTop: 8 }}>

@@ -94,6 +94,12 @@
   margin-bottom: 6px;
 }
 
+.rb-title.completed-by {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
 .rb-body {
   font-size: var(--step-body);
   color: var(--ink);

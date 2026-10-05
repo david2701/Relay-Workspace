@@ -23,8 +23,26 @@ import { DetailPanel } from "./components/DetailPanel";
 import { ItemRow } from "./components/ItemRow";
 import { ActorMark } from "./components/ActorMark";
 import { ThemeSwitch } from "./components/ThemeSwitch";
+import { markForOwner } from "./lib/actor_mark";
 import "./components/ActorMark.css";
 import "./App.css";
+
+type LingerRow = {
+  item: WorkItem;
+  fromView: InboxView;
+  until: number;
+};
+
+function dedupeItems(items: WorkItem[]): WorkItem[] {
+  const seen = new Set<string>();
+  const out: WorkItem[] = [];
+  for (const item of items) {
+    if (seen.has(item.id)) continue;
+    seen.add(item.id);
+    out.push(item);
+  }
+  return out;
+}
 
 const VIEWS: { id: AppView; label: string }[] = [
   { id: "attention", label: copy.nav.attention },
@@ -48,6 +66,7 @@ export default function App() {
   const [flashIds, setFlashIds] = useState<Set<string>>(new Set());
   const [capture, setCapture] = useState("");
   const [pendingRows, setPendingRows] = useState<WorkItem[]>([]);
+  const [lingerRows, setLingerRows] = useState<LingerRow[]>([]);
   const [recs, setRecs] = useState<Recommendation[]>([]);
   const [suggestedCollapsed, setSuggestedCollapsed] = useState(
     () => localStorage.getItem("relay.suggested.collapsed") === "1",
@@ -64,8 +83,10 @@ export default function App() {
   const [gPending, setGPending] = useState(false);
   const captureRef = useRef<HTMLInputElement>(null);
   const prevUpdated = useRef<Map<string, string>>(new Map());
+  const prevItems = useRef<Map<string, WorkItem>>(new Map());
+  const prevView = useRef<InboxView>("attention");
   const syncAge = useRef(0);
-  const [, setTick] = useState(0);
+  const [tick, setTick] = useState(0);
 
   useEffect(() => {
     void api.agents().then((r) => setAgents(r.agents));
@@ -120,15 +141,47 @@ export default function App() {
   }, [selectedId]);
 
   useEffect(() => {
-    if (!inbox) return;
+    if (!inbox) {
+      if (prevView.current !== inboxView) {
+        prevItems.current = new Map();
+        prevUpdated.current = new Map();
+        prevView.current = inboxView;
+      }
+      return;
+    }
     const nextMap = new Map<string, string>();
+    const nextItems = new Map<string, WorkItem>();
     for (const item of inbox.items) {
       const prev = prevUpdated.current.get(item.id);
       if (prev && prev !== item.updated_at) flash(item.id);
       nextMap.set(item.id, item.updated_at);
+      nextItems.set(item.id, item);
+    }
+    if (prevView.current === inboxView) {
+      const leftIds = [...prevItems.current.keys()].filter(
+        (id) => !nextItems.has(id),
+      );
+      for (const id of leftIds) {
+        const fromView = inboxView;
+        void api.getItem(id).then(({ item }) => {
+          const until = Date.now() + 2000;
+          setLingerRows((rows) => [
+            ...rows.filter((r) => r.item.id !== id),
+            { item, fromView, until },
+          ]);
+          flash(item.id);
+          window.setTimeout(() => {
+            setLingerRows((rows) =>
+              rows.filter((r) => r.item.id !== id || r.until > Date.now()),
+            );
+          }, 2100);
+        });
+      }
     }
     prevUpdated.current = nextMap;
-  }, [inbox]);
+    prevItems.current = nextItems;
+    prevView.current = inboxView;
+  }, [inbox, inboxView]);
 
   useEffect(() => {
     const id = window.setInterval(() => {
@@ -151,16 +204,32 @@ export default function App() {
     }, 800);
   }
 
-  const flatItems = useMemo(() => {
-    if (!inbox) return pendingRows;
-    const ids = new Set(inbox.items.map((i) => i.id));
-    const extras = pendingRows.filter((p) => !ids.has(p.id));
-    return [...extras, ...inbox.items].filter((i) =>
+  const matchesFilter = useCallback(
+    (item: WorkItem): boolean =>
       filter.trim()
-        ? i.title.toLowerCase().includes(filter.toLowerCase())
+        ? item.title.toLowerCase().includes(filter.toLowerCase())
         : true,
+    [filter],
+  );
+
+  const activeLinger = useMemo(() => {
+    const now = Date.now();
+    return lingerRows.filter(
+      (r) => r.fromView === inboxView && r.until > now,
     );
-  }, [inbox, pendingRows, filter]);
+  }, [lingerRows, inboxView, tick]);
+
+  const flatItems = useMemo(() => {
+    const inboxItems = inbox?.items ?? [];
+    const ids = new Set(inboxItems.map((i) => i.id));
+    const extras = pendingRows.filter((p) => !ids.has(p.id));
+    const lingerExtras = activeLinger
+      .map((r) => r.item)
+      .filter((p) => !ids.has(p.id));
+    return dedupeItems([...lingerExtras, ...extras, ...inboxItems]).filter(
+      matchesFilter,
+    );
+  }, [inbox, pendingRows, activeLinger, matchesFilter]);
 
   const visibleRecs = recs.filter(
     (r) => sessionStorage.getItem(dismissedKey(r.item_id)) !== "1",
@@ -495,22 +564,15 @@ relay web   →  http://127.0.0.1:7421`}</pre>
                   const item =
                     inbox?.items.find((i) => i.id === r.item_id) ??
                     flatItems.find((i) => i.id === r.item_id);
-                  const agent =
-                    item?.assignee_type === "agent"
-                      ? agents.find((a) => a.id === item.assignee_id)
-                      : null;
+                  const mark = item
+                    ? markForOwner(item, agents)
+                    : { kind: "user" as const, name: "David", monogram: "D" };
                   return (
                     <div key={r.item_id} className="suggested-row" role="listitem">
                       <ActorMark
-                        kind={
-                          item?.status === "needs_you"
-                            ? "user"
-                            : agent
-                              ? "agent"
-                              : "user"
-                        }
-                        name={agent?.display_name ?? "David"}
-                        monogram={agent?.monogram ?? "D"}
+                        kind={mark.kind}
+                        name={mark.name}
+                        monogram={mark.monogram}
                         size={20}
                       />
                       <div className="sug-text">
@@ -566,25 +628,37 @@ relay web   →  http://127.0.0.1:7421`}</pre>
           >
             {!inbox && !error ? <Skeleton /> : null}
             {inbox && view === "attention" && inbox.sections
-              ? inbox.sections.map((section) => (
-                  <Section
-                    key={section.key}
-                    label={
-                      section.key === "needs_you"
-                        ? copy.section.needs_you
-                        : section.key === "blocked"
-                          ? copy.section.blocked
-                          : copy.section.today
-                    }
-                    count={section.items.length}
-                  >
-                    {section.items
-                      .filter((i) =>
-                        filter.trim()
-                          ? i.title.toLowerCase().includes(filter.toLowerCase())
-                          : true,
-                      )
-                      .map((item) => (
+              ? inbox.sections.map((section) => {
+                  const sectionIds = new Set(section.items.map((i) => i.id));
+                  const lingerInSection = activeLinger
+                    .map((r) => r.item)
+                    .filter((i) => {
+                      if (sectionIds.has(i.id)) return false;
+                      if (section.key === "needs_you")
+                        return i.status === "needs_you";
+                      if (section.key === "blocked")
+                        return i.status === "blocked";
+                      return (
+                        i.status !== "needs_you" && i.status !== "blocked"
+                      );
+                    });
+                  const rows = dedupeItems([
+                    ...lingerInSection,
+                    ...section.items,
+                  ]).filter(matchesFilter);
+                  return (
+                    <Section
+                      key={section.key}
+                      label={
+                        section.key === "needs_you"
+                          ? copy.section.needs_you
+                          : section.key === "blocked"
+                            ? copy.section.blocked
+                            : copy.section.today
+                      }
+                      count={rows.length}
+                    >
+                      {rows.map((item) => (
                         <ItemRow
                           key={item.id}
                           item={item}
@@ -595,26 +669,30 @@ relay web   →  http://127.0.0.1:7421`}</pre>
                           onSelect={() => setSelectedId(item.id)}
                         />
                       ))}
-                  </Section>
-                ))
+                    </Section>
+                  );
+                })
               : null}
-            {inbox && view !== "attention"
-              ? (inbox.groups ?? [{ key: "all", label: "", items: flatItems }]).map(
-                  (group) => (
-                    <Section
-                      key={group.key || "all"}
-                      label={group.label}
-                      count={group.items.length}
-                    >
-                      {(group.items.length ? group.items : flatItems)
-                        .filter((i) =>
-                          filter.trim()
-                            ? i.title
-                                .toLowerCase()
-                                .includes(filter.toLowerCase())
-                            : true,
-                        )
-                        .map((item) => (
+            {inbox && view !== "attention" && inbox.groups
+              ? (() => {
+                  const groupedIds = new Set(
+                    inbox.groups.flatMap((g) => g.items.map((i) => i.id)),
+                  );
+                  const orphanLinger = activeLinger
+                    .map((r) => r.item)
+                    .filter((i) => !groupedIds.has(i.id));
+                  return inbox.groups.map((group, index) => {
+                    const rows = dedupeItems([
+                      ...(index === 0 ? orphanLinger : []),
+                      ...group.items,
+                    ]).filter(matchesFilter);
+                    return (
+                      <Section
+                        key={group.key || "all"}
+                        label={group.label}
+                        count={rows.length}
+                      >
+                        {rows.map((item) => (
                           <ItemRow
                             key={item.id}
                             item={item}
@@ -626,13 +704,32 @@ relay web   →  http://127.0.0.1:7421`}</pre>
                             onSelect={() => setSelectedId(item.id)}
                           />
                         ))}
-                    </Section>
-                  ),
-                )
+                      </Section>
+                    );
+                  });
+                })()
+              : null}
+            {inbox && view !== "attention" && !inbox.groups
+              ? (() => {
+                  const rows = flatItems;
+                  return rows.map((item) => (
+                    <ItemRow
+                      key={item.id}
+                      item={item}
+                      agents={agents}
+                      selected={selectedId === item.id}
+                      flash={flashIds.has(item.id)}
+                      showChatBadge={view === "all"}
+                      showCompletedBy={view === "done"}
+                      onSelect={() => setSelectedId(item.id)}
+                    />
+                  ));
+                })()
               : null}
             {inbox &&
             flatItems.length === 0 &&
-            pendingRows.length === 0 ? (
+            pendingRows.length === 0 &&
+            activeLinger.length === 0 ? (
               view === "attention" ? (
                 <Empty
                   text={copy.empty.attention}
@@ -657,6 +754,7 @@ relay web   →  http://127.0.0.1:7421`}</pre>
             ) : null}
             {pendingRows
               .filter((p) => !inbox?.items.some((i) => i.id === p.id))
+              .filter((p) => !flatItems.some((i) => i.id === p.id))
               .map((item) => (
                 <div key={item.id}>
                   <ItemRow

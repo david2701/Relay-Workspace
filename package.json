@@ -13,7 +13,7 @@
     "build": "pnpm -r run build",
     "typecheck": "pnpm -r run typecheck",
     "lint": "biome lint .",
-    "test": "pnpm --filter @relay/core test && pnpm --filter @relay/server test",
+    "test": "pnpm --filter @relay/core test && pnpm --filter @relay/server test && pnpm --filter @relay/web test",
     "test:e2e": "pnpm exec playwright test",
     "seed": "pnpm --filter @relay/server seed",
     "demo:ac3": "pnpm --filter @relay/server demo:ac3",

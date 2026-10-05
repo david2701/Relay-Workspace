@@ -11,7 +11,7 @@ export function usePoll<T>(
   offline: boolean;
   lastOkAt: number | null;
   reload: () => Promise<void>;
-  setData: (updater: (prev: T | null) => T | null) => void;
+  setData: (updater: ((prev: T | null) => T | null) | T | null) => void;
 } {
   const [data, setDataState] = useState<T | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -19,17 +19,21 @@ export function usePoll<T>(
   const [lastOkAt, setLastOkAt] = useState<number | null>(null);
   const fails = useRef(0);
   const fetcherRef = useRef(fetcher);
+  const generation = useRef(0);
   fetcherRef.current = fetcher;
 
   const reload = useCallback(async () => {
+    const gen = generation.current;
     try {
       const next = await fetcherRef.current();
+      if (gen !== generation.current) return;
       setDataState(next);
       setError(null);
       fails.current = 0;
       setOffline(false);
       setLastOkAt(Date.now());
     } catch (err) {
+      if (gen !== generation.current) return;
       fails.current += 1;
       if (fails.current >= 3) setOffline(true);
       setError(err instanceof Error ? err.message : "Error");
@@ -37,6 +41,8 @@ export function usePoll<T>(
   }, []);
 
   useEffect(() => {
+    generation.current += 1;
+    setDataState(null);
     void reload();
     const id = window.setInterval(() => {
       void reload();

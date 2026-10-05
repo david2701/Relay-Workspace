@@ -32,7 +32,7 @@ North-star row audit: each Atención row shows witness (ActorMark), status+why (
 ## Known gaps (honest, vs specs v1.1)
 
 1. **DateTimeField** still uses a native `type=date` / `type=time` inside a token-styled popover (Spanish display + 24 h + Europe/Paris on the face). Not a full custom calendar grid; UA chrome can peek on the inner inputs.
-2. **SuggestedStrip ActorMark** for `needs_you` shows David (witness); blocked/stale show the agent — correct, but dense seed can still feel busy vs a marketing still.
+2. **SuggestedStrip ActorMark** shows the owner (assignee): needs_you with agent assignee → GB rounded square; list-row witness for needs_you remains David circle. Shape always follows actor identity.
 3. **FilterBar** is title-only (no Dueño/Prioridad chips yet); acceptable for P0 attention, not full §6.18.
 4. **Markdown note preview** is plain text extract, not rendered markdown.
 5. **Virtualization** at 200+ rows not implemented (demo seed is small).

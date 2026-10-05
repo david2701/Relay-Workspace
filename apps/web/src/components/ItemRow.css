@@ -93,6 +93,12 @@
   margin-top: 2px;
 }
 
+.item-reason.completed-by-line {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
 .item-meta {
   display: flex;
   align-items: center;

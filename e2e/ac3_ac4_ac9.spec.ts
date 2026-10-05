@@ -61,7 +61,9 @@ test("AC4 note link and unlink on item detail", async ({ page }) => {
   await expect(page.getByText(/Sin notas/)).toBeVisible();
 });
 
-test("AC3 complete via MCP appears in Hechos within 2s", async ({ page }) => {
+test("AC3 complete via MCP appears once in Hechos with matching group count", async ({
+  page,
+}) => {
   await page.goto("/");
   await page.getByRole("button", { name: /Con agentes/ }).click();
 
@@ -77,13 +79,32 @@ test("AC3 complete via MCP appears in Hechos within 2s", async ({ page }) => {
   });
 
   await mcp("items_complete", { id: created.item.id });
+  // Linger window on Con agentes: still exactly one row for this title
+  await expect(
+    page.getByRole("option", { name: new RegExp(created.item.title) }),
+  ).toHaveCount(1, { timeout: 4000 });
+
   await page.getByRole("button", { name: /^Hechos$/ }).click();
-  await expect(page.getByText(created.item.title).first()).toBeVisible({
-    timeout: 4000,
+  const hechosRow = page.getByRole("option", {
+    name: new RegExp(created.item.title),
   });
+  await expect(hechosRow).toHaveCount(1, { timeout: 4000 });
   await expect(page.getByText(/Completado por Grok Bot/i).first()).toBeVisible({
     timeout: 4000,
   });
+
+  const hoy = page.getByRole("group", { name: /^Hoy/ });
+  await expect(hoy).toBeVisible();
+  const hoyRows = hoy.getByRole("option");
+  const hoyCount = await hoyRows.count();
+  await expect(hoy.locator(".section-label")).toContainText(`· ${hoyCount}`);
+  // After linger settles, still one row for the completed title and count matches
+  await page.waitForTimeout(2200);
+  await expect(hechosRow).toHaveCount(1);
+  const hoyCountAfter = await hoyRows.count();
+  await expect(hoy.locator(".section-label")).toContainText(
+    `· ${hoyCountAfter}`,
+  );
 });
 
 test("AC3 needs_you via MCP appears in Atención within 2s", async ({
@@ -102,7 +123,10 @@ test("AC3 needs_you via MCP appears in Atención within 2s", async ({
   const row = page.getByRole("option", { name: new RegExp(created.item.title) });
   await expect(row).toBeVisible({ timeout: 4000 });
   await expect(row.getByText(/¿Cierro el PR/)).toBeVisible({ timeout: 4000 });
-  await expect(page.locator(".rail-count")).toBeVisible({ timeout: 4000 });
+  const counter = page.locator(".rail-count");
+  await expect(counter).toBeVisible({ timeout: 4000 });
+  await expect(counter).toHaveCSS("background-color", "rgba(0, 0, 0, 0)");
+  await expect(counter).toHaveCSS("border-radius", "0px");
 });
 
 test("AC3 blocked via MCP appears in Atascado within 2s", async ({ page }) => {
@@ -122,4 +146,28 @@ test("AC3 blocked via MCP appears in Atascado within 2s", async ({ page }) => {
   await expect(row.getByText(/Atascado: el entorno/)).toBeVisible({
     timeout: 4000,
   });
+});
+
+test("AC10 Sugerido needs_you owner mark is agent square, not human circle", async ({
+  page,
+}) => {
+  await page.goto("/");
+  await page.getByRole("button", { name: /Atención/ }).click();
+  const sug = page
+    .locator(".suggested-row")
+    .filter({ hasText: "Elegir titular" })
+    .first();
+  await expect(sug).toBeVisible({ timeout: 4000 });
+  const mark = sug.locator(".actor-mark");
+  await expect(mark).toHaveAttribute("data-kind", "agent");
+  await expect(mark).toHaveAttribute("data-shape", "square");
+  await expect(mark).toHaveAttribute("data-monogram", "GB");
+  await expect(mark).toHaveAttribute("aria-label", /Grok Bot · Agente/);
+
+  const listRow = page
+    .getByRole("option", { name: /Elegir titular/ })
+    .locator(".actor-mark");
+  await expect(listRow).toHaveAttribute("data-kind", "user");
+  await expect(listRow).toHaveAttribute("data-shape", "circle");
+  await expect(listRow).toHaveAttribute("data-monogram", "D");
 });
