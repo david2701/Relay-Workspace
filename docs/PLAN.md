@@ -3,6 +3,7 @@
 ## Stack (decided)
 
 - **TypeScript pnpm monorepo** on **Node 24.21 LTS**, TS 7.0.2 strict, ESM, Vitest, committed lockfile.
+- **Lint:** Biome (typescript-eslint 8.x hard-rejects TS 7.0; Biome covers the same no-any / suspicious rules until typescript-eslint supports ≥7.1).
 - `packages/core` — domain (WorkItem, Note, ItemNoteLink, agent catalog), zod schemas, transitions, recommend, context pack, SQLite (`node:sqlite` WAL) + migrations.
 - `apps/server` — one local process: Hono HTTP API + MCP (`@modelcontextprotocol/sdk`, Streamable HTTP + stdio). Same core services, same SQLite file.
 - `apps/web` — Vite + React SPA, 2 s polling, optimistic own mutations, Spanish UI copy from specs v1.1.

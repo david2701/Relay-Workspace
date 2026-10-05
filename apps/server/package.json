@@ -1,0 +1,30 @@
+{
+  "name": "@relay/server",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "tsx watch src/index.ts",
+    "start": "node --import tsx src/index.ts",
+    "mcp:stdio": "node --import tsx src/mcp_stdio.ts",
+    "build": "tsc -p tsconfig.json",
+    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "lint": "cd ../.. && biome lint apps/server",
+    "test": "vitest run",
+    "seed": "tsx scripts/seed.ts",
+    "demo:ac3": "tsx scripts/ac3_demo.ts"
+  },
+  "dependencies": {
+    "@hono/node-server": "^1.19.0",
+    "@modelcontextprotocol/sdk": "^1.18.0",
+    "@relay/core": "workspace:*",
+    "hono": "^4.9.0",
+    "zod": "^3.25.76"
+  },
+  "devDependencies": {
+    "@types/node": "^24.5.2",
+    "tsx": "^4.20.5",
+    "typescript": "7.0.2",
+    "vitest": "^3.2.4"
+  }
+}

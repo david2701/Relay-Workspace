@@ -1,0 +1,34 @@
+.work-dot {
+  position: absolute;
+  right: -2px;
+  bottom: -2px;
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--accent);
+  box-shadow: 0 0 0 2px var(--raised);
+  animation: pulse-work var(--dur-pulse) var(--ease-in-out) infinite;
+}
+
+.work-dot.stale {
+  background: transparent;
+  border: 1.5px solid var(--warn);
+  animation: none;
+  box-shadow: 0 0 0 2px var(--raised);
+}
+
+@keyframes pulse-work {
+  0%,
+  100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.45;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .work-dot {
+    animation: none;
+  }
+}

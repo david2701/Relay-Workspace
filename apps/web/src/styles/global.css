@@ -1,0 +1,112 @@
+@import "./fonts.css";
+@import "./tokens.css";
+
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+}
+
+html,
+body,
+#root {
+  height: 100%;
+  margin: 0;
+}
+
+body {
+  font-family: var(--font-ui);
+  font-size: var(--step-body);
+  color: var(--ink);
+  background: var(--paper);
+  -webkit-font-smoothing: antialiased;
+  text-rendering: optimizeLegibility;
+}
+
+button,
+input,
+textarea,
+select {
+  font: inherit;
+  color: inherit;
+}
+
+button {
+  cursor: pointer;
+  background: none;
+  border: none;
+  padding: 0;
+}
+
+a {
+  color: var(--accent-ink);
+  text-decoration: none;
+}
+
+:focus {
+  outline: none;
+}
+
+:focus-visible {
+  outline: 2px solid var(--focus);
+  outline-offset: 2px;
+}
+
+.sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  border: 0;
+}
+
+.mono {
+  font-family: var(--font-data);
+  font-variant-numeric: tabular-nums;
+}
+
+.label-caps {
+  font-size: var(--step-label);
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--ink-muted);
+}
+
+.app-shell {
+  display: grid;
+  grid-template-columns: var(--rail-w) minmax(var(--list-min-w), 1fr) var(--detail-w);
+  height: 100dvh;
+  background: var(--paper);
+}
+
+@media (max-width: 1279px) {
+  .app-shell {
+    grid-template-columns: var(--rail-w-collapsed) minmax(0, 1fr) 400px;
+  }
+  .rail-label {
+    display: none;
+  }
+}
+
+@media (max-width: 1023px) {
+  .app-shell {
+    grid-template-columns: var(--rail-w-collapsed) minmax(0, 1fr);
+  }
+  .detail-zone {
+    position: fixed;
+    inset: 0 0 0 auto;
+    width: min(440px, 100%);
+    z-index: 40;
+    box-shadow: var(--shadow-float);
+  }
+  .detail-scrim {
+    position: fixed;
+    inset: 0;
+    background: rgb(20 19 16 / 0.24);
+    z-index: 30;
+  }
+}

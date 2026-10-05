@@ -1,0 +1,41 @@
+{
+  "name": "relay",
+  "private": true,
+  "type": "module",
+  "packageManager": "pnpm@10.17.1",
+  "engines": {
+    "node": ">=24.21.0"
+  },
+  "scripts": {
+    "dev": "pnpm --parallel --filter @relay/server --filter @relay/web dev",
+    "dev:server": "pnpm --filter @relay/server dev",
+    "dev:web": "pnpm --filter @relay/web dev",
+    "build": "pnpm -r run build",
+    "typecheck": "pnpm -r run typecheck",
+    "lint": "biome lint .",
+    "test": "pnpm --filter @relay/core test && pnpm --filter @relay/server test",
+    "test:e2e": "pnpm exec playwright test",
+    "seed": "pnpm --filter @relay/server seed",
+    "demo:ac3": "pnpm --filter @relay/server demo:ac3",
+    "contrast": "node scripts/contrast-matrix.mjs"
+  },
+  "devDependencies": {
+    "@biomejs/biome": "^2.5.15",
+    "@eslint/js": "^9.36.0",
+    "@playwright/test": "^1.55.0",
+    "eslint": "^9.36.0",
+    "typescript": "7.0.2",
+    "typescript-eslint": "^8.44.0",
+    "vitest": "^3.2.4"
+  },
+  "pnpm": {
+    "onlyBuiltDependencies": [
+      "esbuild"
+    ],
+    "peerDependencyRules": {
+      "allowedVersions": {
+        "typescript": ">=4.8.4"
+      }
+    }
+  }
+}

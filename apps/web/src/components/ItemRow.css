@@ -1,0 +1,153 @@
+.item-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-height: var(--row-h);
+  padding: 8px 12px 8px 0;
+  border-bottom: 1px solid var(--line);
+  cursor: default;
+  background: var(--paper);
+  position: relative;
+}
+
+.item-row.with-reason {
+  min-height: var(--row-h-reason);
+  align-items: flex-start;
+}
+
+.item-row:hover {
+  background: var(--sunken);
+  transition: background-color var(--dur-fast) var(--ease-out);
+}
+
+.item-row.selected {
+  background: var(--accent-tint);
+}
+
+.item-row:focus-visible {
+  outline: 2px solid var(--focus);
+  outline-offset: -2px;
+}
+
+.item-row.flash {
+  animation: sync-flash var(--dur-sync-flash) var(--ease-out) 1;
+}
+
+@keyframes sync-flash {
+  from {
+    background: var(--accent-tint);
+  }
+  to {
+    background: transparent;
+  }
+}
+
+.testigo-rule {
+  width: 2px;
+  align-self: stretch;
+  margin-right: 10px;
+  background: transparent;
+  flex-shrink: 0;
+}
+
+.item-row.needs-you .testigo-rule {
+  background: var(--attention-rule);
+}
+
+.item-main {
+  flex: 1;
+  min-width: 0;
+  padding-top: 1px;
+}
+
+.item-title-line {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+}
+
+.item-title {
+  font-size: var(--step-row);
+  font-weight: 500;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.item-row.terminal .item-title {
+  color: var(--ink-muted);
+}
+
+.item-row.cancelled .item-title {
+  text-decoration: line-through;
+  text-decoration-thickness: 1px;
+}
+
+.item-reason {
+  font-size: var(--step-meta);
+  color: var(--ink-2);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  margin-top: 2px;
+}
+
+.item-meta {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-shrink: 0;
+  margin-left: 12px;
+}
+
+.due-chip {
+  font-size: var(--step-data);
+  color: var(--ink-muted);
+}
+
+.due-chip.tone-warn {
+  color: var(--warn);
+}
+
+.due-chip.tone-crit {
+  color: var(--crit);
+}
+
+.reminder-chip {
+  font-size: var(--step-meta);
+  color: var(--ink-muted);
+  max-width: 160px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.reminder-chip .intent {
+  color: var(--ink-2);
+}
+
+.prio {
+  font-size: 10px;
+  color: var(--ink-2);
+}
+
+.prio.hollow {
+  color: var(--ink-muted);
+}
+
+.rel {
+  width: 48px;
+  text-align: right;
+  font-size: var(--step-data);
+  color: var(--ink-muted);
+}
+
+.chat-badge {
+  font-size: 11px;
+  color: var(--ink-muted);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-xs);
+  padding: 0 4px;
+  line-height: 16px;
+}
