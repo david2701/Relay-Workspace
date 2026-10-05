@@ -49,22 +49,27 @@ test("AC3 loop recording complete → blocked → ask_user + reply", async ({
     goal: "Grabación AC3",
   })) as { item: { id: string; title: string } };
   await mcp("items_delegate", { id: created.item.id, agent_id: "grok-bot" });
-  await mcp("items_set_status", { id: created.item.id, status: "in_progress" });
   await expect(page.getByText(created.item.title).first()).toBeVisible({
     timeout: 4000,
   });
-  await page.waitForTimeout(800);
+  await page.waitForTimeout(600);
+  await mcp("items_set_status", { id: created.item.id, status: "in_progress" });
+  await expect(
+    page.getByRole("option", { name: new RegExp(created.item.title) }),
+  ).toBeVisible({ timeout: 4000 });
+  // Hold on in_progress so the working-dot / glyph is visible in the recording
+  await page.waitForTimeout(1600);
   await mcp("items_complete", { id: created.item.id });
   await expect(
     page.getByRole("option", { name: new RegExp(created.item.title) }),
   ).toHaveCount(1, { timeout: 4000 });
-  await page.waitForTimeout(900);
+  await page.waitForTimeout(1200);
   await page.getByRole("button", { name: /^Hechos$/ }).click();
   await expect(
     page.getByRole("option", { name: new RegExp(created.item.title) }),
   ).toHaveCount(1, { timeout: 4000 });
   await expect(page.getByText(/Completado por Grok Bot/i).first()).toBeVisible();
-  await page.waitForTimeout(700);
+  await page.waitForTimeout(900);
 
   // (b) blocked → Atención › Atascado within 2s
   await page.getByRole("button", { name: /Atención/ }).click();
@@ -98,15 +103,18 @@ test("AC3 loop recording complete → blocked → ask_user + reply", async ({
   await askRow.click();
   await page.waitForTimeout(400);
   await page.locator(".reason-banner textarea").fill("Publica la opción A.");
+  await page.waitForTimeout(400);
   await page.getByRole("button", { name: /Devolver a Grok Bot/ }).click();
   await expect(page.getByText(/Decisión:/i).first()).toBeVisible({
     timeout: 4000,
   });
+  await page.waitForTimeout(500);
   await page.getByRole("button", { name: /Lo que ve el agente/ }).click();
-  await expect(page.getByText(/Publica la opción A/)).toBeVisible({
+  await expect(page.locator(".agent-view").getByText(/Publica la opción A/)).toBeVisible({
     timeout: 4000,
   });
-  await page.waitForTimeout(1000);
+  await expect(page.locator(".agent-view").getByText(/\[decision\]/i)).toBeVisible();
+  await page.waitForTimeout(1400);
 
   const video = testInfo.attachments.find((a) => a.name === "video");
   if (video?.path && existsSync(video.path)) {
