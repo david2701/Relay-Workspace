@@ -77,10 +77,11 @@ test("AC3 loop recording complete → blocked → ask_user + reply", async ({
     status: "blocked",
     blocked_reason: "staging caído",
   });
-  await expect(
-    page.getByRole("option", { name: new RegExp(blocked.item.title) }),
-  ).toBeVisible({ timeout: 4000 });
-  await expect(page.getByText(/Atascado: staging caído/)).toBeVisible();
+  const blockedRow = page.getByRole("option", {
+    name: new RegExp(blocked.item.title),
+  });
+  await expect(blockedRow).toBeVisible({ timeout: 4000 });
+  await expect(blockedRow.getByText(/Atascado: staging caído/)).toBeVisible();
   await page.waitForTimeout(700);
 
   // (c) ask_user → Te necesita → David replies → decision note in agent view
