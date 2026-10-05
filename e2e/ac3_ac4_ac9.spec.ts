@@ -68,7 +68,7 @@ test("AC3 complete via MCP appears once in Hechos with matching group count", as
   await page.getByRole("button", { name: /Con agentes/ }).click();
 
   const created = (await mcp("items_create", {
-    title: "Cerrar borrador del post de Acme",
+    title: `Cerrar borrador del post de Acme ${Date.now().toString(36)}`,
     goal: "Visible en Hechos",
   })) as { item: { id: string; title: string } };
   await mcp("items_delegate", { id: created.item.id, agent_id: "grok-bot" });

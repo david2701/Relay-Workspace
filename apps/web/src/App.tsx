@@ -214,10 +214,14 @@ export default function App() {
 
   const activeLinger = useMemo(() => {
     const now = Date.now();
+    const inboxIds = new Set((inbox?.items ?? []).map((i) => i.id));
     return lingerRows.filter(
-      (r) => r.fromView === inboxView && r.until > now,
+      (r) =>
+        r.fromView === inboxView &&
+        r.until > now &&
+        !inboxIds.has(r.item.id),
     );
-  }, [lingerRows, inboxView, tick]);
+  }, [lingerRows, inboxView, inbox, tick]);
 
   const flatItems = useMemo(() => {
     const inboxItems = inbox?.items ?? [];

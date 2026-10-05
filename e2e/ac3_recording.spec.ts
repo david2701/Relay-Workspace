@@ -43,8 +43,9 @@ test("AC3 loop recording complete → blocked → ask_user + reply", async ({
   // (a) Con agentes → in_progress → done → Hechos «Completado por Grok Bot»
   await page.getByRole("button", { name: /Con agentes/ }).click();
   await page.waitForTimeout(400);
+  const stamp = Date.now().toString(36);
   const created = (await mcp("items_create", {
-    title: "Cerrar borrador del post de Acme",
+    title: `Cerrar borrador del post de Acme ${stamp}`,
     goal: "Grabación AC3",
   })) as { item: { id: string; title: string } };
   await mcp("items_delegate", { id: created.item.id, agent_id: "grok-bot" });
@@ -68,7 +69,7 @@ test("AC3 loop recording complete → blocked → ask_user + reply", async ({
   // (b) blocked → Atención › Atascado within 2s
   await page.getByRole("button", { name: /Atención/ }).click();
   const blocked = (await mcp("items_create", {
-    title: "Publicar build en staging",
+    title: `Publicar build en staging ${stamp}`,
   })) as { item: { id: string; title: string } };
   await mcp("items_delegate", { id: blocked.item.id, agent_id: "grok-bot" });
   await mcp("items_set_status", {
@@ -84,7 +85,7 @@ test("AC3 loop recording complete → blocked → ask_user + reply", async ({
 
   // (c) ask_user → Te necesita → David replies → decision note in agent view
   const ask = (await mcp("items_create", {
-    title: "Revisar copy del correo de lanzamiento",
+    title: `Revisar copy del correo de lanzamiento ${stamp}`,
   })) as { item: { id: string; title: string } };
   await mcp("items_delegate", { id: ask.item.id, agent_id: "grok-bot" });
   await mcp("items_ask_user", {
