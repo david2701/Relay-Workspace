@@ -157,6 +157,10 @@ export default function App() {
       nextMap.set(item.id, item.updated_at);
       nextItems.set(item.id, item);
     }
+    // Drop linger once the item is present in the current view (prevents Hechos dupes).
+    setLingerRows((rows) =>
+      rows.filter((r) => !nextItems.has(r.item.id) && r.until > Date.now()),
+    );
     if (prevView.current === inboxView) {
       const leftIds = [...prevItems.current.keys()].filter(
         (id) => !nextItems.has(id),
@@ -164,16 +168,23 @@ export default function App() {
       for (const id of leftIds) {
         const fromView = inboxView;
         void api.getItem(id).then(({ item }) => {
+          // If the item already landed in this or another fetched view, skip linger.
+          if (prevItems.current.has(id) && prevView.current !== fromView) {
+            return;
+          }
           const until = Date.now() + 2000;
-          setLingerRows((rows) => [
-            ...rows.filter((r) => r.item.id !== id),
-            { item, fromView, until },
-          ]);
+          setLingerRows((rows) => {
+            if (rows.some((r) => r.item.id === id && r.fromView !== fromView)) {
+              return rows;
+            }
+            return [
+              ...rows.filter((r) => r.item.id !== id),
+              { item, fromView, until },
+            ];
+          });
           flash(item.id);
           window.setTimeout(() => {
-            setLingerRows((rows) =>
-              rows.filter((r) => r.item.id !== id || r.until > Date.now()),
-            );
+            setLingerRows((rows) => rows.filter((r) => r.item.id !== id));
           }, 2100);
         });
       }
