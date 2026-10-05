@@ -629,6 +629,7 @@ relay web   →  http://127.0.0.1:7421`}</pre>
                             selected={selectedId === item.id}
                             flash={flashIds.has(item.id)}
                             showChatBadge={view === "all"}
+                            showCompletedBy={view === "done"}
                             onSelect={() => setSelectedId(item.id)}
                           />
                         ))}

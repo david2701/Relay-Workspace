@@ -11,6 +11,7 @@ type Props = {
   selected: boolean;
   flash?: boolean;
   showChatBadge?: boolean;
+  showCompletedBy?: boolean;
   onSelect: () => void;
 };
 
@@ -38,6 +39,7 @@ export function ItemRow({
   selected,
   flash,
   showChatBadge,
+  showCompletedBy,
   onSelect,
 }: Props) {
   const witness = witnessActor(item, agents);
@@ -100,6 +102,14 @@ export function ItemRow({
           ) : null}
         </div>
         {reasonLine ? <div className="item-reason">{reasonLine}</div> : null}
+        {showCompletedBy &&
+        (item.status === "done" || item.status === "cancelled") ? (
+          <div className="item-reason">
+            {item.completed_by_type === "user"
+              ? `Completado por ti · ${formatRelative(item.completed_at ?? item.updated_at)}`
+              : `Completado por ${agents.find((a) => a.id === item.completed_by_id)?.display_name ?? "agente"} · ${formatRelative(item.completed_at ?? item.updated_at)}`}
+          </div>
+        ) : null}
       </div>
       <div className="item-meta">
         {due && item.status !== "done" && item.status !== "cancelled" ? (

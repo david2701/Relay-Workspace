@@ -43,6 +43,7 @@
 .rail button.active {
   color: var(--ink);
   font-weight: 600;
+  background: transparent;
 }
 
 .rail button.active::before {
