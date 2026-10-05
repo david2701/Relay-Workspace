@@ -27,16 +27,10 @@ export function ActorMark({
   if (import.meta.env.DEV) {
     assertMarkConsistent({ kind, name, monogram });
   }
-  // Human/unassigned = circle. Agent/system = rounded square (keep corners readable at 16–24px).
-  const radius =
-    kind === "user" || kind === "unassigned"
-      ? "50%"
-      : `${Math.max(3, Math.round(size * 0.18))}px`;
   const isDashed = kind === "unassigned" || kind === "system";
   const style: CSSProperties = {
     width: size,
     height: size,
-    borderRadius: radius,
     display: "inline-flex",
     alignItems: "center",
     justifyContent: "center",

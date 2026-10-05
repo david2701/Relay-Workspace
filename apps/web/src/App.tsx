@@ -24,25 +24,13 @@ import { ItemRow } from "./components/ItemRow";
 import { ActorMark } from "./components/ActorMark";
 import { ThemeSwitch } from "./components/ThemeSwitch";
 import { markForOwner } from "./lib/actor_mark";
+import {
+  assertNoDuplicateIds,
+  buildViewSections,
+  type LingerRow,
+} from "./lib/view_model";
 import "./components/ActorMark.css";
 import "./App.css";
-
-type LingerRow = {
-  item: WorkItem;
-  fromView: InboxView;
-  until: number;
-};
-
-function dedupeItems(items: WorkItem[]): WorkItem[] {
-  const seen = new Set<string>();
-  const out: WorkItem[] = [];
-  for (const item of items) {
-    if (seen.has(item.id)) continue;
-    seen.add(item.id);
-    out.push(item);
-  }
-  return out;
-}
 
 const VIEWS: { id: AppView; label: string }[] = [
   { id: "attention", label: copy.nav.attention },
@@ -95,7 +83,7 @@ export default function App() {
   const inboxView: InboxView = view === "notes" ? "attention" : view;
 
   const {
-    data: inbox,
+    data: inboxRaw,
     error,
     offline,
     lastOkAt,
@@ -105,11 +93,16 @@ export default function App() {
     () => api.inbox(inboxView),
     [inboxView],
   );
+  // Ignore a previous view's payload while the matching fetch is in flight.
+  const inbox =
+    inboxRaw && inboxRaw.view === inboxView ? inboxRaw : null;
+  // Rail counter must stay coherent across view switches (AC6).
+  const needsYouCount = inboxRaw?.counters.needs_you ?? 0;
 
   useEffect(() => {
     if (view !== "attention") return;
     void api.recommend().then((r) => setRecs(r.recommendations));
-  }, [view, inbox?.counters.needs_you, dismissTick]);
+  }, [view, needsYouCount, dismissTick]);
 
   useEffect(() => {
     if (view !== "notes") return;
@@ -126,7 +119,6 @@ export default function App() {
       void api.getItem(selectedId).then((r) => {
         setSelectedItem((prev) => {
           if (prev && document.activeElement?.closest("[contenteditable], textarea, input")) {
-            // keep editing fields; still update if id matches via parent flash
             if (prev.updated_at !== r.item.updated_at) {
               flash(r.item.id);
             }
@@ -140,15 +132,16 @@ export default function App() {
     return () => window.clearInterval(id);
   }, [selectedId]);
 
+  // Drop all linger rows on view change — never leak rows into the next lens.
   useEffect(() => {
-    if (!inbox) {
-      if (prevView.current !== inboxView) {
-        prevItems.current = new Map();
-        prevUpdated.current = new Map();
-        prevView.current = inboxView;
-      }
-      return;
-    }
+    setLingerRows([]);
+    prevItems.current = new Map();
+    prevUpdated.current = new Map();
+    prevView.current = inboxView;
+  }, [inboxView]);
+
+  useEffect(() => {
+    if (!inbox) return;
     const nextMap = new Map<string, string>();
     const nextItems = new Map<string, WorkItem>();
     for (const item of inbox.items) {
@@ -157,9 +150,14 @@ export default function App() {
       nextMap.set(item.id, item.updated_at);
       nextItems.set(item.id, item);
     }
-    // Drop linger once the item is present in the current view (prevents Hechos dupes).
+    // Drop linger once the item is present again in this view.
     setLingerRows((rows) =>
-      rows.filter((r) => !nextItems.has(r.item.id) && r.until > Date.now()),
+      rows.filter(
+        (r) =>
+          r.fromView === inboxView &&
+          !nextItems.has(r.item.id) &&
+          r.until > Date.now(),
+      ),
     );
     if (prevView.current === inboxView) {
       const leftIds = [...prevItems.current.keys()].filter(
@@ -168,20 +166,13 @@ export default function App() {
       for (const id of leftIds) {
         const fromView = inboxView;
         void api.getItem(id).then(({ item }) => {
-          // If the item already landed in this or another fetched view, skip linger.
-          if (prevItems.current.has(id) && prevView.current !== fromView) {
-            return;
-          }
+          if (prevView.current !== fromView) return;
+          if (prevItems.current.has(id)) return;
           const until = Date.now() + 2000;
-          setLingerRows((rows) => {
-            if (rows.some((r) => r.item.id === id && r.fromView !== fromView)) {
-              return rows;
-            }
-            return [
-              ...rows.filter((r) => r.item.id !== id),
-              { item, fromView, until },
-            ];
-          });
+          setLingerRows((rows) => [
+            ...rows.filter((r) => r.item.id !== id),
+            { item, fromView, until },
+          ]);
           flash(item.id);
           window.setTimeout(() => {
             setLingerRows((rows) => rows.filter((r) => r.item.id !== id));
@@ -215,36 +206,25 @@ export default function App() {
     }, 800);
   }
 
-  const matchesFilter = useCallback(
-    (item: WorkItem): boolean =>
-      filter.trim()
-        ? item.title.toLowerCase().includes(filter.toLowerCase())
-        : true,
-    [filter],
+  const viewSections = useMemo(() => {
+    const sections = buildViewSections({
+      inbox,
+      inboxView,
+      lingerRows,
+      pendingRows,
+      filter,
+      now: Date.now(),
+    });
+    if (import.meta.env.DEV && sections.length > 0) {
+      assertNoDuplicateIds(sections, inboxView);
+    }
+    return sections;
+  }, [inbox, inboxView, lingerRows, pendingRows, filter, tick]);
+
+  const flatItems = useMemo(
+    () => viewSections.flatMap((s) => s.items),
+    [viewSections],
   );
-
-  const activeLinger = useMemo(() => {
-    const now = Date.now();
-    const inboxIds = new Set((inbox?.items ?? []).map((i) => i.id));
-    return lingerRows.filter(
-      (r) =>
-        r.fromView === inboxView &&
-        r.until > now &&
-        !inboxIds.has(r.item.id),
-    );
-  }, [lingerRows, inboxView, inbox, tick]);
-
-  const flatItems = useMemo(() => {
-    const inboxItems = inbox?.items ?? [];
-    const ids = new Set(inboxItems.map((i) => i.id));
-    const extras = pendingRows.filter((p) => !ids.has(p.id));
-    const lingerExtras = activeLinger
-      .map((r) => r.item)
-      .filter((p) => !ids.has(p.id));
-    return dedupeItems([...lingerExtras, ...extras, ...inboxItems]).filter(
-      matchesFilter,
-    );
-  }, [inbox, pendingRows, activeLinger, matchesFilter]);
 
   const visibleRecs = recs.filter(
     (r) => sessionStorage.getItem(dismissedKey(r.item_id)) !== "1",
@@ -443,12 +423,13 @@ export default function App() {
                 onClick={() => setView(v.id)}
               >
                 <span className="rail-label">{v.label}</span>
-                {v.id === "attention" && (inbox?.counters.needs_you ?? 0) > 0 ? (
+                {v.id === "attention" && needsYouCount > 0 ? (
                   <span
                     className="rail-count mono"
-                    aria-label={`${inbox?.counters.needs_you} ítems te necesitan`}
+                    data-rail-counter="attention"
+                    aria-label={`${needsYouCount} ítems te necesitan`}
                   >
-                    {inbox?.counters.needs_you}
+                    {needsYouCount}
                   </span>
                 ) : null}
               </button>
@@ -639,112 +620,50 @@ relay web   →  http://127.0.0.1:7421`}</pre>
             className="item-list"
             role="listbox"
             tabIndex={0}
+            data-inbox-view={inbox?.view ?? ""}
             aria-activedescendant={selectedId ? `row-${selectedId}` : undefined}
           >
             {!inbox && !error ? <Skeleton /> : null}
-            {inbox && view === "attention" && inbox.sections
-              ? inbox.sections.map((section) => {
-                  const sectionIds = new Set(section.items.map((i) => i.id));
-                  const lingerInSection = activeLinger
-                    .map((r) => r.item)
-                    .filter((i) => {
-                      if (sectionIds.has(i.id)) return false;
-                      if (section.key === "needs_you")
-                        return i.status === "needs_you";
-                      if (section.key === "blocked")
-                        return i.status === "blocked";
-                      return (
-                        i.status !== "needs_you" && i.status !== "blocked"
-                      );
-                    });
-                  const rows = dedupeItems([
-                    ...lingerInSection,
-                    ...section.items,
-                  ]).filter(matchesFilter);
-                  return (
+            {inbox
+              ? viewSections.map((section) =>
+                  section.label ? (
                     <Section
                       key={section.key}
-                      label={
-                        section.key === "needs_you"
-                          ? copy.section.needs_you
-                          : section.key === "blocked"
-                            ? copy.section.blocked
-                            : copy.section.today
-                      }
-                      count={rows.length}
+                      label={section.label}
+                      count={section.items.length}
                     >
-                      {rows.map((item) => (
+                      {section.items.map((item) => (
                         <ItemRow
                           key={item.id}
                           item={item}
                           agents={agents}
                           selected={selectedId === item.id}
                           flash={flashIds.has(item.id)}
-                          showChatBadge={false}
+                          showChatBadge={view === "all"}
+                          showCompletedBy={view === "done"}
                           onSelect={() => setSelectedId(item.id)}
                         />
                       ))}
                     </Section>
-                  );
-                })
+                  ) : (
+                    <div key={section.key || "all"}>
+                      {section.items.map((item) => (
+                        <ItemRow
+                          key={item.id}
+                          item={item}
+                          agents={agents}
+                          selected={selectedId === item.id}
+                          flash={flashIds.has(item.id)}
+                          showChatBadge={view === "all"}
+                          showCompletedBy={view === "done"}
+                          onSelect={() => setSelectedId(item.id)}
+                        />
+                      ))}
+                    </div>
+                  ),
+                )
               : null}
-            {inbox && view !== "attention" && inbox.groups
-              ? (() => {
-                  const groupedIds = new Set(
-                    inbox.groups.flatMap((g) => g.items.map((i) => i.id)),
-                  );
-                  const orphanLinger = activeLinger
-                    .map((r) => r.item)
-                    .filter((i) => !groupedIds.has(i.id));
-                  return inbox.groups.map((group, index) => {
-                    const rows = dedupeItems([
-                      ...(index === 0 ? orphanLinger : []),
-                      ...group.items,
-                    ]).filter(matchesFilter);
-                    return (
-                      <Section
-                        key={group.key || "all"}
-                        label={group.label}
-                        count={rows.length}
-                      >
-                        {rows.map((item) => (
-                          <ItemRow
-                            key={item.id}
-                            item={item}
-                            agents={agents}
-                            selected={selectedId === item.id}
-                            flash={flashIds.has(item.id)}
-                            showChatBadge={view === "all"}
-                            showCompletedBy={view === "done"}
-                            onSelect={() => setSelectedId(item.id)}
-                          />
-                        ))}
-                      </Section>
-                    );
-                  });
-                })()
-              : null}
-            {inbox && view !== "attention" && !inbox.groups
-              ? (() => {
-                  const rows = flatItems;
-                  return rows.map((item) => (
-                    <ItemRow
-                      key={item.id}
-                      item={item}
-                      agents={agents}
-                      selected={selectedId === item.id}
-                      flash={flashIds.has(item.id)}
-                      showChatBadge={view === "all"}
-                      showCompletedBy={view === "done"}
-                      onSelect={() => setSelectedId(item.id)}
-                    />
-                  ));
-                })()
-              : null}
-            {inbox &&
-            flatItems.length === 0 &&
-            pendingRows.length === 0 &&
-            activeLinger.length === 0 ? (
+            {inbox && flatItems.length === 0 ? (
               view === "attention" ? (
                 <Empty
                   text={copy.empty.attention}
@@ -768,7 +687,6 @@ relay web   →  http://127.0.0.1:7421`}</pre>
               )
             ) : null}
             {pendingRows
-              .filter((p) => !inbox?.items.some((i) => i.id === p.id))
               .filter((p) => !flatItems.some((i) => i.id === p.id))
               .map((item) => (
                 <div key={item.id}>
@@ -779,7 +697,7 @@ relay web   →  http://127.0.0.1:7421`}</pre>
                     flash={flashIds.has(item.id)}
                     onSelect={() => setSelectedId(item.id)}
                   />
-                  {view !== "all" && view !== "attention" ? (
+                  {view !== "all" ? (
                     <div className="elsewhere mono">
                       {copy.capture.created_elsewhere}
                     </div>
@@ -849,8 +767,8 @@ relay web   →  http://127.0.0.1:7421`}</pre>
       ) : null}
 
       <div className="sr-only" aria-live="polite">
-        {(inbox?.counters.needs_you ?? 0) > 0
-          ? `Hay ${inbox?.counters.needs_you} ítems que te necesitan`
+        {needsYouCount > 0
+          ? `Hay ${needsYouCount} ítems que te necesitan`
           : ""}
       </div>
     </div>

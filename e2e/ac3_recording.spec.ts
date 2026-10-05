@@ -1,6 +1,12 @@
 import { expect, test } from "@playwright/test";
 import { mkdirSync, copyFileSync, existsSync } from "node:fs";
 import { resolve } from "node:path";
+import {
+  expectHechosOnlyTerminal,
+  expectNoDuplicateTitles,
+  expectSectionCountsMatch,
+  waitInboxView,
+} from "./helpers";
 
 const API = "http://127.0.0.1:7430";
 const ART = "/opt/cursor/artifacts";
@@ -34,47 +40,50 @@ test.use({
   viewport: { width: 1440, height: 900 },
 });
 
-test("AC3 loop recording complete → blocked → ask_user + reply", async ({
-  page,
-}, testInfo) => {
+test("AC3 paced loop on clean seed", async ({ page }, testInfo) => {
   mkdirSync(ART, { recursive: true });
   await page.goto("/");
 
-  // (a) Con agentes → in_progress → done → Hechos «Completado por Grok Bot»
+  // —— (a) Stay on Con agentes: assigned → in_progress → done ——
   await page.getByRole("button", { name: /Con agentes/ }).click();
-  await page.waitForTimeout(400);
-  const stamp = Date.now().toString(36);
+  await waitInboxView(page, "agent_wip");
+  await expect(
+    page.locator('.rail button:has-text("Con agentes") .rail-count'),
+  ).toHaveCount(0);
+
   const created = (await mcp("items_create", {
-    title: `Cerrar borrador del post de Acme ${stamp}`,
-    goal: "Grabación AC3",
+    title: "Cerrar borrador del post de Acme",
+    goal: "Borrador listo para revisión",
   })) as { item: { id: string; title: string } };
   await mcp("items_delegate", { id: created.item.id, agent_id: "grok-bot" });
-  await expect(page.getByText(created.item.title).first()).toBeVisible({
-    timeout: 4000,
+  const row = page.getByRole("option", {
+    name: new RegExp(created.item.title),
   });
-  await page.waitForTimeout(600);
-  await mcp("items_set_status", { id: created.item.id, status: "in_progress" });
-  await expect(
-    page.getByRole("option", { name: new RegExp(created.item.title) }),
-  ).toBeVisible({ timeout: 4000 });
-  // Hold on in_progress so the working-dot / glyph is visible in the recording
-  await page.waitForTimeout(1600);
-  await mcp("items_complete", { id: created.item.id });
-  await expect(
-    page.getByRole("option", { name: new RegExp(created.item.title) }),
-  ).toHaveCount(1, { timeout: 4000 });
-  await page.waitForTimeout(1200);
-  await page.getByRole("button", { name: /^Hechos$/ }).click();
-  await expect(
-    page.getByRole("option", { name: new RegExp(created.item.title) }),
-  ).toHaveCount(1, { timeout: 4000 });
-  await expect(page.getByText(/Completado por Grok Bot/i).first()).toBeVisible();
-  await page.waitForTimeout(900);
+  await expect(row).toBeVisible({ timeout: 4000 });
+  await expect(row).toHaveCount(1);
+  await page.waitForTimeout(2000);
 
-  // (b) blocked → Atención › Atascado within 2s
+  await mcp("items_set_status", { id: created.item.id, status: "in_progress" });
+  await expect(row).toBeVisible({ timeout: 4000 });
+  await expect(row.locator(".actor-mark")).toHaveAttribute("data-shape", "square");
+  await page.waitForTimeout(2000);
+
+  await mcp("items_complete", { id: created.item.id });
+  await expect(row).toHaveCount(1, { timeout: 4000 });
+  await page.waitForTimeout(2000);
+
+  await page.getByRole("button", { name: /^Hechos$/ }).click();
+  await waitInboxView(page, "done");
+  await expectNoDuplicateTitles(page, created.item.title);
+  await expect(page.getByText(/Completado por Grok Bot/i).first()).toBeVisible();
+  await expectHechosOnlyTerminal(page);
+  await page.waitForTimeout(1500);
+
+  // —— (b) Atención: blocked arrives live in Atascado ——
   await page.getByRole("button", { name: /Atención/ }).click();
+  await waitInboxView(page, "attention");
   const blocked = (await mcp("items_create", {
-    title: `Publicar build en staging ${stamp}`,
+    title: "Publicar build en staging",
   })) as { item: { id: string; title: string } };
   await mcp("items_delegate", { id: blocked.item.id, agent_id: "grok-bot" });
   await mcp("items_set_status", {
@@ -82,39 +91,51 @@ test("AC3 loop recording complete → blocked → ask_user + reply", async ({
     status: "blocked",
     blocked_reason: "staging caído",
   });
-  const blockedRow = page.getByRole("option", {
-    name: new RegExp(blocked.item.title),
-  });
+  const blockedRow = page
+    .getByRole("group", { name: /Atascado/ })
+    .getByRole("option", { name: new RegExp(blocked.item.title) });
   await expect(blockedRow).toBeVisible({ timeout: 4000 });
-  await expect(blockedRow.getByText(/Atascado: staging caído/)).toBeVisible();
-  await page.waitForTimeout(700);
+  await expectNoDuplicateTitles(page, blocked.item.title);
+  await expectSectionCountsMatch(page);
+  await page.waitForTimeout(1500);
 
-  // (c) ask_user → Te necesita → David replies → decision note in agent view
+  // —— (c) ask_user live → open → type → Devolver → agent view ——
   const ask = (await mcp("items_create", {
-    title: `Revisar copy del correo de lanzamiento ${stamp}`,
+    title: "Revisar copy del correo de lanzamiento",
   })) as { item: { id: string; title: string } };
   await mcp("items_delegate", { id: ask.item.id, agent_id: "grok-bot" });
   await mcp("items_ask_user", {
     id: ask.item.id,
     reason: "¿Publico A o B?",
   });
-  const askRow = page.getByRole("option", { name: new RegExp(ask.item.title) });
+  const askRow = page
+    .getByRole("group", { name: /Te necesita/ })
+    .getByRole("option", { name: new RegExp(ask.item.title) });
   await expect(askRow).toBeVisible({ timeout: 4000 });
+  await expectNoDuplicateTitles(page, ask.item.title);
+  await expectSectionCountsMatch(page);
+  await page.waitForTimeout(800);
+
   await askRow.click();
-  await page.waitForTimeout(400);
-  await page.locator(".reason-banner textarea").fill("Publica la opción A.");
-  await page.waitForTimeout(400);
+  const banner = page.locator(".reason-banner.needs_you");
+  await expect(banner).toBeVisible();
+  await expect(banner.locator("textarea")).toBeVisible();
+  await expect(
+    page.getByRole("button", { name: /Devolver a Grok Bot/ }),
+  ).toBeVisible();
+  await page.waitForTimeout(600);
+  await banner.locator("textarea").fill("Publica la opción A.");
+  await page.waitForTimeout(500);
   await page.getByRole("button", { name: /Devolver a Grok Bot/ }).click();
   await expect(page.getByText(/Decisión:/i).first()).toBeVisible({
     timeout: 4000,
   });
-  await page.waitForTimeout(500);
+  await page.waitForTimeout(700);
   await page.getByRole("button", { name: /Lo que ve el agente/ }).click();
-  await expect(page.locator(".agent-view").getByText(/Publica la opción A/)).toBeVisible({
-    timeout: 4000,
-  });
-  await expect(page.locator(".agent-view").getByText(/\[decision\]/i)).toBeVisible();
-  await page.waitForTimeout(1400);
+  await expect(
+    page.locator(".agent-view").getByText(/Publica la opción A/),
+  ).toBeVisible({ timeout: 4000 });
+  await page.waitForTimeout(1600);
 
   const video = testInfo.attachments.find((a) => a.name === "video");
   if (video?.path && existsSync(video.path)) {

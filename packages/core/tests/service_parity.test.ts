@@ -97,4 +97,53 @@ describe("AC1 parity + service flows", () => {
     expect(inbox.sections?.find((s) => s.key === "needs_you")?.items).toHaveLength(1);
     expect(inbox.sections?.find((s) => s.key === "blocked")?.items).toHaveLength(1);
   });
+
+  it("agent_wip excludes needs_you even when assignee stays the agent", () => {
+    const needs = svc.createItem(
+      { title: "Titular needs_you" },
+      { type: "agent", id: "grok-bot" },
+      "mcp",
+    );
+    svc.delegate(needs.id, "grok-bot", { type: "user", id: USER_ACTOR_ID }, "ui");
+    svc.askUser(
+      needs.id,
+      "¿Publico A o B?",
+      { type: "agent", id: "grok-bot" },
+      "mcp",
+    );
+    const wip = svc.createItem(
+      { title: "Demo in_progress" },
+      { type: "agent", id: "grok-bot" },
+      "mcp",
+    );
+    svc.delegate(wip.id, "grok-bot", { type: "user", id: USER_ACTOR_ID }, "ui");
+    svc.setStatus(
+      wip.id,
+      { status: "in_progress" },
+      { type: "agent", id: "grok-bot" },
+      "mcp",
+    );
+    const blocked = svc.createItem(
+      { title: "Build blocked" },
+      { type: "agent", id: "dev-senior" },
+      "mcp",
+    );
+    svc.delegate(blocked.id, "dev-senior", { type: "user", id: USER_ACTOR_ID }, "ui");
+    svc.setStatus(
+      blocked.id,
+      { status: "blocked", blocked_reason: "staging caído" },
+      { type: "agent", id: "dev-senior" },
+      "mcp",
+    );
+    const inbox = svc.inboxQuery("agent_wip");
+    expect(inbox.items.map((i) => i.id)).not.toContain(needs.id);
+    expect(inbox.items.every((i) => i.status !== "needs_you")).toBe(true);
+    expect(inbox.items.map((i) => i.status)).toEqual(["in_progress", "blocked"]);
+    expect(inbox.counters.needs_you).toBe(1);
+    const attention = svc.inboxQuery("attention");
+    expect(attention.counters.needs_you).toBe(1);
+    expect(
+      attention.sections?.find((s) => s.key === "needs_you")?.items.map((i) => i.id),
+    ).toContain(needs.id);
+  });
 });

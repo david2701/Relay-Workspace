@@ -1,4 +1,10 @@
 import { expect, test } from "@playwright/test";
+import {
+  expectAgentMarksAreSquares,
+  expectHechosOnlyTerminal,
+  expectSectionCountsMatch,
+  waitInboxView,
+} from "./helpers";
 
 const API = "http://127.0.0.1:7430";
 
@@ -66,9 +72,10 @@ test("AC3 complete via MCP appears once in Hechos with matching group count", as
 }) => {
   await page.goto("/");
   await page.getByRole("button", { name: /Con agentes/ }).click();
+  await waitInboxView(page, "agent_wip");
 
   const created = (await mcp("items_create", {
-    title: `Cerrar borrador del post de Acme ${Date.now().toString(36)}`,
+    title: "Cerrar el informe de métricas del viernes",
     goal: "Visible en Hechos",
   })) as { item: { id: string; title: string } };
   await mcp("items_delegate", { id: created.item.id, agent_id: "grok-bot" });
@@ -77,14 +84,15 @@ test("AC3 complete via MCP appears once in Hechos with matching group count", as
   await expect(page.getByText(created.item.title).first()).toBeVisible({
     timeout: 4000,
   });
+  await expectAgentMarksAreSquares(page.locator(".item-list"));
 
   await mcp("items_complete", { id: created.item.id });
-  // Linger window on Con agentes: still exactly one row for this title
   await expect(
     page.getByRole("option", { name: new RegExp(created.item.title) }),
   ).toHaveCount(1, { timeout: 4000 });
 
   await page.getByRole("button", { name: /^Hechos$/ }).click();
+  await waitInboxView(page, "done");
   const hechosRow = page.getByRole("option", {
     name: new RegExp(created.item.title),
   });
@@ -92,27 +100,19 @@ test("AC3 complete via MCP appears once in Hechos with matching group count", as
   await expect(page.getByText(/Completado por Grok Bot/i).first()).toBeVisible({
     timeout: 4000,
   });
-
-  const hoy = page.getByRole("group", { name: /^Hoy/ });
-  await expect(hoy).toBeVisible();
-  const hoyRows = hoy.getByRole("option");
-  const hoyCount = await hoyRows.count();
-  await expect(hoy.locator(".section-label")).toContainText(`· ${hoyCount}`);
-  // After linger settles, still one row for the completed title and count matches
+  await expectHechosOnlyTerminal(page);
   await page.waitForTimeout(2200);
   await expect(hechosRow).toHaveCount(1);
-  const hoyCountAfter = await hoyRows.count();
-  await expect(hoy.locator(".section-label")).toContainText(
-    `· ${hoyCountAfter}`,
-  );
+  await expectHechosOnlyTerminal(page);
 });
 
 test("AC3 needs_you via MCP appears in Atención within 2s", async ({
   page,
 }) => {
   await page.goto("/");
+  await waitInboxView(page, "attention");
   const created = (await mcp("items_create", {
-    title: "Revisar copy del correo de lanzamiento",
+    title: "Elegir asunto del correo de onboarding",
   })) as { item: { id: string; title: string } };
   await mcp("items_delegate", { id: created.item.id, agent_id: "grok-bot" });
   await mcp("items_ask_user", {
@@ -123,7 +123,8 @@ test("AC3 needs_you via MCP appears in Atención within 2s", async ({
   const row = page.getByRole("option", { name: new RegExp(created.item.title) });
   await expect(row).toBeVisible({ timeout: 4000 });
   await expect(row.getByText(/¿Cierro el PR/)).toBeVisible({ timeout: 4000 });
-  const counter = page.locator(".rail-count");
+  await expectSectionCountsMatch(page);
+  const counter = page.locator('[data-rail-counter="attention"]');
   await expect(counter).toBeVisible({ timeout: 4000 });
   await expect(counter).toHaveCSS("background-color", "rgba(0, 0, 0, 0)");
   await expect(counter).toHaveCSS("border-radius", "0px");
@@ -131,8 +132,9 @@ test("AC3 needs_you via MCP appears in Atención within 2s", async ({
 
 test("AC3 blocked via MCP appears in Atascado within 2s", async ({ page }) => {
   await page.goto("/");
+  await waitInboxView(page, "attention");
   const created = (await mcp("items_create", {
-    title: "Publicar build en staging",
+    title: "Desplegar la API en el entorno de pruebas",
   })) as { item: { id: string; title: string } };
   await mcp("items_delegate", { id: created.item.id, agent_id: "grok-bot" });
   await mcp("items_set_status", {
@@ -141,11 +143,42 @@ test("AC3 blocked via MCP appears in Atascado within 2s", async ({ page }) => {
     blocked_reason: "el entorno de staging no responde",
   });
 
-  const row = page.getByRole("option", { name: new RegExp(created.item.title) });
+  const row = page
+    .getByRole("group", { name: /Atascado/ })
+    .getByRole("option", { name: new RegExp(created.item.title) });
   await expect(row).toBeVisible({ timeout: 4000 });
   await expect(row.getByText(/Atascado: el entorno/)).toBeVisible({
     timeout: 4000,
   });
+  await expectSectionCountsMatch(page);
+});
+
+test("AC6 Con agentes excludes needs_you; only Atención has a counter", async ({
+  page,
+}) => {
+  await page.goto("/");
+  await expect(page.locator('[data-rail-counter="attention"]')).toHaveText(
+    /^[1-9]/,
+  );
+  await page.getByRole("button", { name: /Con agentes/ }).click();
+  await waitInboxView(page, "agent_wip");
+  await expect(
+    page.locator('.rail button:has-text("Con agentes") .rail-count'),
+  ).toHaveCount(0);
+  await expect(page.locator(".rail-count")).toHaveCount(1);
+  await expect(
+    page.getByRole("option", { name: /Elegir titular del post de lanzamiento/ }),
+  ).toHaveCount(0);
+  await expect(
+    page.getByRole("option", { name: /Preparar demo para cliente Acme/ }),
+  ).toBeVisible();
+  await expectAgentMarksAreSquares(page.locator(".item-list"));
+  await page.getByRole("button", { name: /Atención/ }).click();
+  await waitInboxView(page, "attention");
+  await expectSectionCountsMatch(page);
+  await expect(
+    page.getByRole("option", { name: /Elegir titular del post de lanzamiento/ }),
+  ).toBeVisible();
 });
 
 test("AC10 Sugerido needs_you owner mark is agent square, not human circle", async ({
@@ -162,7 +195,8 @@ test("AC10 Sugerido needs_you owner mark is agent square, not human circle", asy
   await expect(mark).toHaveAttribute("data-kind", "agent");
   await expect(mark).toHaveAttribute("data-shape", "square");
   await expect(mark).toHaveAttribute("data-monogram", "GB");
-  await expect(mark).toHaveAttribute("aria-label", /Grok Bot · Agente/);
+  const radius = await mark.evaluate((el) => getComputedStyle(el).borderRadius);
+  expect(radius).not.toBe("50%");
 
   const listRow = page
     .getByRole("option", { name: /Elegir titular/ })
@@ -170,4 +204,5 @@ test("AC10 Sugerido needs_you owner mark is agent square, not human circle", asy
   await expect(listRow).toHaveAttribute("data-kind", "user");
   await expect(listRow).toHaveAttribute("data-shape", "circle");
   await expect(listRow).toHaveAttribute("data-monogram", "D");
+  await expectAgentMarksAreSquares(page.locator(".suggested"));
 });
