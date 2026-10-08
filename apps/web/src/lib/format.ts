@@ -97,23 +97,62 @@ export function formatRelative(iso: string, now = new Date()): string {
   return dateYearFmt().format(d);
 }
 
-function pastAgo(
+/** Short relative for overdue / past-reminder chips (`row.*.{overdue,past}`). */
+function formatRelativeShort(iso: string, now: Date): string {
+  const diffMs = now.getTime() - new Date(iso).getTime();
+  const rtf = new Intl.RelativeTimeFormat(intlLocale(), {
+    numeric: "auto",
+    style: "short",
+  });
+  const mins = Math.floor(diffMs / 60_000);
+  if (mins < 1) return rtf.format(0, "minute");
+  if (mins < 60) return rtf.format(-mins, "minute");
+  const hours = Math.floor(mins / 60);
+  if (hours < 24) return rtf.format(-hours, "hour");
+  const days = Math.floor(hours / 24);
+  if (days < 7) return rtf.format(-days, "day");
+  return dateFmt().format(new Date(iso));
+}
+
+/**
+ * Accessible `{date}` for `row.due.label` / `row.reminder.label` (§1.15).
+ * ES/FR: relative day and weekday/month lowercased; EN keeps Intl capitals
+ * on weekday/month (today/tomorrow stay lowercase from RelativeTimeFormat).
+ */
+export function formatRowAccessibleDate(
   iso: string,
-  now: Date,
-  verbKey: "due.overdueVerb" | "due.remindedVerb",
+  now = new Date(),
 ): string {
   const d = new Date(iso);
-  const verb = t(verbKey);
-  const diffMs = now.getTime() - d.getTime();
-  const mins = Math.floor(diffMs / 60_000);
-  if (mins < 1) return t("due.agoMoment", { verb });
-  if (mins < 60) return t("due.agoMinutes", { verb, n: mins });
-  const hours = Math.floor(mins / 60);
-  if (hours < 24) return t("due.agoHours", { verb, n: hours });
-  const days = Math.floor(hours / 24);
-  if (days < 7) return t("due.agoDays", { verb, n: days });
-  const dateStr = dateFmt().format(d);
-  return t("due.agoDate", { verb, date: dateStr });
+  const dateOnly = isDateOnlyInZone(iso, tz());
+  const hm = timeFmt().format(d);
+  const dayDiff = zoneDayDiff(iso, tz(), now);
+  const rtf = new Intl.RelativeTimeFormat(intlLocale(), { numeric: "auto" });
+  let dayPart: string;
+  if (dayDiff === 0) {
+    dayPart = rtf.format(0, "day");
+  } else if (dayDiff === 1) {
+    dayPart = rtf.format(1, "day");
+  } else if (dayDiff > 1 && dayDiff < 7) {
+    dayPart = new Intl.DateTimeFormat(intlLocale(), {
+      timeZone: tz(),
+      weekday: "long",
+    }).format(d);
+    if (locale() !== "en") {
+      dayPart = dayPart.toLocaleLowerCase(intlLocale());
+    }
+  } else {
+    dayPart = new Intl.DateTimeFormat(intlLocale(), {
+      timeZone: tz(),
+      day: "numeric",
+      month: "long",
+    }).format(d);
+    if (locale() !== "en") {
+      dayPart = dayPart.toLocaleLowerCase(intlLocale());
+    }
+  }
+  if (dateOnly || dayDiff < 0) return dayPart;
+  return `${dayPart}, ${hm}`;
 }
 
 export function formatDue(
@@ -129,7 +168,10 @@ export function formatDue(
   const dayDiff = zoneDayDiff(iso, tz(), now);
 
   if (d.getTime() < now.getTime()) {
-    return { text: pastAgo(iso, now, "due.overdueVerb"), tone: "crit" };
+    return {
+      text: t("row.due.overdue", { relative: formatRelativeShort(iso, now) }),
+      tone: "crit",
+    };
   }
   if (dayDiff === 0) {
     const hoursLeft = (d.getTime() - now.getTime()) / 3_600_000;
@@ -171,7 +213,10 @@ export function formatDueForGroup(
   const d = new Date(iso);
 
   if (groupKey === "overdue") {
-    return { text: pastAgo(iso, now, "due.overdueVerb"), tone: "crit" };
+    return {
+      text: t("row.due.overdue", { relative: formatRelativeShort(iso, now) }),
+      tone: "crit",
+    };
   }
   if (groupKey === "today" || groupKey === "tomorrow") {
     return { text: dateOnly ? "" : hm, tone: "muted" };
@@ -198,17 +243,16 @@ export function formatReminder(
 ): { text: string; tone: "muted" | "warn" | "crit" } {
   const d = new Date(iso);
   if (d.getTime() < now.getTime()) {
-    return { text: pastAgo(iso, now, "due.remindedVerb"), tone: "muted" };
+    return {
+      text: t("row.reminder.past", {
+        relative: formatRelativeShort(iso, now),
+      }),
+      tone: "muted",
+    };
   }
+  // §1.15: keep the day always («Hoy 23:12», never bare time).
   const due = formatDue(iso, now);
-  const todayPrefix = `${t("due.today")} `;
-  const tomorrowPrefix = `${t("due.tomorrow")} `;
-  return {
-    text: due.text
-      .replace(todayPrefix, "")
-      .replace(tomorrowPrefix, `${t("due.tomorrow").slice(0, 4)} `),
-    tone: due.tone,
-  };
+  return { text: due.text, tone: "muted" };
 }
 
 export function formatAbsolute(iso: string): string {

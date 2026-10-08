@@ -247,6 +247,8 @@
 .item-list {
   overflow: auto;
   flex: 1;
+  container-type: inline-size;
+  container-name: list;
 }
 
 .section-label {
