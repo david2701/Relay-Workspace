@@ -216,7 +216,7 @@ export function NoteEditor({
         "[",
         "]()",
       );
-      // Cursor between the parentheses: [selection](|)
+      // Text caret between the parentheses: [selection](|)
       const cursor = selEnd + 2; // after "]("
       applyEdit(next, cursor, cursor);
       return;

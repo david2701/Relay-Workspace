@@ -14,7 +14,7 @@ const WEB = process.env.RELAY_WEB ?? "http://127.0.0.1:7421";
 const MAX_MS = 2000;
 const SAMPLES = 10;
 
-async function mcp(name, args, actorId = "grok-bot") {
+async function mcp(name, args, actorId = "agent-code") {
   const res = await fetch(`${API}/mcp/invoke`, {
     method: "POST",
     headers: {
@@ -61,7 +61,7 @@ async function measureNeedsYou(page, i) {
   const title = `SLA needs_you ${i} ${Date.now()}`;
   const created = await mcp("items_create", { title });
   const id = created.item.id;
-  await mcp("items_delegate", { id, agent_id: "grok-bot" });
+  await mcp("items_delegate", { id, agent_id: "agent-code" });
   const t0 = Date.now();
   await mcp("items_ask_user", {
     id,
@@ -76,7 +76,7 @@ async function measureBlocked(page, i) {
   const title = `SLA blocked ${i} ${Date.now()}`;
   const created = await mcp("items_create", { title });
   const id = created.item.id;
-  await mcp("items_delegate", { id, agent_id: "grok-bot" });
+  await mcp("items_delegate", { id, agent_id: "agent-code" });
   const t0 = Date.now();
   await mcp("items_set_status", {
     id,
@@ -94,7 +94,7 @@ async function measureComplete(page, i) {
   const title = `SLA complete ${i} ${Date.now()}`;
   const created = await mcp("items_create", { title, goal: "SLA" });
   const id = created.item.id;
-  await mcp("items_delegate", { id, agent_id: "grok-bot" });
+  await mcp("items_delegate", { id, agent_id: "agent-code" });
   await mcp("items_set_status", { id, status: "in_progress" });
   await page.getByRole("option", { name: new RegExp(title) }).waitFor({
     state: "visible",

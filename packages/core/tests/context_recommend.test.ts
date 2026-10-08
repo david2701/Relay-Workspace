@@ -11,7 +11,7 @@ function item(overrides: Partial<WorkItem>): WorkItem {
     goal: "Listo cuando haya PR",
     status: "in_progress",
     assignee_type: "agent",
-    assignee_id: "grok-bot",
+    assignee_id: "agent-code",
     due_at: null,
     reminder_at: null,
     reminder_intent: null,
@@ -26,7 +26,7 @@ function item(overrides: Partial<WorkItem>): WorkItem {
     completed_by_type: null,
     completed_by_id: null,
     last_actor_type: "agent",
-    last_actor_id: "grok-bot",
+    last_actor_id: "agent-code",
     list_id: null,
     ...overrides,
   };
@@ -68,7 +68,7 @@ describe("context_get contents", () => {
     expect(pack.reminder_intent).toBe("Revisar borrador");
     expect(pack.notes[0]?.role).toBe("decision");
     expect(pack.notes[1]?.body_preview.split("\n")).toHaveLength(3);
-    expect(pack.assignee_display_name).toBe("Grok Bot");
+    expect(pack.assignee_display_name).toBe("Code agent");
   });
 });
 

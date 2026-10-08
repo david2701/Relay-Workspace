@@ -13,7 +13,7 @@ describe("url_state round-trip", () => {
       q: "demo",
       facets: {
         status: ["needs_you", "blocked"],
-        actor: ["dev-senior", "user"],
+        actor: ["agent-research", "user"],
         due: "week",
         from: null,
         to: null,
@@ -24,15 +24,15 @@ describe("url_state round-trip", () => {
     };
     const url = serializeUrlState(state);
     expect(url).toBe(
-      "/all?q=demo&status=blocked,needs_you&actor=user,dev-senior&due=week&item=itm_abc",
+      "/all?q=demo&status=blocked,needs_you&actor=user,agent-research&due=week&item=itm_abc",
     );
     const { state: parsed, dirty } = parseUrlState(
       "/all",
-      "?q=demo&status=blocked,needs_you&actor=user,dev-senior&due=week&item=itm_abc",
+      "?q=demo&status=blocked,needs_you&actor=user,agent-research&due=week&item=itm_abc",
     );
     expect(dirty).toBe(false);
     expect(parsed.facets.status).toEqual(["blocked", "needs_you"]);
-    expect(parsed.facets.actor).toEqual(["user", "dev-senior"]);
+    expect(parsed.facets.actor).toEqual(["user", "agent-research"]);
     expect(serializeUrlState(parsed)).toBe(url);
   });
 
@@ -75,14 +75,14 @@ describe("url_state round-trip", () => {
   });
 
   it("filters unknown actors when catalog provided", () => {
-    const known = new Set(["dev-senior", "grok-bot"]);
+    const known = new Set(["agent-research", "agent-code"]);
     const { state, dirty } = parseUrlState(
       "/all",
-      "?actor=david,nope,dev-senior",
+      "?actor=david,nope,agent-research",
       known,
     );
     expect(dirty).toBe(true);
-    expect(state.facets.actor).toEqual(["user", "dev-senior"]);
+    expect(state.facets.actor).toEqual(["user", "agent-research"]);
   });
 
   it("facet combinations AND in URL (status + actor)", () => {
@@ -92,11 +92,11 @@ describe("url_state round-trip", () => {
       facets: {
         ...EMPTY_FACETS,
         status: ["blocked"],
-        actor: ["dev-senior"],
+        actor: ["agent-research"],
       },
       item: null,
       note: null,
     });
-    expect(url).toBe("/all?status=blocked&actor=dev-senior");
+    expect(url).toBe("/all?status=blocked&actor=agent-research");
   });
 });

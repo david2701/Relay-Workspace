@@ -15,12 +15,12 @@ async function mcp(name, args) {
     method: "POST",
     headers: {
       "Content-Type": "application/json",
-      "X-Relay-Actor": "grok-bot",
+      "X-Relay-Actor": "agent-code",
       "X-Relay-Source": "mcp",
     },
     body: JSON.stringify({
       name,
-      arguments: { ...args, actor: { id: "grok-bot", type: "agent" } },
+      arguments: { ...args, actor: { id: "agent-code", type: "agent" } },
     }),
   });
   const json = await res.json();
@@ -54,7 +54,7 @@ async function main() {
 
   // —— V1: mutate blocked + needs_you; header N must equal rows; rail = Te necesita ——
   const b = await mcp("items_create", { title: "V1 Publicar build en staging" });
-  await mcp("items_delegate", { id: b.item.id, agent_id: "grok-bot" });
+  await mcp("items_delegate", { id: b.item.id, agent_id: "agent-code" });
   await mcp("items_set_status", {
     id: b.item.id,
     status: "blocked",
@@ -76,7 +76,7 @@ async function main() {
   const a = await mcp("items_create", {
     title: "V1 Revisar copy del correo de lanzamiento",
   });
-  await mcp("items_delegate", { id: a.item.id, agent_id: "grok-bot" });
+  await mcp("items_delegate", { id: a.item.id, agent_id: "agent-code" });
   await mcp("items_ask_user", { id: a.item.id, reason: "¿Publico A o B?" });
   await page
     .getByRole("option", { name: /V1 Revisar copy/ })
@@ -158,7 +158,7 @@ async function main() {
   // —— V4: open agent view with decisión note ——
   await page.getByRole("option", { name: /V1 Revisar copy/ }).click();
   await page.locator(".reason-banner.needs_you textarea").fill("Publica la opción A.");
-  await page.getByRole("button", { name: /Devolver a Grok Bot/ }).click();
+  await page.getByRole("button", { name: /Devolver a Code agent/ }).click();
   await page.getByText(/Decisión:/i).first().waitFor({ timeout: 2000 });
   await page.getByRole("button", { name: /Lo que ve el agente/ }).click();
   const agentView = page.locator(".agent-view");

@@ -77,7 +77,7 @@ async function measureMcpInbox(samples = 20) {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
-        "X-Relay-Actor": "grok-bot",
+        "X-Relay-Actor": "agent-code",
         "X-Relay-Source": "mcp",
       },
       body: JSON.stringify({
