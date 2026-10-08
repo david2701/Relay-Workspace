@@ -1006,7 +1006,12 @@ export default function App() {
           <div className="mono sync-seal">
             {offline
               ? t("sync.offline")
-              : t("sync.ok", { n: syncAge.current })}
+              : t("sync.ok", {
+                  relative: new Intl.RelativeTimeFormat(intlLocale, {
+                    numeric: "auto",
+                    style: "short",
+                  }).format(-Math.max(0, syncAge.current), "second"),
+                })}
           </div>
           <button type="button" className="linkish" onClick={() => setShowShortcuts(true)}>
             ? {t("nav.shortcuts")}
@@ -1015,7 +1020,7 @@ export default function App() {
             type="button"
             className="linkish"
             onClick={() => setSettingsOpen(true)}
-            aria-label={t("settings.open")}
+            aria-label={t("nav.settings")}
           >
             ⚙
           </button>

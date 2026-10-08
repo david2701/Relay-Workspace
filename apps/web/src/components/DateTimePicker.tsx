@@ -404,10 +404,10 @@ export function DateTimePicker({
           return;
         }
         setParseError(
-          t("picker.parseError"),
+          t("picker.parse.error"),
         );
         setAlertError(
-          t("picker.parseError"),
+          t("picker.parse.error"),
         );
         return;
       }
@@ -704,7 +704,7 @@ export function DateTimePicker({
           disabled={disabled}
           placeholder={
             open
-              ? t("picker.placeholder")
+              ? t("picker.input.placeholder")
               : emptyLabel
           }
           title={

@@ -34,35 +34,68 @@ export type ParseFail = {
 
 export type ParseResult = ParseOk | ParseFail;
 
-const MONTHS_FULL = [
-  "enero",
-  "febrero",
-  "marzo",
-  "abril",
-  "mayo",
-  "junio",
-  "julio",
-  "agosto",
-  "septiembre",
-  "octubre",
-  "noviembre",
-  "diciembre",
-] as const;
-
-const MONTHS_SHORT = [
-  "ene",
-  "feb",
-  "mar",
-  "abr",
-  "may",
-  "jun",
-  "jul",
-  "ago",
-  "sep",
-  "oct",
-  "nov",
-  "dic",
-] as const;
+/** Folded month token → 1–12 (ES / EN / FR abbreviations and full names). */
+const MONTH_TOKEN_TO_NUM: Record<string, number> = {
+  // ES
+  ene: 1,
+  enero: 1,
+  feb: 2,
+  febrero: 2,
+  mar: 3,
+  marzo: 3,
+  abr: 4,
+  abril: 4,
+  may: 5,
+  mayo: 5,
+  jun: 6,
+  junio: 6,
+  jul: 7,
+  julio: 7,
+  ago: 8,
+  agosto: 8,
+  sep: 9,
+  septiembre: 9,
+  set: 9,
+  setiembre: 9,
+  oct: 10,
+  octubre: 10,
+  nov: 11,
+  noviembre: 11,
+  dic: 12,
+  diciembre: 12,
+  // EN
+  jan: 1,
+  january: 1,
+  february: 2,
+  march: 3,
+  apr: 4,
+  april: 4,
+  june: 6,
+  july: 7,
+  aug: 8,
+  august: 8,
+  september: 9,
+  october: 10,
+  november: 11,
+  dec: 12,
+  december: 12,
+  // FR (accents folded: févr→fevr, août→aout, déc→dec)
+  janv: 1,
+  janvier: 1,
+  fevr: 2,
+  fev: 2,
+  fevrier: 2,
+  mars: 3,
+  avril: 4,
+  mai: 5,
+  juin: 6,
+  juillet: 7,
+  aout: 8,
+  septembre: 9,
+  octobre: 10,
+  novembre: 11,
+  decembre: 12,
+};
 
 export function foldAccents(s: string): string {
   return s.normalize("NFD").replace(/\p{M}/gu, "").toLowerCase();
@@ -109,12 +142,18 @@ function nextMonday(now: Date, timeZone: string): Date {
 }
 
 function parseMonthToken(tok: string): number | null {
-  const i = MONTHS_SHORT.indexOf(tok.slice(0, 3) as (typeof MONTHS_SHORT)[number]);
-  if (i >= 0) return i + 1;
-  const full = MONTHS_FULL.findIndex((m) => foldAccents(m) === tok || tok.startsWith(foldAccents(m).slice(0, 3)));
-  if (full >= 0) return full + 1;
+  const t = foldAccents(tok).replace(/\./g, "");
+  if (MONTH_TOKEN_TO_NUM[t] !== undefined) return MONTH_TOKEN_TO_NUM[t]!;
+  // Prefix match for longer tokens (e.g. "oct." already stripped)
+  for (const [k, n] of Object.entries(MONTH_TOKEN_TO_NUM)) {
+    if (k.length >= 3 && (t.startsWith(k) || k.startsWith(t))) return n;
+  }
   return null;
 }
+
+const MONTH_ALT = Object.keys(MONTH_TOKEN_TO_NUM)
+  .sort((a, b) => b.length - a.length)
+  .join("|");
 
 type TimeParts = { hh: number; mm: number };
 
@@ -272,6 +311,11 @@ export function parseNaturalDate(
     return { ok: false, reason: "empty" };
   }
 
+  // P0: reject 12h clock tokens so the UI can show picker.parse.no12h
+  if (/(?:^|\s)(\d{1,2})(?::(\d{2}))?\s*(am|pm)(?:\s|$)/i.test(trimmed)) {
+    return { ok: false, reason: "unknown" };
+  }
+
   // Bare integer → ambiguous (hour or day?)
   if (/^\d{1,2}$/.test(folded)) {
     return { ok: false, reason: "ambiguous" };
@@ -413,15 +457,35 @@ export function parseNaturalDate(
     return finishDay(resolved, rest, kind, timeZone);
   }
 
-  const namedDate = folded.match(
-    /^(\d{1,2})\s+(ene|feb|mar|abr|may|jun|jul|ago|sep|oct|nov|dic|enero|febrero|marzo|abril|mayo|junio|julio|agosto|septiembre|octubre|noviembre|diciembre)(?:\s+(\d{4}))?(?:\s+(.+))?$/,
+  // Day-first: «15 oct», «15 octubre», «15 oct.», «15 oct 2026 9»
+  const dayFirst = folded.match(
+    new RegExp(
+      `^(\\d{1,2})\\s+(${MONTH_ALT})\\.?(?:\\s+(\\d{4}))?(?:\\s+(.+))?$`,
+    ),
   );
-  if (namedDate) {
-    const day = Number(namedDate[1]);
-    const month = parseMonthToken(namedDate[2]!);
+  if (dayFirst) {
+    const day = Number(dayFirst[1]);
+    const month = parseMonthToken(dayFirst[2]!);
     if (!month) return { ok: false, reason: "unknown" };
-    const year = namedDate[3] ? Number(namedDate[3]) : undefined;
-    const rest = namedDate[4] ?? "";
+    const year = dayFirst[3] ? Number(dayFirst[3]) : undefined;
+    const rest = dayFirst[4] ?? "";
+    const resolved = resolveCalendarDay(day, month, year, now, timeZone);
+    if (!resolved) return { ok: false, reason: "unknown" };
+    return finishDay(resolved, rest, kind, timeZone);
+  }
+
+  // Month-first: “oct 15”, “october 15, 2026”, “oct. 15”
+  const monthFirst = folded.match(
+    new RegExp(
+      `^(${MONTH_ALT})\\.?(?:\\s+|\\s*,\\s*)(\\d{1,2})(?:(?:\\s+|\\s*,\\s*)(\\d{4}))?(?:\\s+(.+))?$`,
+    ),
+  );
+  if (monthFirst) {
+    const month = parseMonthToken(monthFirst[1]!);
+    const day = Number(monthFirst[2]);
+    if (!month) return { ok: false, reason: "unknown" };
+    const year = monthFirst[3] ? Number(monthFirst[3]) : undefined;
+    const rest = monthFirst[4] ?? "";
     const resolved = resolveCalendarDay(day, month, year, now, timeZone);
     if (!resolved) return { ok: false, reason: "unknown" };
     return finishDay(resolved, rest, kind, timeZone);

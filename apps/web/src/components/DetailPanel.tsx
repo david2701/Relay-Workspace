@@ -461,8 +461,8 @@ export function DetailPanel({
                   disabled={offline || !agent}
                   onClick={() => void returnToAgent()}
                 >
-                  {t("cta.returnTo", {
-                    name: agent?.display_name ?? t("item.agentFallback"),
+                  {t("detail.returnTo", {
+                    agent: agent?.display_name ?? t("item.agentFallback"),
                   })}
                 </button>
                 <button

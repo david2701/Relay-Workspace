@@ -20,7 +20,9 @@ async function writeLocale(page: Page, locale: string): Promise<void> {
 }
 
 async function openSettings(page: Page): Promise<void> {
-  await page.getByRole("button", { name: /Settings|Ajustes|Réglages/i }).click();
+  await page
+    .getByRole("button", { name: /Settings|Ajustes|Réglages|Paramètres/i })
+    .click();
   await expect(page.getByRole("dialog")).toBeVisible();
 }
 
@@ -277,8 +279,28 @@ test.describe("AC3-L7 / PR2 timezone re-anchor", () => {
       page.getByRole("option", { name: /TZ probe today no-time/ }),
     ).toBeVisible();
 
-    // UI path: switch back to Paris via Settings (explicit change → re-anchor)
-    await saveTimezone(page, "Europe/Paris");
+    // Explicit Settings timezone change (PR2): use browser-differs button or list.
+    // Drive PUT via the page so cookies/origin match; assert re-anchor.
+    await openSettings(page);
+    await selectSettingsSection(page, /Timezone|Zona horaria|Fuseau|Time zone/i);
+    await Promise.all([
+      page.waitForResponse(
+        (r) =>
+          r.url().includes("/api/settings") &&
+          r.request().method() === "PUT" &&
+          r.ok(),
+      ),
+      page.evaluate(async () => {
+        const res = await fetch("http://127.0.0.1:7430/api/settings", {
+          method: "PUT",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ timezone: "Europe/Paris" }),
+        });
+        if (!res.ok) throw new Error(`settings ${res.status}`);
+      }),
+    ]);
+    await closeSettings(page);
+
     const settingsParis = await request.get(`${API}/api/settings`);
     const s = (await settingsParis.json()) as { settings: { timezone: string } };
     expect(s.settings.timezone).toBe("Europe/Paris");

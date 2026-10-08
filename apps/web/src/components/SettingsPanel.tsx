@@ -127,8 +127,12 @@ export function SettingsPanel({
 
   async function commitName(): Promise<void> {
     const trimmed = name.trim();
-    if (!trimmed || trimmed.length > 40) {
+    if (!trimmed) {
       setNameError(t("settings.profile.nameError"));
+      return;
+    }
+    if (trimmed.length > 40) {
+      setNameError(t("settings.profile.nameTooLong"));
       return;
     }
     setNameError(null);
@@ -240,7 +244,7 @@ export function SettingsPanel({
                 />
                 {nameError ? (
                   <span className="settings-error" role="alert">
-                    {nameError}
+                    {nameError || t("settings.profile.nameError")}
                   </span>
                 ) : null}
               </label>

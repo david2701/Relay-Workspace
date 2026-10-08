@@ -97,7 +97,7 @@ export function FilterBar({
             aria-keyshortcuts="F"
             onClick={() => setOpen(!open)}
           >
-            {n > 0 ? t("filter.titleCount", { n }) : t("filter.title")}
+            {n > 0 ? t("filter.titleCount", { count: n }) : t("filter.title")}
             <kbd className="filter-btn-kbd" aria-hidden>
               F
             </kbd>
