@@ -6,8 +6,9 @@ import {
   formatRelative,
   formatReminder,
 } from "../lib/format";
-import type { Agent, WorkItem } from "../lib/types";
+import type { Agent, SearchMatch, WorkItem } from "../lib/types";
 import { ActorMark, isStaleWorking, isWorking } from "./ActorMark";
+import { MatchSnippet } from "./MatchSnippet";
 import { StatusGlyph } from "./StatusGlyph";
 import "./ItemRow.css";
 
@@ -20,6 +21,7 @@ type Props = {
   showCompletedBy?: boolean;
   /** When grouped by due date, compact the due chip (§1.8). */
   dueGroupKey?: string | undefined;
+  match?: SearchMatch | undefined;
   onSelect: () => void;
 };
 
@@ -31,6 +33,7 @@ export function ItemRow({
   showChatBadge,
   showCompletedBy,
   dueGroupKey,
+  match,
   onSelect,
 }: Props) {
   const witness = markForWitness(item, agents);
@@ -55,10 +58,12 @@ export function ItemRow({
         }
       : null;
 
+  const showSnippet = match && match.field !== "title";
   const aria = [
     item.title,
     copy.statusLabel[item.status],
     reasonLine,
+    showSnippet ? match.snippet : null,
     witness.name,
     due?.text,
   ]
@@ -79,6 +84,7 @@ export function ItemRow({
         item.status === "done" || item.status === "cancelled" ? "terminal" : "",
         item.status === "cancelled" ? "cancelled" : "",
         reasonLine ? "with-reason" : "",
+        showSnippet ? "with-snippet" : "",
       ]
         .filter(Boolean)
         .join(" ")}
@@ -97,6 +103,7 @@ export function ItemRow({
           ) : null}
         </div>
         {reasonLine ? <div className="item-reason">{reasonLine}</div> : null}
+        {showSnippet ? <MatchSnippet match={match} /> : null}
         {showCompletedBy &&
         (item.status === "done" || item.status === "cancelled") ? (
           <div className="item-reason completed-by-line">

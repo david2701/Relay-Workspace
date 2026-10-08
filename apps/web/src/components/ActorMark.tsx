@@ -11,7 +11,7 @@ type Props = {
   kind: Kind;
   name: string;
   monogram: string;
-  size?: 16 | 20 | 24;
+  size?: 14 | 16 | 20 | 24;
   working?: boolean;
   stale?: boolean;
 };

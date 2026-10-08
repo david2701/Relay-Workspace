@@ -146,13 +146,20 @@
   letter-spacing: -0.005em;
 }
 
-.view-filter {
+.list-head-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.group-toggle {
+  height: var(--control-h);
+  padding: 0 10px;
   border: 1px solid var(--line);
-  background: var(--sunken);
   border-radius: var(--radius-sm);
-  padding: 4px 8px;
+  background: var(--raised);
   font-size: var(--step-meta);
-  width: min(220px, 40%);
+  color: var(--ink-2);
 }
 
 .capture-wrap {
@@ -375,6 +382,22 @@
 
 .list-note {
   margin-bottom: 10px;
+  cursor: pointer;
+}
+
+.list-note.is-selected {
+  border-color: var(--accent);
+  box-shadow: inset 2px 0 0 var(--accent);
+}
+
+.list-note .note-extract {
+  margin: 6px 0 0;
+  color: var(--ink-2);
+  font-size: var(--step-meta);
+  display: -webkit-box;
+  -webkit-line-clamp: 3;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
 }
 
 .modal-scrim {

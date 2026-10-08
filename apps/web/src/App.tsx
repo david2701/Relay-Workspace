@@ -1,21 +1,29 @@
 import {
   useCallback,
   useEffect,
+  useLayoutEffect,
   useMemo,
   useRef,
   useState,
 } from "react";
 import { ActorMark } from "./components/ActorMark";
 import { DetailPanel } from "./components/DetailPanel";
+import { FilterBar } from "./components/FilterBar";
+import { focusSearchField } from "./components/SearchField";
 import { ItemRow } from "./components/ItemRow";
+import { NoteView } from "./components/NoteView";
 import { ThemeSwitch } from "./components/ThemeSwitch";
 import { VirtualItemList } from "./components/VirtualItemList";
 import { usePoll } from "./hooks/usePoll";
 import { useTheme } from "./hooks/useTheme";
+import { useUrlState } from "./hooks/useUrlState";
 import { markForOwner } from "./lib/actor_mark";
 import { api } from "./lib/api";
 import { copy } from "./lib/copy";
 import { applyInboxDelta, isInboxDelta } from "./lib/inbox_merge";
+import { itemMatchesFacets } from "./lib/facet_filter";
+import { toPlainText } from "./lib/markdown";
+import { matchesQuery } from "./lib/normalize";
 import type {
   Agent,
   AppView,
@@ -23,9 +31,14 @@ import type {
   InboxView,
   Note,
   Recommendation,
+  SearchMatch,
   WorkItem,
 } from "./lib/types";
 import { groupByDue } from "./lib/date_groups";
+import {
+  EMPTY_FACETS,
+  hasActiveFacets,
+} from "./lib/url_state";
 import {
   assertNoDuplicateIds,
   buildViewSections,
@@ -70,10 +83,40 @@ function dismissedKey(id: string): string {
 
 export default function App() {
   const { theme, setTheme } = useTheme();
-  const [view, setView] = useState<AppView>("attention");
-  const [selectedId, setSelectedId] = useState<string | null>(null);
-  const [selectedItem, setSelectedItem] = useState<WorkItem | null>(null);
   const [agents, setAgents] = useState<Agent[]>([]);
+  const knownActors = useMemo(
+    () => new Set(agents.map((a) => a.id)),
+    [agents],
+  );
+  const {
+    state: urlState,
+    setView: setUrlView,
+    setQuery,
+    setFacets,
+    clearFilters,
+    setItem: setUrlItem,
+    setNote: setUrlNote,
+    replaceAll: replaceUrl,
+  } = useUrlState({ knownActors });
+  const view = urlState.view;
+  const [selectedItem, setSelectedItem] = useState<WorkItem | null>(null);
+  const selectedId = urlState.item;
+  const selectedNoteId = urlState.note;
+  const setSelectedId = useCallback(
+    (id: string | null) => {
+      setUrlItem(id);
+    },
+    [setUrlItem],
+  );
+  const openNote = useCallback(
+    (noteId: string) => {
+      setUrlNote(noteId);
+    },
+    [setUrlNote],
+  );
+  const closeNote = useCallback(() => {
+    setUrlNote(null);
+  }, [setUrlNote]);
   const [flashIds, setFlashIds] = useState<Set<string>>(new Set());
   const [capture, setCapture] = useState("");
   const [pendingRows, setPendingRows] = useState<WorkItem[]>([]);
@@ -90,13 +133,22 @@ export default function App() {
     undo?: () => void;
   } | null>(null);
   const [notes, setNotes] = useState<Note[]>([]);
-  const [filter, setFilter] = useState("");
   const [gPending, setGPending] = useState(false);
   const [todoGroupBy, setTodoGroupBy] = useState<"due" | "none">(readTodoGroupBy);
   const [collapsedGroups, setCollapsedGroups] = useState<Set<string>>(
     readCollapsedGroups,
   );
   const [openPicker, setOpenPicker] = useState<"due" | "reminder" | null>(null);
+  const [facetsOpen, setFacetsOpen] = useState(false);
+  const [searchMatches, setSearchMatches] = useState<Map<string, SearchMatch>>(
+    () => new Map(),
+  );
+  const [searchAllowedIds, setSearchAllowedIds] = useState<Set<string> | null>(
+    null,
+  );
+  const [searchTotal, setSearchTotal] = useState<number | null>(null);
+  const [searching, setSearching] = useState(false);
+  const [searchError, setSearchError] = useState<string | null>(null);
   const captureRef = useRef<HTMLInputElement>(null);
   const listRef = useRef<HTMLDivElement>(null);
   const prevUpdated = useRef<Map<string, string>>(new Map());
@@ -107,18 +159,25 @@ export default function App() {
   const syncAge = useRef(0);
   const syncCursorRef = useRef<string | null>(null);
   const inboxStateRef = useRef<InboxResult | null>(null);
+  const searchGen = useRef(0);
   const [tick, setTick] = useState(0);
 
   const selectView = useCallback((next: AppView) => {
     if (next === view) return;
-    // Wipe linger synchronously so the first paint of the new view never
-    // inherits rows from the previous lens (BUG-2).
+    setUrlView(next, true);
+  }, [view, setUrlView]);
+
+  // Wipe linger before paint on every view change (rail, G+letter, popstate).
+  const lastViewRef = useRef(view);
+  useLayoutEffect(() => {
+    if (lastViewRef.current === view) return;
+    lastViewRef.current = view;
     viewEpoch.current += 1;
     hydratedView.current = null;
     prevItems.current = new Map();
     prevUpdated.current = new Map();
     setLingerRows([]);
-    setView(next);
+    setFacetsOpen(false);
   }, [view]);
 
   useEffect(() => {
@@ -294,13 +353,132 @@ export default function App() {
     }, 800);
   }
 
+  const facetsActive = hasActiveFacets(urlState.facets);
+  const qTrim = urlState.q.trim();
+  const qActive = qTrim.length >= 2;
+  /** True when the list is actually narrowed (not a 1-char stub). */
+  const filtersActive =
+    facetsActive || qActive || (view === "notes" && qTrim.length > 0);
+
+  // Debounced server search (150 ms from 2 chars; facets alone also search).
+  useEffect(() => {
+    if (view === "notes") {
+      setSearchAllowedIds(null);
+      setSearchMatches(new Map());
+      setSearchTotal(null);
+      setSearching(false);
+      setSearchError(null);
+      return;
+    }
+    const needSearch = facetsActive || qActive;
+    if (!needSearch) {
+      setSearchAllowedIds(null);
+      setSearchMatches(new Map());
+      setSearchTotal(null);
+      setSearching(false);
+      setSearchError(null);
+      return;
+    }
+    if (offline) {
+      // Offline: facets (and title) on client; no API search / note hits.
+      if (inbox) {
+        const ids = new Set(
+          inbox.items
+            .filter((i) => {
+              if (facetsActive && !itemMatchesFacets(i, urlState.facets)) {
+                return false;
+              }
+              if (qActive && !matchesQuery(i.title, qTrim)) return false;
+              return facetsActive || qActive;
+            })
+            .map((i) => i.id),
+        );
+        setSearchAllowedIds(ids);
+        setSearchTotal(ids.size);
+      } else {
+        setSearchAllowedIds(null);
+        setSearchTotal(null);
+      }
+      setSearchMatches(new Map());
+      setSearching(false);
+      setSearchError(null);
+      return;
+    }
+    const gen = ++searchGen.current;
+    setSearching(true);
+    const handle = window.setTimeout(() => {
+      void (async () => {
+        try {
+          const res = await api.search({
+            ...(qActive ? { q: qTrim } : {}),
+            ...(urlState.facets.status.length > 0
+              ? { status: urlState.facets.status }
+              : {}),
+            ...(urlState.facets.actor.length > 0
+              ? { actor: urlState.facets.actor }
+              : {}),
+            ...(urlState.facets.due
+              ? { due: urlState.facets.due }
+              : {}),
+            ...(urlState.facets.due === "range" && urlState.facets.from
+              ? { from: urlState.facets.from }
+              : {}),
+            ...(urlState.facets.due === "range" && urlState.facets.to
+              ? { to: urlState.facets.to }
+              : {}),
+            view: inboxView,
+            limit: 200,
+          });
+          if (searchGen.current !== gen) return;
+          const ids = new Set(res.items.map((h) => h.item.id));
+          const map = new Map<string, SearchMatch>();
+          for (const h of res.items) map.set(h.item.id, h.match);
+          setSearchAllowedIds(ids);
+          setSearchMatches(map);
+          setSearchTotal(res.total);
+          setSearchError(null);
+        } catch {
+          if (searchGen.current !== gen) return;
+          setSearchError("No se pudo buscar. Reintentar");
+        } finally {
+          if (searchGen.current === gen) setSearching(false);
+        }
+      })();
+    }, qActive ? 150 : 0);
+    return () => window.clearTimeout(handle);
+  }, [
+    view,
+    inboxView,
+    facetsActive,
+    qActive,
+    qTrim,
+    urlState.facets,
+    offline,
+    inbox,
+  ]);
+
+  const baseUnfilteredCount = useMemo(() => {
+    if (!inbox) return 0;
+    return buildViewSections({
+      inbox,
+      inboxView,
+      lingerRows,
+      pendingRows,
+      filter: "",
+      now: Date.now(),
+    }).reduce((n, s) => n + s.items.length, 0);
+  }, [inbox, inboxView, lingerRows, pendingRows, tick]);
+
   const viewSections = useMemo(() => {
+    const offlineTitleFilter =
+      offline && qTrim.length > 0 && !facetsActive ? qTrim : "";
     const sections = buildViewSections({
       inbox,
       inboxView,
       lingerRows,
       pendingRows,
-      filter,
+      filter: offlineTitleFilter,
+      allowedIds: searchAllowedIds,
       now: Date.now(),
     });
     let result = sections;
@@ -321,7 +499,10 @@ export default function App() {
     inboxView,
     lingerRows,
     pendingRows,
-    filter,
+    searchAllowedIds,
+    offline,
+    qTrim,
+    facetsActive,
     tick,
     view,
     todoGroupBy,
@@ -335,6 +516,47 @@ export default function App() {
     }
     return viewSections.flatMap((s) => s.items);
   }, [viewSections, view, todoGroupBy, collapsedGroups]);
+
+  const filteredNotes = useMemo(() => {
+    if (view !== "notes") return notes;
+    if (!qTrim) return notes;
+    return notes.filter(
+      (n) =>
+        matchesQuery(n.title, qTrim) ||
+        matchesQuery(toPlainText(n.body_md), qTrim),
+    );
+  }, [notes, view, qTrim]);
+
+  const filteredCount =
+    view === "notes" ? filteredNotes.length : flatItems.length;
+  const notesTotal = notes.length;
+  const headerCount =
+    view === "notes"
+      ? filtersActive
+        ? `${filteredNotes.length} de ${notesTotal}`
+        : String(notesTotal)
+      : filtersActive && baseUnfilteredCount > 0
+        ? `${flatItems.length} de ${baseUnfilteredCount}`
+        : String(baseUnfilteredCount || flatItems.length);
+  const countLive =
+    filtersActive
+      ? `${filteredCount} resultados de ${
+          view === "notes"
+            ? notesTotal
+            : baseUnfilteredCount || searchTotal || filteredCount
+        }`
+      : null;
+
+  // If selection falls outside filtered results, move to first / clear.
+  useEffect(() => {
+    if (view === "notes") return;
+    if (!selectedId) return;
+    if (flatItems.some((i) => i.id === selectedId)) return;
+    if (searchAllowedIds && !searchAllowedIds.has(selectedId)) {
+      const first = flatItems[0];
+      setSelectedId(first ? first.id : null);
+    }
+  }, [flatItems, selectedId, searchAllowedIds, view, setSelectedId]);
 
   // Rail Atención counter: when Atención is painted, use the rendered
   // Te necesita row count (same list as the header · N). Otherwise use
@@ -427,22 +649,63 @@ export default function App() {
       const inOverlay =
         !!overlayHost ||
         (!!listbox && !listbox.classList.contains("item-list"));
+
+      // ⌘K reserved for palette (P1) — do nothing globally.
+      if ((e.metaKey || e.ctrlKey) && (e.key === "k" || e.key === "K")) {
+        return;
+      }
+
+      // Esc chain §4.2: popover/menu → note editor → search → shortcuts → capture → deselect
       if (e.key === "Escape") {
-        if (inOverlay) return;
+        if (inOverlay) return; // DateTimePicker / FacetMenu / dialogs stopPropagation
+        if (facetsOpen) {
+          e.stopPropagation();
+          setFacetsOpen(false);
+          return;
+        }
+        // NoteView / NoteEditor handle Esc (save+exit or back) via stopPropagation.
+        if (
+          selectedNoteId &&
+          t?.closest("[data-note-panel], .note-editor, .note-view")
+        ) {
+          return;
+        }
+        if (selectedNoteId) {
+          e.stopPropagation();
+          closeNote();
+          return;
+        }
+        const searchEl = document.getElementById(
+          "view-filter",
+        ) as HTMLInputElement | null;
+        if (document.activeElement === searchEl) {
+          e.stopPropagation();
+          if (urlState.q) {
+            setQuery("");
+          } else {
+            searchEl?.blur();
+            listRef.current?.focus();
+          }
+          return;
+        }
         if (showShortcuts) {
+          e.stopPropagation();
           setShowShortcuts(false);
           return;
         }
         if (document.activeElement === captureRef.current) {
+          e.stopPropagation();
           setCapture("");
           captureRef.current?.blur();
           return;
         }
         if (selectedId) {
+          e.stopPropagation();
           setSelectedId(null);
           return;
         }
       }
+      // Native checkbox / inputs: Space must not complete the list item (V12-M10).
       if (typing || inOverlay) return;
       if (e.key === "n" || e.key === "N") {
         e.preventDefault();
@@ -455,8 +718,20 @@ export default function App() {
       }
       if (e.key === "/") {
         e.preventDefault();
-        document.getElementById("view-filter")?.focus();
+        focusSearchField();
         return;
+      }
+      if (e.key === "f" || e.key === "F") {
+        if (e.shiftKey) {
+          e.preventDefault();
+          clearFilters();
+          return;
+        }
+        if (view !== "notes") {
+          e.preventDefault();
+          setFacetsOpen(true);
+          return;
+        }
       }
       if (e.key === "g" || e.key === "G") {
         setGPending(true);
@@ -599,7 +874,12 @@ export default function App() {
 
       <main className="list-zone">
         <header className="list-head">
-          <h2>{title}</h2>
+          <div className="list-head-title">
+            <h2>{title}</h2>
+            <span className="list-head-count mono" aria-hidden>
+              · {headerCount}
+            </span>
+          </div>
           <div className="list-head-actions">
             {view === "all" ? (
               <button
@@ -619,15 +899,37 @@ export default function App() {
                 {todoGroupBy === "due" ? "Agrupar: Fecha" : "Agrupar: Ninguno"}
               </button>
             ) : null}
-            <input
-              id="view-filter"
-              className="view-filter"
-              placeholder="Filtrar por título"
-              value={filter}
-              onChange={(e) => setFilter(e.target.value)}
-            />
           </div>
         </header>
+
+        <FilterBar
+          q={urlState.q}
+          facets={urlState.facets}
+          agents={agents}
+          offline={offline}
+          searching={searching}
+          searchError={searchError}
+          countLive={countLive}
+          hideFacets={view === "notes"}
+          hideOwner={false}
+          placeholder={
+            view === "notes"
+              ? "Buscar en notas…"
+              : "Buscar en ítems y notas…"
+          }
+          onQueryChange={setQuery}
+          onFacetsChange={setFacets}
+          onClear={clearFilters}
+          facetsOpen={facetsOpen}
+          onFacetsOpenChange={setFacetsOpen}
+          onFocusFirstResult={() => {
+            const first = flatItems[0];
+            if (first) {
+              setSelectedId(first.id);
+              listRef.current?.focus();
+            }
+          }}
+        />
 
         {offline ? (
           <div className="banner offline" role="status">
@@ -766,11 +1068,31 @@ relay web   →  http://127.0.0.1:7421`}</pre>
           <div className="notes-list">
             {notes.length === 0 ? (
               <Empty text={copy.empty.notes} />
+            ) : filteredNotes.length === 0 ? (
+              <Empty
+                text="Nada coincide con estos filtros."
+                action={{
+                  label: "Quitar filtros",
+                  onClick: clearFilters,
+                }}
+              />
             ) : (
-              notes.map((n) => (
-                <article key={n.id} className="note-card list-note">
+              filteredNotes.map((n) => (
+                <article
+                  key={n.id}
+                  className={`note-card list-note${selectedNoteId === n.id ? " is-selected" : ""}`}
+                  role="button"
+                  tabIndex={0}
+                  onClick={() => openNote(n.id)}
+                  onKeyDown={(e) => {
+                    if (e.key === "Enter" || e.key === " ") {
+                      e.preventDefault();
+                      openNote(n.id);
+                    }
+                  }}
+                >
                   <strong>{n.title}</strong>
-                  <p>{n.body_md.slice(0, 120)}</p>
+                  <p className="note-extract">{toPlainText(n.body_md)}</p>
                 </article>
               ))
             )}
@@ -795,6 +1117,7 @@ relay web   →  http://127.0.0.1:7421`}</pre>
                 showChatBadge={view === "all"}
                 showCompletedBy={view === "done"}
                 dueGroupMode={view === "all" && todoGroupBy === "due"}
+                matches={searchMatches}
                 {...(view === "all" && todoGroupBy === "due"
                   ? {
                       collapsedKeys: collapsedGroups,
@@ -816,7 +1139,31 @@ relay web   →  http://127.0.0.1:7421`}</pre>
               />
             ) : null}
             {inbox && flatItems.length === 0 ? (
-              view === "attention" ? (
+              filtersActive ? (
+                <Empty
+                  text="Nada coincide con estos filtros."
+                  action={{
+                    label: "Quitar filtros",
+                    onClick: clearFilters,
+                  }}
+                  secondary={
+                    qTrim
+                      ? {
+                          label: `Buscar «${qTrim}» en todas las vistas`,
+                          onClick: () => {
+                            replaceUrl({
+                              view: "all",
+                              q: qTrim,
+                              facets: { ...EMPTY_FACETS },
+                              item: null,
+                              note: null,
+                            });
+                          },
+                        }
+                      : undefined
+                  }
+                />
+              ) : view === "attention" ? (
                 <Empty
                   text={copy.empty.attention}
                   action={{
@@ -877,23 +1224,46 @@ relay web   →  http://127.0.0.1:7421`}</pre>
         ) : null}
       </main>
 
-      {selectedId && window.innerWidth < 1024 ? (
-        <div className="detail-scrim" onClick={() => setSelectedId(null)} />
+      {(selectedId || selectedNoteId) && window.innerWidth < 1024 ? (
+        <div
+          className="detail-scrim"
+          onClick={() => {
+            if (selectedNoteId) closeNote();
+            else setSelectedId(null);
+          }}
+        />
       ) : null}
 
-      <DetailPanel
-        item={selectedItem}
-        agents={agents}
-        offline={offline}
-        onClose={() => setSelectedId(null)}
-        onChange={(item) => {
-          setSelectedItem(item);
-          void reload();
-        }}
-        onFlash={flash}
-        openPicker={openPicker}
-        onOpenPickerHandled={() => setOpenPicker(null)}
-      />
+      {selectedNoteId ? (
+        <NoteView
+          noteId={selectedNoteId}
+          offline={offline}
+          returnLabel={
+            selectedId ? "← Volver al ítem" : "← Cerrar"
+          }
+          onBack={closeNote}
+          onNoteChange={(n) => {
+            setNotes((prev) =>
+              prev.map((x) => (x.id === n.id ? n : x)),
+            );
+          }}
+        />
+      ) : (
+        <DetailPanel
+          item={selectedItem}
+          agents={agents}
+          offline={offline}
+          onClose={() => setSelectedId(null)}
+          onChange={(item) => {
+            setSelectedItem(item);
+            void reload();
+          }}
+          onFlash={flash}
+          openPicker={openPicker}
+          onOpenPickerHandled={() => setOpenPicker(null)}
+          onOpenNote={openNote}
+        />
+      )}
 
       {showShortcuts ? (
         <div className="modal-scrim" onClick={() => setShowShortcuts(false)}>
@@ -933,9 +1303,11 @@ relay web   →  http://127.0.0.1:7421`}</pre>
 function Empty({
   text,
   action,
+  secondary,
 }: {
   text: string;
-  action?: { label: string; onClick: () => void };
+  action?: { label: string; onClick: () => void } | undefined;
+  secondary?: { label: string; onClick: () => void } | undefined;
 }) {
   return (
     <div className="empty">
@@ -943,6 +1315,11 @@ function Empty({
       {action ? (
         <button type="button" className="linkish" onClick={action.onClick}>
           {action.label}
+        </button>
+      ) : null}
+      {secondary ? (
+        <button type="button" className="linkish" onClick={secondary.onClick}>
+          {secondary.label}
         </button>
       ) : null}
     </div>

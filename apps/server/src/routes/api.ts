@@ -204,6 +204,21 @@ export function createApi(svc: RelayService): Hono {
     }
   });
 
+  /** Orphan-note search for /notes?q= web parity with MCP notes_search (P4). */
+  app.get("/notes/search", (c) => {
+    try {
+      const q = c.req.query("q") ?? "";
+      const limitRaw = c.req.query("limit");
+      const opts =
+        limitRaw !== undefined
+          ? { limit: PageLimitSchema.parse(limitRaw) }
+          : undefined;
+      return c.json(svc.searchOrphanNotes(q, opts));
+    } catch (err) {
+      return handleError(c, err);
+    }
+  });
+
   app.get("/notes/:id", (c) => {
     try {
       const note = svc.getNote(c.req.param("id"));

@@ -1,3 +1,4 @@
+import { matchesQuery } from "./normalize";
 import type { InboxResult, InboxView, WorkItem } from "./types";
 
 export type ViewSection = {
@@ -46,15 +47,26 @@ function isAgentWipStatus(status: string): boolean {
   );
 }
 
-function matchesFilter(item: WorkItem, filter: string): boolean {
+/** Title-only fallback (offline / no search API). Accent-insensitive. */
+export function matchesFilter(item: WorkItem, filter: string): boolean {
   if (!filter.trim()) return true;
-  return item.title.toLowerCase().includes(filter.toLowerCase());
+  return matchesQuery(item.title, filter);
+}
+
+function passesFilter(
+  item: WorkItem,
+  filter: string,
+  allowedIds: ReadonlySet<string> | null | undefined,
+): boolean {
+  if (allowedIds) return allowedIds.has(item.id);
+  return matchesFilter(item, filter);
 }
 
 /**
  * Single source of truth for list rows + section counts.
  * Only uses inbox when inbox.view matches the active view.
  * Linger is view-scoped and never duplicates an id already in the inbox payload.
+ * When `allowedIds` is set (server search), it replaces the title filter.
  */
 export function buildViewSections(args: {
   inbox: InboxResult | null;
@@ -62,6 +74,7 @@ export function buildViewSections(args: {
   lingerRows: readonly LingerRow[];
   pendingRows: readonly WorkItem[];
   filter: string;
+  allowedIds?: ReadonlySet<string> | null;
   now?: number;
 }): ViewSection[] {
   const now = args.now ?? Date.now();
@@ -74,6 +87,7 @@ export function buildViewSections(args: {
       !inboxIds.has(r.item.id),
   );
   const filter = args.filter;
+  const allowedIds = args.allowedIds;
   if (args.inboxView === "attention" && args.inbox.sections) {
     return args.inbox.sections.map((section) => {
       const sectionIds = new Set(section.items.map((i) => i.id));
@@ -86,7 +100,7 @@ export function buildViewSections(args: {
           return i.status !== "needs_you" && i.status !== "blocked";
         });
       const items = dedupeItems([...lingerInSection, ...section.items]).filter(
-        (i) => matchesFilter(i, filter),
+        (i) => passesFilter(i, filter, allowedIds),
       );
       return {
         key: section.key,
@@ -118,7 +132,7 @@ export function buildViewSections(args: {
       const items = dedupeItems([
         ...(index === 0 ? orphanLinger : []),
         ...group.items,
-      ]).filter((i) => matchesFilter(i, filter));
+      ]).filter((i) => passesFilter(i, filter, allowedIds));
       if (args.inboxView === "done") {
         const terminal = items.filter(
           (i) => i.status === "done" || i.status === "cancelled",
@@ -146,7 +160,7 @@ export function buildViewSections(args: {
       return true;
     });
   const items = dedupeItems([...lingerItems, ...pending, ...base]).filter((i) =>
-    matchesFilter(i, filter),
+    passesFilter(i, filter, allowedIds),
   );
   return [{ key: "all", label: "", items }];
 }

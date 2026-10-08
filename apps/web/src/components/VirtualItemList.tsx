@@ -5,7 +5,7 @@ import {
   useMemo,
 } from "react";
 import type { DateGroupKey } from "../lib/date_groups";
-import type { Agent, WorkItem } from "../lib/types";
+import type { Agent, SearchMatch, WorkItem } from "../lib/types";
 import type { ViewSection } from "../lib/view_model";
 import { DateGroupHeader } from "./DateGroupHeader";
 import { ItemRow } from "./ItemRow";
@@ -13,6 +13,7 @@ import { ItemRow } from "./ItemRow";
 const HEADER_H = 28;
 const ROW_H = 36;
 const ROW_H_REASON = 52;
+const ROW_H_SNIPPET = 68;
 
 export type VirtualRow =
   | {
@@ -29,6 +30,14 @@ function hasReason(item: WorkItem): boolean {
     (item.status === "needs_you" && !!item.needs_you_reason) ||
     (item.status === "blocked" && !!item.blocked_reason)
   );
+}
+
+function hasSnippet(
+  item: WorkItem,
+  matches?: ReadonlyMap<string, SearchMatch>,
+): boolean {
+  const m = matches?.get(item.id);
+  return !!m && m.field !== "title";
 }
 
 export function flattenSections(
@@ -59,8 +68,12 @@ export function flattenSections(
   return rows;
 }
 
-function estimateSize(row: VirtualRow): number {
+function estimateSize(
+  row: VirtualRow,
+  matches?: ReadonlyMap<string, SearchMatch>,
+): number {
   if (row.type === "header") return HEADER_H;
+  if (hasSnippet(row.item, matches)) return ROW_H_SNIPPET;
   return hasReason(row.item) ? ROW_H_REASON : ROW_H;
 }
 
@@ -76,6 +89,7 @@ type Props = {
   collapsedKeys?: ReadonlySet<string> | undefined;
   onToggleGroup?: ((key: string) => void) | undefined;
   dueGroupMode?: boolean | undefined;
+  matches?: ReadonlyMap<string, SearchMatch> | undefined;
   onSelect: (id: string) => void;
 };
 
@@ -90,6 +104,7 @@ export function VirtualItemList({
   collapsedKeys,
   onToggleGroup,
   dueGroupMode,
+  matches,
   onSelect,
 }: Props) {
   const rows = useMemo(
@@ -100,7 +115,7 @@ export function VirtualItemList({
   const virtualizer = useVirtualizer({
     count: rows.length,
     getScrollElement: () => scrollRef.current,
-    estimateSize: (index) => estimateSize(rows[index]!),
+    estimateSize: (index) => estimateSize(rows[index]!, matches),
     overscan: 8,
   });
 
@@ -159,6 +174,9 @@ export function VirtualItemList({
                   : {})}
                 {...(showCompletedBy !== undefined
                   ? { showCompletedBy }
+                  : {})}
+                {...(matches?.get(row.item.id)
+                  ? { match: matches.get(row.item.id) }
                   : {})}
                 onSelect={() => onSelect(row.item.id)}
               />

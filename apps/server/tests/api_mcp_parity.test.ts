@@ -215,6 +215,13 @@ describe("API–MCP pagination, search, sync parity", () => {
     })) as { notes: Array<{ note: { id: string } }>; total: number };
     expect(mcp.notes.map((n) => n.note.id)).toContain(orphan.id);
     expect(mcp.notes.every((n) => n.note.id !== linked.id)).toBe(true);
+
+    const http = (await (
+      await app.request("http://127.0.0.1/api/notes/search?q=unicornio&limit=10")
+    ).json()) as { notes: Array<{ note: { id: string } }>; total: number };
+    expect(http.notes.map((n) => n.note.id)).toEqual(
+      mcp.notes.map((n) => n.note.id),
+    );
   });
 });
 

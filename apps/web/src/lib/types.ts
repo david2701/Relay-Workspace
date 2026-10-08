@@ -113,3 +113,34 @@ export type ContextPack = {
     body_md: string;
   }[];
 };
+
+export type SearchMatchField =
+  | "title"
+  | "goal"
+  | "blocked_reason"
+  | "needs_you_reason"
+  | "reminder_intent"
+  | "note";
+
+export type SearchMatch = {
+  field: SearchMatchField;
+  note_id?: string;
+  snippet: string;
+  ranges: Array<[number, number]>;
+};
+
+export type SearchHit = {
+  item: WorkItem;
+  match: SearchMatch;
+};
+
+export type SearchResult = {
+  items: SearchHit[];
+  total: number;
+  next_cursor?: string;
+};
+
+export type NotesSearchResult = {
+  notes: Array<{ note: Note; match: SearchMatch }>;
+  total: number;
+};

@@ -8,6 +8,7 @@ import {
 import { api } from "../lib/api";
 import { copy } from "../lib/copy";
 import { formatAbsolute, formatRelative } from "../lib/format";
+import { toPlainText } from "../lib/markdown";
 import type {
   Agent,
   ContextPack,
@@ -31,6 +32,7 @@ type Props = {
   /** Open due / reminder picker (T / Shift+T). */
   openPicker?: "due" | "reminder" | null;
   onOpenPickerHandled?: (() => void) | undefined;
+  onOpenNote?: (noteId: string) => void;
 };
 
 const STATUSES: Status[] = [
@@ -52,6 +54,7 @@ export function DetailPanel({
   onFlash,
   openPicker = null,
   onOpenPickerHandled,
+  onOpenNote,
 }: Props) {
   const [notes, setNotes] = useState<LinkedNote[]>([]);
   const [allNotes, setAllNotes] = useState<{ id: string; title: string }[]>([]);
@@ -750,13 +753,27 @@ export function DetailPanel({
                       : "Referencia"}
                 </div>
                 {grouped[role].map((n) => (
-                  <article key={n.id} className="note-card">
+                  <article
+                    key={n.id}
+                    className="note-card note-card-openable"
+                    role={onOpenNote ? "button" : undefined}
+                    tabIndex={onOpenNote ? 0 : undefined}
+                    onClick={() => onOpenNote?.(n.id)}
+                    onKeyDown={(e) => {
+                      if (!onOpenNote) return;
+                      if (e.key === "Enter" || e.key === " ") {
+                        e.preventDefault();
+                        onOpenNote(n.id);
+                      }
+                    }}
+                  >
                     <div className="note-card-head">
                       <strong>{n.title}</strong>
                       <button
                         type="button"
                         className="linkish"
-                        onClick={async () => {
+                        onClick={async (e) => {
+                          e.stopPropagation();
                           await api.unlinkNote(item.id, n.id);
                           setNotes((prev) => prev.filter((x) => x.id !== n.id));
                         }}
@@ -764,7 +781,7 @@ export function DetailPanel({
                         Quitar
                       </button>
                     </div>
-                    <p>{n.body_md.split("\n").slice(0, 2).join(" ")}</p>
+                    <p className="note-extract">{toPlainText(n.body_md)}</p>
                     <div className="mono subtle">
                       {formatRelative(n.updated_at)}
                     </div>
