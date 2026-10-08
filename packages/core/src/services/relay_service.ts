@@ -8,6 +8,7 @@ import type { PageParams } from "../domain/page.js";
 import { recommendInbox } from "../domain/recommend.js";
 import { type SearchDeps, searchItems, searchNotes } from "../domain/search.js";
 import { nowIso } from "../domain/time.js";
+import { readSqliteDataVersion } from "../store/db.js";
 import {
   applyStatusChange,
   askUser,
@@ -76,6 +77,11 @@ export class RelayService {
   private itemsCache: WorkItem[] | null = null;
   /** Open rows only — Todo snapshot path skips done/cancelled. */
   private openItemsCache: WorkItem[] | null = null;
+  /**
+   * SQLite `PRAGMA data_version` — changes on any commit (this process or
+   * another). The pragma itself is cheap; we only reload rows when it moves.
+   */
+  private cachedDataVersion: number | null = null;
 
   constructor(options: RelayServiceOptions) {
     this.db = openDatabase(options.dbPath);
@@ -87,15 +93,31 @@ export class RelayService {
       // already seeded by openDatabase; optional override unused in P0
       void DEFAULT_AGENTS;
     }
+    this.cachedDataVersion = readSqliteDataVersion(this.db);
   }
 
   close(): void {
     this.itemsCache = null;
     this.openItemsCache = null;
+    this.cachedDataVersion = null;
     this.db.close();
   }
 
+  /**
+   * Drop in-process item caches when another connection committed
+   * (mcp:stdio, second RelayService, or raw SQL). No-op when unchanged.
+   */
+  private ensureCachesFresh(): void {
+    const ver = readSqliteDataVersion(this.db);
+    if (this.cachedDataVersion !== null && ver !== this.cachedDataVersion) {
+      this.itemsCache = null;
+      this.openItemsCache = null;
+    }
+    this.cachedDataVersion = ver;
+  }
+
   private listAllItems(): WorkItem[] {
+    this.ensureCachesFresh();
     if (!this.itemsCache) {
       this.itemsCache = this.items.listAll();
     }
@@ -103,6 +125,7 @@ export class RelayService {
   }
 
   private listOpenItems(): WorkItem[] {
+    this.ensureCachesFresh();
     if (!this.openItemsCache) {
       this.openItemsCache = this.items.listOpen();
     }
@@ -112,6 +135,29 @@ export class RelayService {
   private invalidateItemsCache(): void {
     this.itemsCache = null;
     this.openItemsCache = null;
+  }
+
+  /** After a local write: drop caches and adopt the new data_version. */
+  private afterLocalWrite(): void {
+    this.invalidateItemsCache();
+    this.cachedDataVersion = readSqliteDataVersion(this.db);
+  }
+
+  /**
+   * Wall-clock cursor persisted in `relay_meta` so every process shares the
+   * watermark. Meta-only writes bump data_version — adopt it without
+   * discarding item caches (rows are unchanged).
+   */
+  private stampSyncCursor(now?: Date): string {
+    const wall = nowIso(now ?? new Date());
+    this.db
+      .prepare(
+        `INSERT INTO relay_meta(key, value) VALUES ('sync_cursor', ?)
+         ON CONFLICT(key) DO UPDATE SET value = excluded.value`,
+      )
+      .run(wall);
+    this.cachedDataVersion = readSqliteDataVersion(this.db);
+    return wall;
   }
 
   listAgents(): Agent[] {
@@ -209,8 +255,8 @@ export class RelayService {
       last_actor_id: actor.id,
       list_id: null,
     };
-    this.invalidateItemsCache();
     this.items.upsert(item);
+    this.afterLocalWrite();
     return item;
   }
 
@@ -263,30 +309,30 @@ export class RelayService {
       },
       actor,
     );
-    this.invalidateItemsCache();
     this.items.upsert(next);
+    this.afterLocalWrite();
     return next;
   }
 
   setStatus(id: string, input: SetStatusInput, actor: Actor, source: Source): WorkItem {
     const current = this.getItem(id);
     const next = applyStatusChange({ item: current, input, actor, source });
-    this.invalidateItemsCache();
     this.items.upsert(next);
+    this.afterLocalWrite();
     return next;
   }
 
   complete(id: string, actor: Actor, source: Source): WorkItem {
     const next = completeItem({ item: this.getItem(id), actor, source });
-    this.invalidateItemsCache();
     this.items.upsert(next);
+    this.afterLocalWrite();
     return next;
   }
 
   reopen(id: string, actor: Actor): WorkItem {
     const next = reopenItem({ item: this.getItem(id), actor });
-    this.invalidateItemsCache();
     this.items.upsert(next);
+    this.afterLocalWrite();
     return next;
   }
 
@@ -300,8 +346,8 @@ export class RelayService {
       actor,
       source,
     });
-    this.invalidateItemsCache();
     this.items.upsert(next);
+    this.afterLocalWrite();
     return next;
   }
 
@@ -312,8 +358,8 @@ export class RelayService {
       actor,
       source,
     });
-    this.invalidateItemsCache();
     this.items.upsert(next);
+    this.afterLocalWrite();
     return next;
   }
 
@@ -414,24 +460,32 @@ export class RelayService {
     view: InboxView,
     opts?: InboxQueryOptions,
   ): InboxQueryResult | InboxSyncResult {
-    const now = opts?.now;
+    const now = opts?.now ?? new Date();
     if (opts?.since !== undefined) {
       // Delta sync needs the full table so completions leave the view via removed_ids.
+      // ensureCachesFresh (via listAllItems) picks up mcp:stdio / SQL writers.
       const syncArgs: Parameters<typeof buildInboxSync>[0] = {
         items: this.listAllItems(),
         view,
         since: opts.since,
+        now,
       };
-      if (now) syncArgs.now = now;
-      return buildInboxSync(syncArgs);
+      const delta = buildInboxSync(syncArgs);
+      const cursor = this.stampSyncCursor(now);
+      delta.sync_cursor = cursor;
+      delta.server_time = cursor;
+      return delta;
     }
     // Todo snapshot: open rows only (skip ~36% done/cancelled) + fast group_counts.
     const items = view === "all" ? this.listOpenItems() : this.listAllItems();
-    const args: Parameters<typeof queryInbox>[0] = { items, view };
-    if (now) args.now = now;
+    const args: Parameters<typeof queryInbox>[0] = { items, view, now };
     if (opts?.limit !== undefined) args.limit = opts.limit;
     if (opts?.cursor !== undefined) args.cursor = opts.cursor;
-    return queryInbox(args);
+    const snap = queryInbox(args);
+    const cursor = this.stampSyncCursor(now);
+    snap.sync_cursor = cursor;
+    snap.server_time = cursor;
+    return snap;
   }
 
   inboxRecommend(limit = 3, now?: Date): Recommendation[] {
@@ -478,5 +532,6 @@ export class RelayService {
   resetData(): void {
     this.items.deleteAll();
     this.notes.deleteAll();
+    this.afterLocalWrite();
   }
 }

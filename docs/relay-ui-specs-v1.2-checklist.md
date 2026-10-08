@@ -63,7 +63,7 @@ Assumptions locked by §6 (Producto 8 oct 2026): 23:59 = sin hora; no note autho
 | V12-M8 | gap | Code block CSS; no overflow e2e |
 | V12-M9 | PASS | `toggleTask` unit (1-char diff) |
 | V12-M10 | PASS | Native checkbox; global handler skips `INPUT` |
-| V12-M11 | gap | Autosave 800 ms implemented; no network e2e |
+| V12-M11 | PASS | Stable editor under poll; PATCH autosave e2e |
 | V12-M12 | PASS | Esc save+exit + stopPropagation |
 | V12-M13 | PASS | ⌘K in editor only |
 | V12-M14 | PASS | 409 banner + keep editor text |

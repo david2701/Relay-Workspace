@@ -64,6 +64,16 @@ pnpm --filter @relay/server mcp:stdio
 
 Define la variable `RELAY_DB` con la ruta absoluta del archivo SQLite (la base de datos) que usan la web y la API.
 
+stdio y el servidor HTTP son procesos distintos sobre el mismo archivo SQLite (WAL).
+El proceso HTTP detecta escrituras de otros procesos con `PRAGMA data_version` y
+refresca su caché en memoria, así que los altas/cambios hechos por stdio (o por
+SQL directo que actualice `updated_at`) aparecen en `/api/search`, en el inbox y
+en el poll delta (`since=sync_cursor`) dentro de la ventana AC3 (≤2 s). El índice
+FTS5 se mantiene al día con disparadores SQL en `work_items` / `notes`.
+**Limitación:** un `UPDATE` SQL que cambie una fila sin tocar `updated_at` sí se
+verá en search/list tras refrescar la caché, pero no entrará en un poll delta
+hasta que `updated_at` avance (o el cliente pida un snapshot nuevo).
+
 ### Cursor — `.cursor/mcp.json`
 
 Elige una de estas dos configuraciones.

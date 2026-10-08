@@ -7,6 +7,18 @@ import { rebuildSearchFts } from "./search_index.js";
 
 export type RelayDb = DatabaseSync;
 
+/** SQLite schema cookie — increments on every commit from any connection. */
+export function readSqliteDataVersion(db: RelayDb): number {
+  const row = db.prepare("PRAGMA data_version").get() as
+    | { data_version?: number }
+    | Record<string, number>
+    | undefined;
+  if (!row) return 0;
+  if (typeof row.data_version === "number") return row.data_version;
+  const first = Object.values(row)[0];
+  return typeof first === "number" ? first : 0;
+}
+
 export function openDatabase(dbPath: string): RelayDb {
   mkdirSync(dirname(dbPath), { recursive: true });
   const db = new DatabaseSync(dbPath);

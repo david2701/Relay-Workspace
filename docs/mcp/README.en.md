@@ -56,6 +56,16 @@ pnpm --filter @relay/server mcp:stdio
 
 Set `RELAY_DB` to the absolute path of the SQLite file the web/API use.
 
+stdio and the HTTP server are separate processes on the same SQLite file (WAL).
+The HTTP process detects other writers via `PRAGMA data_version` and refreshes
+its in-memory item cache, so creates/updates from stdio (or raw SQL that bumps
+`updated_at`) show up in `/api/search`, inbox snapshots, and delta poll
+(`since=sync_cursor`) within the AC3 window (≤2s). FTS5 stays in sync through
+SQL triggers on `work_items` / `notes`. **Limitation:** a raw SQL edit that
+changes a row without updating `updated_at` is visible in search/list after the
+cache refresh, but will not appear in a delta poll until `updated_at` moves (or
+the client takes a fresh snapshot).
+
 ### Cursor — `.cursor/mcp.json`
 
 **Streamable HTTP:**

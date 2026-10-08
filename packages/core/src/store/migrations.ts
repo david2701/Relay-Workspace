@@ -131,4 +131,41 @@ CREATE TRIGGER IF NOT EXISTS trg_notes_ad AFTER DELETE ON notes BEGIN
 END;
 `,
   },
+  {
+    version: 3,
+    sql: `
+-- Shared sync watermark for multi-process readers (HTTP + mcp:stdio + SQL).
+CREATE TABLE IF NOT EXISTS relay_meta (
+  key TEXT PRIMARY KEY,
+  value TEXT NOT NULL
+);
+INSERT OR IGNORE INTO relay_meta(key, value)
+  VALUES ('sync_cursor', '1970-01-01T00:00:00.000Z');
+
+CREATE TRIGGER IF NOT EXISTS trg_work_items_sync_ai
+AFTER INSERT ON work_items BEGIN
+  UPDATE relay_meta
+    SET value = new.updated_at
+    WHERE key = 'sync_cursor' AND new.updated_at > value;
+END;
+CREATE TRIGGER IF NOT EXISTS trg_work_items_sync_au
+AFTER UPDATE ON work_items BEGIN
+  UPDATE relay_meta
+    SET value = new.updated_at
+    WHERE key = 'sync_cursor' AND new.updated_at > value;
+END;
+CREATE TRIGGER IF NOT EXISTS trg_notes_sync_ai
+AFTER INSERT ON notes BEGIN
+  UPDATE relay_meta
+    SET value = new.updated_at
+    WHERE key = 'sync_cursor' AND new.updated_at > value;
+END;
+CREATE TRIGGER IF NOT EXISTS trg_notes_sync_au
+AFTER UPDATE ON notes BEGIN
+  UPDATE relay_meta
+    SET value = new.updated_at
+    WHERE key = 'sync_cursor' AND new.updated_at > value;
+END;
+`,
+  },
 ];

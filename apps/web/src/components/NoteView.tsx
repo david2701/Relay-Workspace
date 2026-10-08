@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useId, useState } from "react";
+import { useCallback, useEffect, useId, useRef, useState } from "react";
 import { api } from "../lib/api";
 import {
   clearNoteDraft,
@@ -36,15 +36,28 @@ export function NoteView({
   const [editing, setEditing] = useState(false);
   const [draftPrompt, setDraftPrompt] = useState<string | null>(null);
   const [editorInitial, setEditorInitial] = useState<string | undefined>();
+  const editingRef = useRef(editing);
+  editingRef.current = editing;
+  const onNoteChangeRef = useRef(onNoteChange);
+  onNoteChangeRef.current = onNoteChange;
 
   const load = useCallback(async () => {
-    setLoading(true);
+    // Never unmount the editor for a poll-driven reload (V12-M11 / BUG-R2-4).
+    const soft = editingRef.current;
+    if (!soft) {
+      setLoading(true);
+    }
     setError(false);
     try {
       const { note: n, links } = await api.getNote(noteId);
+      if (editingRef.current) {
+        // Dirty/focused editor owns the draft — only refresh link count.
+        setLinkCount(links.length);
+        return;
+      }
       setNote(n);
       setLinkCount(links.length);
-      onNoteChange?.(n);
+      onNoteChangeRef.current?.(n);
 
       const draft = readNoteDraft(noteId);
       if (draft && draftIsNewer(draft, n.updated_at, n.body_md)) {
@@ -53,11 +66,11 @@ export function NoteView({
         setDraftPrompt(null);
       }
     } catch {
-      setError(true);
+      if (!editingRef.current) setError(true);
     } finally {
-      setLoading(false);
+      if (!soft) setLoading(false);
     }
-  }, [noteId, onNoteChange]);
+  }, [noteId]);
 
   useEffect(() => {
     void load();
@@ -103,7 +116,7 @@ export function NoteView({
         { if_updated_at: note.updated_at },
       );
       setNote(saved);
-      onNoteChange?.(saved);
+      onNoteChangeRef.current?.(saved);
       clearNoteDraft(note.id);
     } catch {
       setNote(note);
@@ -147,6 +160,7 @@ export function NoteView({
           {note.title}
         </h2>
         <NoteEditor
+          key={note.id}
           note={note}
           offline={offline}
           {...(editorInitial !== undefined
@@ -156,11 +170,11 @@ export function NoteView({
             setNote(n);
             setEditing(false);
             setDraftPrompt(null);
-            onNoteChange?.(n);
+            onNoteChangeRef.current?.(n);
           }}
           onSaved={(n) => {
             setNote(n);
-            onNoteChange?.(n);
+            onNoteChangeRef.current?.(n);
           }}
         />
       </aside>

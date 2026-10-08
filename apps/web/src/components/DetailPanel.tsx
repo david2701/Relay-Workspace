@@ -661,7 +661,7 @@ export function DetailPanel({
           rows={3}
           disabled={offline}
           defaultValue={item.goal ?? ""}
-          key={`${item.id}-goal-${item.updated_at}`}
+          key={`${item.id}-goal`}
           placeholder={copy.field.goalPlaceholder}
           onBlur={(e) => {
             const v = e.target.value;

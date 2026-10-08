@@ -123,6 +123,9 @@ export default function App() {
   const closeNote = useCallback(() => {
     setUrlNote(null);
   }, [setUrlNote]);
+  const onNoteChange = useCallback((n: Note) => {
+    setNotes((prev) => prev.map((x) => (x.id === n.id ? n : x)));
+  }, []);
   const [flashIds, setFlashIds] = useState<Set<string>>(new Set());
   const [capture, setCapture] = useState("");
   const [pendingRows, setPendingRows] = useState<WorkItem[]>([]);
@@ -301,11 +304,22 @@ export default function App() {
     const id = window.setInterval(() => {
       void api.getItem(selectedId).then((r) => {
         setSelectedItem((prev) => {
-          if (prev && document.activeElement?.closest("[contenteditable], textarea, input")) {
+          const active = document.activeElement;
+          const editingField = active?.closest(
+            "[contenteditable], textarea, input, .dtp-trigger, .dtp-popover",
+          );
+          if (prev && editingField) {
             if (prev.updated_at !== r.item.updated_at) {
               flash(r.item.id);
             }
-            return prev.title === r.item.title ? { ...r.item, title: prev.title } : r.item;
+            // Keep local drafts for title / Objetivo while the field is focused.
+            const title =
+              active?.closest(".detail-title") || active?.closest("[contenteditable]")
+                ? prev.title
+                : r.item.title;
+            const goal =
+              active?.closest("#goal-field, .goal-field") ? prev.goal : r.item.goal;
+            return { ...r.item, title, goal };
           }
           if (prev && prev.updated_at !== r.item.updated_at) flash(r.item.id);
           return r.item;
@@ -1321,11 +1335,7 @@ relay web   →  http://127.0.0.1:7421`}</pre>
             selectedId ? "← Volver al ítem" : "← Cerrar"
           }
           onBack={closeNote}
-          onNoteChange={(n) => {
-            setNotes((prev) =>
-              prev.map((x) => (x.id === n.id ? n : x)),
-            );
-          }}
+          onNoteChange={onNoteChange}
         />
       ) : (
         <DetailPanel
