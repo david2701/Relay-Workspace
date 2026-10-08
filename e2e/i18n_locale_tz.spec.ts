@@ -225,6 +225,99 @@ test.describe("AC3-L4/L5 locale", () => {
   });
 });
 
+test.describe("AC3-L7 Settings UI CORS PUT", () => {
+  test("timezone + name persist via Settings UI (no direct API)", async ({
+    page,
+  }) => {
+    // Browser fetch must succeed through CORS — do not use request.put here.
+    await page.goto("/attention");
+    await page.waitForSelector('[data-inbox-view="attention"]');
+    await writeLocale(page, "es");
+    await page.reload();
+    await expect(page.locator("html")).toHaveAttribute("lang", "es");
+
+    await openSettings(page);
+    await selectSettingsSection(page, /Perfil|Profile|Profil/i);
+    const nameField = page
+      .getByRole("dialog")
+      .locator("#settings-profile .settings-field")
+      .filter({ hasText: /Nombre|Name|Nom/i })
+      .locator("input")
+      .first();
+    await nameField.fill("Jordan");
+    await Promise.all([
+      page.waitForResponse(
+        (r) =>
+          r.url().includes("/api/settings") &&
+          r.request().method() === "PUT" &&
+          r.ok(),
+      ),
+      nameField.blur(),
+    ]);
+    await expect(page.getByRole("dialog").locator(".settings-status")).toHaveText(
+      /Guardado|Saved|Enregistré/i,
+    );
+
+    await selectSettingsSection(page, /Zona|Timezone|Fuseau/i);
+    const combo = page.getByRole("dialog").getByRole("combobox");
+    await combo.click();
+    await combo.fill("America/New_York");
+    const option = page
+      .getByRole("dialog")
+      .locator(".settings-tz-list button")
+      .filter({ hasText: /^America\/New_York$/ });
+    await expect(option.first()).toBeVisible();
+    await Promise.all([
+      page.waitForResponse(
+        (r) =>
+          r.url().includes("/api/settings") &&
+          r.request().method() === "PUT" &&
+          r.ok(),
+      ),
+      option.first().click(),
+    ]);
+    await expect(page.getByRole("dialog").locator(".settings-status")).toHaveText(
+      /Guardado|Saved|Enregistré/i,
+    );
+    await closeSettings(page);
+
+    await page.reload();
+    await page.waitForSelector('[data-inbox-view="attention"]');
+    await openSettings(page);
+    await selectSettingsSection(page, /Perfil|Profile|Profil/i);
+    await expect(
+      page
+        .getByRole("dialog")
+        .locator("#settings-profile .settings-field")
+        .filter({ hasText: /Nombre|Name|Nom/i })
+        .locator("input")
+        .first(),
+    ).toHaveValue("Jordan");
+    await selectSettingsSection(page, /Zona|Timezone|Fuseau/i);
+    await expect(page.getByRole("dialog").getByRole("combobox")).toHaveValue(
+      "America/New_York",
+    );
+    // Restore Paris so other tests keep a stable TZ.
+    const combo2 = page.getByRole("dialog").getByRole("combobox");
+    await combo2.click();
+    await combo2.fill("Europe/Paris");
+    const paris = page
+      .getByRole("dialog")
+      .locator(".settings-tz-list button")
+      .filter({ hasText: /^Europe\/Paris$/ });
+    await Promise.all([
+      page.waitForResponse(
+        (r) =>
+          r.url().includes("/api/settings") &&
+          r.request().method() === "PUT" &&
+          r.ok(),
+      ),
+      paris.first().click(),
+    ]);
+    await closeSettings(page);
+  });
+});
+
 test.describe("AC3-L7 / PR2 timezone re-anchor", () => {
   test("date-only today stays Today after Paris ↔ New York", async ({
     page,

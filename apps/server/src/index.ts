@@ -44,7 +44,7 @@ export function createApp(
     "*",
     cors({
       origin: [webOrigin, "http://localhost:7421", "http://127.0.0.1:7421"],
-      allowMethods: ["GET", "POST", "PATCH", "DELETE", "OPTIONS"],
+      allowMethods: ["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
       allowHeaders: [
         "Content-Type",
         "X-Relay-Actor",
