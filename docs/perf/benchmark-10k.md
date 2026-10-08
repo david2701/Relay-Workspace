@@ -88,14 +88,17 @@ a claimed **145 / 163 ms**. Root cause (not timer-point drift):
 | Poll initial (web Atención page) | 3.4 MB snapshot | **112 KB page** |
 | Poll steady-state | 3.4 MB snapshot | **257 B delta** |
 
-### UI load
+### UI load (cold browser cache)
 
-| Metric | BEFORE | AFTER |
+| Metric | BEFORE | AFTER (cold median of 3) |
 |---|---:|---:|
-| Atención → first row | Chromium crash (~2832 DOM rows) | **34 ms** |
-| Atención → interactive | crash | **51 ms** |
-| Todo → first row | crash (~6000 DOM rows) | **145 ms** (goal ≤300) |
-| Todo → interactive | crash | **163 ms** |
+| Atención → first row | Chromium crash (~2832 DOM rows) | **122 ms** |
+| Atención → interactive | crash | **144 ms** |
+| Todo → first row | crash (~6000 DOM rows) | **97 ms** (goal ≤300) |
+| Todo → interactive | crash | **115 ms** |
+
+QA ronda 2 (pre-fix, warm script order) had Todo first row **324 ms** — see
+[Measurement discrepancy](#measurement-discrepancy-qa-ronda-2).
 
 ### Wheel scroll (mouse.wheel + rAF + CDP)
 
