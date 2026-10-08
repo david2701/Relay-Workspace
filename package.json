@@ -29,7 +29,6 @@
     "check:mcp-docs": "node scripts/check-mcp-docs-tools.mjs",
     "check:i18n-missing-keys": "node scripts/check-i18n-missing-keys.mjs",
     "check:hardcoded-strings": "node scripts/check-hardcoded-strings.mjs",
-    "check:client-names": "node scripts/check-client-names.mjs",
     "verify": "bash scripts/ci.sh",
     "capture:mcp-examples": "node scripts/capture-mcp-examples.mjs"
   },

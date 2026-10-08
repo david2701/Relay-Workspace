@@ -39,7 +39,7 @@ function item(
   return {
     goal: null,
     assignee_type: "agent",
-    assignee_id: "agent-code",
+    assignee_id: "grok-bot",
     due_at: null,
     reminder_at: null,
     reminder_intent: null,
@@ -54,7 +54,7 @@ function item(
     completed_by_type: null,
     completed_by_id: null,
     last_actor_type: "agent",
-    last_actor_id: "agent-code",
+    last_actor_id: "grok-bot",
     list_id: null,
     ...patch,
   };
@@ -122,13 +122,13 @@ describe("§6 P2 — notes have no authorship", () => {
 });
 
 describe("§6 P3 — Dueño facet = ball holder (needs_you → user)", () => {
-  it("Code agent needs_you matches actor=user and not actor=agent-code", () => {
+  it("Grok Bot needs_you matches actor=user and not actor=grok-bot", () => {
     const need = item({
       id: "ny",
       title: "Decide scope",
       status: "needs_you",
       assignee_type: "agent",
-      assignee_id: "agent-code",
+      assignee_id: "grok-bot",
       needs_you_reason: "Elegir alcance",
     });
     expect(ballHolderId(need)).toBe("user");
@@ -136,7 +136,7 @@ describe("§6 P3 — Dueño facet = ball holder (needs_you → user)", () => {
       itemMatchesFacets(need, { ...EMPTY_FACETS, actor: ["user"] }),
     ).toBe(true);
     expect(
-      itemMatchesFacets(need, { ...EMPTY_FACETS, actor: ["agent-code"] }),
+      itemMatchesFacets(need, { ...EMPTY_FACETS, actor: ["grok-bot"] }),
     ).toBe(false);
   });
 
@@ -146,14 +146,14 @@ describe("§6 P3 — Dueño facet = ball holder (needs_you → user)", () => {
       title: "Decide scope",
       status: "assigned",
       assignee_type: "agent",
-      assignee_id: "agent-code",
+      assignee_id: "grok-bot",
     });
-    expect(ballHolderId(returned)).toBe("agent-code");
+    expect(ballHolderId(returned)).toBe("grok-bot");
     expect(
       itemMatchesFacets(returned, { ...EMPTY_FACETS, actor: ["user"] }),
     ).toBe(false);
     expect(
-      itemMatchesFacets(returned, { ...EMPTY_FACETS, actor: ["agent-code"] }),
+      itemMatchesFacets(returned, { ...EMPTY_FACETS, actor: ["grok-bot"] }),
     ).toBe(true);
   });
 });

@@ -15,7 +15,7 @@ const SLA_MS = 2000;
 async function mcp(
   name: string,
   args: Record<string, unknown>,
-  actorId = "agent-code",
+  actorId = "grok-bot",
 ): Promise<Record<string, unknown>> {
   const res = await fetch(`${API}/mcp/invoke`, {
     method: "POST",
@@ -54,7 +54,7 @@ test("AC4 note link and unlink on item detail", async ({ page }) => {
     title: "Preparar brief de onboarding",
   })) as { item: { id: string; title: string } };
   const note = (await mcp("notes_create", {
-    title: "Notas de entrevista de lanzamiento",
+    title: "Notas de entrevista con Acme",
     body_md: "Línea de contexto para el agente",
   })) as { note: { id: string; title: string } };
 
@@ -82,7 +82,7 @@ test("AC3 complete via MCP appears once in Hechos with matching group count", as
     title: "Cerrar el informe de métricas del viernes",
     goal: "Visible en Hechos",
   })) as { item: { id: string; title: string } };
-  await mcp("items_delegate", { id: created.item.id, agent_id: "agent-code" });
+  await mcp("items_delegate", { id: created.item.id, agent_id: "grok-bot" });
   await mcp("items_set_status", { id: created.item.id, status: "in_progress" });
 
   await expect(page.getByText(created.item.title).first()).toBeVisible({
@@ -103,7 +103,7 @@ test("AC3 complete via MCP appears once in Hechos with matching group count", as
     name: new RegExp(created.item.title),
   });
   await expect(hechosRow).toHaveCount(1, { timeout: SLA_MS });
-  await expect(page.getByText(/Completado por Code agent/i).first()).toBeVisible({
+  await expect(page.getByText(/Completado por Grok Bot/i).first()).toBeVisible({
     timeout: SLA_MS,
   });
   await expectHechosOnlyTerminal(page);
@@ -120,7 +120,7 @@ test("AC3 needs_you via MCP appears in Atención within 2s", async ({
   const created = (await mcp("items_create", {
     title: "Elegir asunto del correo de onboarding",
   })) as { item: { id: string; title: string } };
-  await mcp("items_delegate", { id: created.item.id, agent_id: "agent-code" });
+  await mcp("items_delegate", { id: created.item.id, agent_id: "grok-bot" });
   const t0 = Date.now();
   await mcp("items_ask_user", {
     id: created.item.id,
@@ -145,7 +145,7 @@ test("AC3 blocked via MCP appears in Atascado within 2s", async ({ page }) => {
   const created = (await mcp("items_create", {
     title: "Desplegar la API en el entorno de pruebas",
   })) as { item: { id: string; title: string } };
-  await mcp("items_delegate", { id: created.item.id, agent_id: "agent-code" });
+  await mcp("items_delegate", { id: created.item.id, agent_id: "grok-bot" });
   const t0 = Date.now();
   await mcp("items_set_status", {
     id: created.item.id,
@@ -178,10 +178,10 @@ test("AC6 Con agentes excludes needs_you; only Atención has a counter", async (
   ).toHaveCount(0);
   await expect(page.locator(".rail-count")).toHaveCount(1);
   await expect(
-    page.getByRole("option", { name: /Choose the launch post headline/ }),
+    page.getByRole("option", { name: /Elegir titular del post de lanzamiento/ }),
   ).toHaveCount(0);
   await expect(
-    page.getByRole("option", { name: /Prepare the product demo recording/ }),
+    page.getByRole("option", { name: /Preparar demo para cliente Acme/ }),
   ).toBeVisible();
   await expectAgentMarksAreSquares(page.locator(".item-list"));
   await page.getByRole("button", { name: /Atención/ }).click();
@@ -189,7 +189,7 @@ test("AC6 Con agentes excludes needs_you; only Atención has a counter", async (
   await expectSectionCountsMatch(page);
   await expectRailMatchesTeNecesita(page);
   await expect(
-    page.getByRole("option", { name: /Choose the launch post headline/ }),
+    page.getByRole("option", { name: /Elegir titular del post de lanzamiento/ }),
   ).toBeVisible();
 });
 
@@ -202,21 +202,21 @@ test("AC10 ActorMark square/circle across Atención, Con agentes, Sugerido, deta
 
   const sug = page
     .locator(".suggested-row")
-    .filter({ hasText: "Choose the launch post" })
+    .filter({ hasText: "Elegir titular" })
     .first();
   await expect(sug).toBeVisible({ timeout: SLA_MS });
   const sugMark = sug.locator(".actor-mark");
   await expect(sugMark).toHaveAttribute("data-kind", "agent");
   await expect(sugMark).toHaveAttribute("data-shape", "square");
-  await expect(sugMark).toHaveAttribute("data-monogram", "CO");
+  await expect(sugMark).toHaveAttribute("data-monogram", "GB");
   await expectAgentMarksAreSquares(page.locator(".suggested"));
 
   const listRow = page
-    .getByRole("option", { name: /Choose the launch post/ })
+    .getByRole("option", { name: /Elegir titular/ })
     .locator(".actor-mark");
   await expect(listRow).toHaveAttribute("data-kind", "user");
   await expect(listRow).toHaveAttribute("data-shape", "circle");
-  await expect(listRow).toHaveAttribute("data-monogram", "A");
+  await expect(listRow).toHaveAttribute("data-monogram", "D");
   await expectUserMarksAreCircles(page.locator(".item-list"));
 
   await page.getByRole("button", { name: /Con agentes/ }).click();
@@ -225,7 +225,7 @@ test("AC10 ActorMark square/circle across Atención, Con agentes, Sugerido, deta
   await expectUserMarksAreCircles(page.locator(".item-list"));
 
   await page
-    .getByRole("option", { name: /Prepare the product demo recording/ })
+    .getByRole("option", { name: /Preparar demo para cliente Acme/ })
     .click();
   const detailMark = page.locator(".detail-zone .actor-mark[data-kind='agent']").first();
   await expect(detailMark).toBeVisible({ timeout: SLA_MS });

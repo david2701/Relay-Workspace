@@ -17,7 +17,7 @@ describe("cross-process item cache (PRAGMA data_version)", () => {
   let http: RelayService;
   let stdio: RelayService;
   const actor = { type: "user" as const, id: USER_ACTOR_ID };
-  const agent = { type: "agent" as const, id: "agent-code" };
+  const agent = { type: "agent" as const, id: "grok-bot" };
 
   beforeEach(() => {
     dir = mkdtempSync(join(tmpdir(), "relay-xproc-"));
@@ -94,7 +94,7 @@ describe("cross-process item cache (PRAGMA data_version)", () => {
   it("stdio needs_you appears in Atención search/inbox", async () => {
     warmHttp();
     const item = stdio.createItem({ title: "XPROC-NEED" }, agent, "mcp");
-    stdio.delegate(item.id, "agent-code", agent, "mcp");
+    stdio.delegate(item.id, "grok-bot", agent, "mcp");
     stdio.askUser(item.id, "Need a decision now please", agent, "mcp");
 
     await waitVisible(() => {

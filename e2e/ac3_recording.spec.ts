@@ -32,12 +32,12 @@ async function mcp(
     method: "POST",
     headers: {
       "Content-Type": "application/json",
-      "X-Relay-Actor": "agent-code",
+      "X-Relay-Actor": "grok-bot",
       "X-Relay-Source": "mcp",
     },
     body: JSON.stringify({
       name,
-      arguments: { ...args, actor: { id: "agent-code", type: "agent" } },
+      arguments: { ...args, actor: { id: "grok-bot", type: "agent" } },
     }),
   });
   const json = (await res.json()) as {
@@ -75,10 +75,10 @@ test("AC3 paced loop on clean seed", async ({ page }) => {
   ).toHaveCount(0);
 
   const created = (await mcp("items_create", {
-    title: "Cerrar borrador del post de lanzamiento",
+    title: "Cerrar borrador del post de Acme",
     goal: "Borrador listo para revisión",
   })) as { item: { id: string; title: string } };
-  await mcp("items_delegate", { id: created.item.id, agent_id: "agent-code" });
+  await mcp("items_delegate", { id: created.item.id, agent_id: "grok-bot" });
   const row = page.getByRole("option", {
     name: new RegExp(created.item.title),
   });
@@ -101,7 +101,7 @@ test("AC3 paced loop on clean seed", async ({ page }) => {
   await page.getByRole("button", { name: /^Hechos$/ }).click();
   await waitInboxView(page, "done");
   await expectNoDuplicateTitles(page, created.item.title);
-  await expect(page.getByText(/Completado por Code agent/i).first()).toBeVisible();
+  await expect(page.getByText(/Completado por Grok Bot/i).first()).toBeVisible();
   await expectHechosOnlyTerminal(page);
   mark("Hechos");
   await page.waitForTimeout(1400);
@@ -116,7 +116,7 @@ test("AC3 paced loop on clean seed", async ({ page }) => {
   const blocked = (await mcp("items_create", {
     title: "Publicar build en staging",
   })) as { item: { id: string; title: string } };
-  await mcp("items_delegate", { id: blocked.item.id, agent_id: "agent-code" });
+  await mcp("items_delegate", { id: blocked.item.id, agent_id: "grok-bot" });
   await mcp("items_set_status", {
     id: blocked.item.id,
     status: "blocked",
@@ -135,7 +135,7 @@ test("AC3 paced loop on clean seed", async ({ page }) => {
   const ask = (await mcp("items_create", {
     title: "Revisar copy del correo de lanzamiento",
   })) as { item: { id: string; title: string } };
-  await mcp("items_delegate", { id: ask.item.id, agent_id: "agent-code" });
+  await mcp("items_delegate", { id: ask.item.id, agent_id: "grok-bot" });
   await mcp("items_ask_user", {
     id: ask.item.id,
     reason: "¿Publico A o B?",
@@ -155,13 +155,13 @@ test("AC3 paced loop on clean seed", async ({ page }) => {
   await expect(banner).toBeVisible();
   await expect(banner.locator("textarea")).toBeVisible();
   await expect(
-    page.getByRole("button", { name: /Devolver a Code agent/ }),
+    page.getByRole("button", { name: /Devolver a Grok Bot/ }),
   ).toBeVisible();
   mark("detail needs_you open");
   await page.waitForTimeout(600);
   await banner.locator("textarea").fill("Publica la opción A.");
   await page.waitForTimeout(500);
-  await page.getByRole("button", { name: /Devolver a Code agent/ }).click();
+  await page.getByRole("button", { name: /Devolver a Grok Bot/ }).click();
   await expect(page.getByText(/Decisión:/i).first()).toBeVisible({
     timeout: SLA_MS,
   });

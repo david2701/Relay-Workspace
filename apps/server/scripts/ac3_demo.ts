@@ -22,7 +22,7 @@ const variant =
   "complete";
 
 const TITLES: Record<string, string> = {
-  complete: "Cerrar borrador del post de lanzamiento",
+  complete: "Cerrar borrador del post de Acme",
   needs_you: "Revisar copy del correo de lanzamiento",
   blocked: "Publicar build en staging",
 };
@@ -36,12 +36,12 @@ async function mcpAgainst(
     method: "POST",
     headers: {
       "Content-Type": "application/json",
-      "X-Relay-Actor": "agent-code",
+      "X-Relay-Actor": "grok-bot",
       "X-Relay-Source": "mcp",
     },
     body: JSON.stringify({
       name,
-      arguments: { ...args, actor: { id: "agent-code", type: "agent" } },
+      arguments: { ...args, actor: { id: "grok-bot", type: "agent" } },
     }),
   });
   const json = (await res.json()) as {
@@ -64,8 +64,8 @@ async function runLoop(api: string): Promise<void> {
   const id = created.item.id;
   console.info(`created ${id} «${created.item.title}» status=${created.item.status}`);
 
-  await mcpAgainst(api, "items_delegate", { id, agent_id: "agent-code" });
-  console.info("delegated → agent-code / assigned");
+  await mcpAgainst(api, "items_delegate", { id, agent_id: "grok-bot" });
+  console.info("delegated → grok-bot / assigned");
 
   await mcpAgainst(api, "items_set_status", { id, status: "in_progress" });
   console.info("status → in_progress");

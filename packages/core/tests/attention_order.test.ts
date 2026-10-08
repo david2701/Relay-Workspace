@@ -22,38 +22,38 @@ describe("Atención section order (v1.1 §1.2)", () => {
 
   it("orders needs_you and blocked oldest-first by updated_at", () => {
     const older = svc.createItem({ title: "Older need" }, actor, "ui");
-    svc.delegate(older.id, "agent-code", actor, "ui");
+    svc.delegate(older.id, "grok-bot", actor, "ui");
     svc.askUser(
       older.id,
       "old reason",
-      { type: "agent", id: "agent-code" },
+      { type: "agent", id: "grok-bot" },
       "mcp",
     );
 
     // Ensure a later wall-clock stamp on the newer item.
     const newer = svc.createItem({ title: "Newer need" }, actor, "ui");
-    svc.delegate(newer.id, "agent-code", actor, "ui");
+    svc.delegate(newer.id, "grok-bot", actor, "ui");
     svc.askUser(
       newer.id,
       "new reason",
-      { type: "agent", id: "agent-code" },
+      { type: "agent", id: "grok-bot" },
       "mcp",
     );
 
     const blockedOld = svc.createItem({ title: "Old block" }, actor, "ui");
-    svc.delegate(blockedOld.id, "agent-research", actor, "ui");
+    svc.delegate(blockedOld.id, "dev-senior", actor, "ui");
     svc.setStatus(
       blockedOld.id,
       { status: "blocked", blocked_reason: "old block" },
-      { type: "agent", id: "agent-research" },
+      { type: "agent", id: "dev-senior" },
       "mcp",
     );
     const blockedNew = svc.createItem({ title: "New block" }, actor, "ui");
-    svc.delegate(blockedNew.id, "agent-research", actor, "ui");
+    svc.delegate(blockedNew.id, "dev-senior", actor, "ui");
     svc.setStatus(
       blockedNew.id,
       { status: "blocked", blocked_reason: "new block" },
-      { type: "agent", id: "agent-research" },
+      { type: "agent", id: "dev-senior" },
       "mcp",
     );
 

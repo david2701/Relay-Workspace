@@ -38,9 +38,9 @@ describe("AC1 web-API vs MCP create parity", () => {
       "items_create",
       {
         title: "Paridad MCP",
-        actor: { id: "agent-code", type: "agent" },
+        actor: { id: "grok-bot", type: "agent" },
       },
-      "agent-code",
+      "grok-bot",
     )) as { item: Record<string, unknown> };
 
     const uiKeys = Object.keys(uiJson.item).sort();
@@ -50,7 +50,7 @@ describe("AC1 web-API vs MCP create parity", () => {
     expect(uiJson.item.source).toBe("ui");
     expect(uiJson.item.last_actor_id).toBe(USER_ACTOR_ID);
     expect(mcpResult.item.source).toBe("mcp");
-    expect(mcpResult.item.last_actor_id).toBe("agent-code");
+    expect(mcpResult.item.last_actor_id).toBe("grok-bot");
     expect(mcpResult.item.last_actor_type).toBe("agent");
   });
 
@@ -152,11 +152,11 @@ describe("API–MCP pagination, search, sync parity", () => {
 
   it("inbox sync since is identical via API and MCP", async () => {
     const item = svc.createItem({ title: "Attention" }, actor, "ui");
-    svc.delegate(item.id, "agent-code", actor, "ui");
+    svc.delegate(item.id, "grok-bot", actor, "ui");
     svc.askUser(
       item.id,
       "Need a decision please",
-      { type: "agent", id: "agent-code" },
+      { type: "agent", id: "grok-bot" },
       "mcp",
     );
 
@@ -168,11 +168,11 @@ describe("API–MCP pagination, search, sync parity", () => {
     expect(since).toBeTruthy();
 
     const next = svc.createItem({ title: "Newer attention" }, actor, "ui");
-    svc.delegate(next.id, "agent-code", actor, "ui");
+    svc.delegate(next.id, "grok-bot", actor, "ui");
     svc.askUser(
       next.id,
       "Need another decision",
-      { type: "agent", id: "agent-code" },
+      { type: "agent", id: "grok-bot" },
       "mcp",
     );
 
@@ -342,13 +342,13 @@ describe("§6 Producto decisions — API/MCP ACs", () => {
     }
   });
 
-  it("P3: search actor=david includes needs_you of agent-code; assigned inverts", async () => {
+  it("P3: search actor=david includes needs_you of grok-bot; assigned inverts", async () => {
     const need = svc.createItem({ title: "P3 need demo" }, actor, "ui");
-    svc.delegate(need.id, "agent-code", actor, "ui");
+    svc.delegate(need.id, "grok-bot", actor, "ui");
     svc.askUser(
       need.id,
       "Need decision",
-      { type: "agent", id: "agent-code" },
+      { type: "agent", id: "grok-bot" },
       "mcp",
     );
     const davidHttp = (await (
@@ -366,7 +366,7 @@ describe("§6 Producto decisions — API/MCP ACs", () => {
 
     const grokHttp = (await (
       await app.request(
-        "http://127.0.0.1/api/search?q=P3&actor=agent-code&limit=20",
+        "http://127.0.0.1/api/search?q=P3&actor=grok-bot&limit=20",
       )
     ).json()) as typeof davidHttp;
     expect(grokHttp.items.every((h) => h.item.id !== need.id)).toBe(true);
@@ -374,7 +374,7 @@ describe("§6 Producto decisions — API/MCP ACs", () => {
     svc.setStatus(
       need.id,
       { status: "assigned" },
-      { type: "agent", id: "agent-code" },
+      { type: "agent", id: "grok-bot" },
       "mcp",
     );
     const afterDavid = (await (
@@ -384,7 +384,7 @@ describe("§6 Producto decisions — API/MCP ACs", () => {
     ).json()) as typeof davidHttp;
     const afterGrok = (await (
       await app.request(
-        "http://127.0.0.1/api/search?q=P3&actor=agent-code&limit=20",
+        "http://127.0.0.1/api/search?q=P3&actor=grok-bot&limit=20",
       )
     ).json()) as typeof davidHttp;
     expect(afterDavid.items.every((h) => h.item.id !== need.id)).toBe(true);

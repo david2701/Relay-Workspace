@@ -181,8 +181,8 @@ UPDATE work_items SET completed_by_id = 'user'
 
 -- App settings (timezone + human display). Locale preference stays client-side.
 INSERT OR IGNORE INTO relay_meta(key, value) VALUES ('timezone', 'UTC');
-INSERT OR IGNORE INTO relay_meta(key, value) VALUES ('user_display_name', '');
-INSERT OR IGNORE INTO relay_meta(key, value) VALUES ('user_initial', '');
+INSERT OR IGNORE INTO relay_meta(key, value) VALUES ('user_display_name', 'You');
+INSERT OR IGNORE INTO relay_meta(key, value) VALUES ('user_initial', 'Y');
 `,
   },
 ];

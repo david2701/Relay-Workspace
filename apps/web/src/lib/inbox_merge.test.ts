@@ -12,7 +12,7 @@ function item(
   return {
     goal: null,
     assignee_type: "agent",
-    assignee_id: "agent-code",
+    assignee_id: "grok-bot",
     due_at: null,
     reminder_at: null,
     reminder_intent: null,
@@ -27,7 +27,7 @@ function item(
     completed_by_type: null,
     completed_by_id: null,
     last_actor_type: "agent",
-    last_actor_id: "agent-code",
+    last_actor_id: "grok-bot",
     list_id: null,
     ...patch,
   };

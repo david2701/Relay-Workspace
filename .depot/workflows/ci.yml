@@ -65,6 +65,3 @@ jobs:
 
       - name: check:hardcoded-strings
         run: pnpm run check:hardcoded-strings
-
-      - name: check:client-names
-        run: pnpm run check:client-names

@@ -9,18 +9,18 @@ import {
 import type { Agent, WorkItem } from "./types";
 
 const agents: Agent[] = [
-  { id: "agent-code", display_name: "Code agent", monogram: "CO" },
+  { id: "grok-bot", display_name: "Grok Bot", monogram: "GB" },
   { id: "draft-smith", display_name: "Draft Smith", monogram: "DS" },
 ];
 
 function baseItem(patch: Partial<WorkItem>): WorkItem {
   return {
     id: "itm_test",
-    title: "Choose the launch post headline",
+    title: "Elegir titular del post de lanzamiento",
     goal: null,
     status: "needs_you",
     assignee_type: "agent",
-    assignee_id: "agent-code",
+    assignee_id: "grok-bot",
     due_at: null,
     reminder_at: null,
     reminder_intent: null,
@@ -35,25 +35,25 @@ function baseItem(patch: Partial<WorkItem>): WorkItem {
     completed_by_type: null,
     completed_by_id: null,
     last_actor_type: "agent",
-    last_actor_id: "agent-code",
+    last_actor_id: "grok-bot",
     list_id: null,
     ...patch,
   };
 }
 
 describe("actor mark identity", () => {
-  it("needs_you witness is Alex circle, never CO in a circle", () => {
+  it("needs_you witness is David circle, never GB in a circle", () => {
     const mark = markForWitness(baseItem({}), agents);
-    expect(mark).toEqual({ kind: "user", name: "Alex", monogram: "A" });
+    expect(mark).toEqual({ kind: "user", name: "David", monogram: "D" });
     expect(() => assertMarkConsistent(mark)).not.toThrow();
   });
 
-  it("needs_you owner (Sugerido) is agent square CO, never circle", () => {
+  it("needs_you owner (Sugerido) is agent square GB, never circle", () => {
     const mark = markForOwner(baseItem({}), agents);
     expect(mark).toEqual({
       kind: "agent",
-      name: "Code agent",
-      monogram: "CO",
+      name: "Grok Bot",
+      monogram: "GB",
     });
     expect(() => assertMarkConsistent(mark)).not.toThrow();
   });
@@ -65,10 +65,10 @@ describe("actor mark identity", () => {
       needs_you_reason: null,
     });
     expect(markForOwner(item, agents).kind).toBe("agent");
-    expect(markForWitness(item, agents).monogram).toBe("CO");
+    expect(markForWitness(item, agents).monogram).toBe("GB");
   });
 
-  it("Alex assignee is never a square", () => {
+  it("David assignee is never a square", () => {
     const mark = markForActor("user", "david", agents);
     expect(mark.kind).toBe("user");
     expect(mark.monogram).toBe("D");
@@ -80,16 +80,16 @@ describe("actor mark identity", () => {
         status: "done",
         completed_at: "2026-10-05T13:00:00.000Z",
         completed_by_type: "agent",
-        completed_by_id: "agent-code",
+        completed_by_id: "grok-bot",
       }),
       agents,
     );
     expect(byAgent).toEqual({
       kind: "agent",
-      name: "Code agent",
-      monogram: "CO",
+      name: "Grok Bot",
+      monogram: "GB",
     });
-    const byAlex = markForCompleter(
+    const byDavid = markForCompleter(
       baseItem({
         status: "done",
         completed_at: "2026-10-05T13:00:00.000Z",
@@ -98,12 +98,12 @@ describe("actor mark identity", () => {
       }),
       agents,
     );
-    expect(byAlex).toEqual({ kind: "user", name: "Alex", monogram: "A" });
+    expect(byDavid).toEqual({ kind: "user", name: "David", monogram: "D" });
   });
 
-  it("assertMarkConsistent rejects CO inside a human circle", () => {
+  it("assertMarkConsistent rejects GB inside a human circle", () => {
     expect(() =>
-      assertMarkConsistent({ kind: "user", name: "Code agent", monogram: "CO" }),
+      assertMarkConsistent({ kind: "user", name: "Grok Bot", monogram: "GB" }),
     ).toThrow(/human shape/);
   });
 });

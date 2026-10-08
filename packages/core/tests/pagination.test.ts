@@ -89,11 +89,11 @@ describe("keyset pagination", () => {
     const actor = { type: "user" as const, id: USER_ACTOR_ID };
     for (let i = 0; i < 5; i += 1) {
       const item = svc.createItem({ title: `Need ${i}` }, actor, "ui");
-      svc.delegate(item.id, "agent-code", actor, "ui");
+      svc.delegate(item.id, "grok-bot", actor, "ui");
       svc.askUser(
         item.id,
         `Question number ${i} please`,
-        { type: "agent", id: "agent-code" },
+        { type: "agent", id: "grok-bot" },
         "mcp",
       );
     }

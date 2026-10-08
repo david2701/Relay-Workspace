@@ -10,7 +10,7 @@ function item(patch: Partial<WorkItem> & Pick<WorkItem, "id" | "title" | "status
   return {
     goal: null,
     assignee_type: "agent",
-    assignee_id: "agent-code",
+    assignee_id: "grok-bot",
     due_at: null,
     reminder_at: null,
     reminder_intent: null,
@@ -25,7 +25,7 @@ function item(patch: Partial<WorkItem> & Pick<WorkItem, "id" | "title" | "status
     completed_by_type: null,
     completed_by_id: null,
     last_actor_type: "agent",
-    last_actor_id: "agent-code",
+    last_actor_id: "grok-bot",
     list_id: null,
     ...patch,
   };
@@ -94,7 +94,7 @@ describe("buildViewSections", () => {
       status: "done",
       completed_at: "2026-10-05T12:00:00.000Z",
       completed_by_type: "agent",
-      completed_by_id: "agent-code",
+      completed_by_id: "grok-bot",
     });
     const blocked = item({
       id: "b1",

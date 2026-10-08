@@ -8,10 +8,10 @@ export const AgentSchema = z.object({
 });
 export type Agent = z.infer<typeof AgentSchema>;
 
-/** Role-named demo agents (EN). Stable ids; names/monograms follow brief §3.6.1. */
 export const DEFAULT_AGENTS: readonly Agent[] = [
-  { id: "agent-code", display_name: "Code agent", monogram: "CO" },
-  { id: "agent-research", display_name: "Research agent", monogram: "RS" },
-  { id: "agent-writing", display_name: "Writing agent", monogram: "WR" },
-  { id: "agent-data", display_name: "Data agent", monogram: "DA" },
+  { id: "grok-bot", display_name: "Grok Bot", monogram: "GB" },
+  { id: "dev-senior", display_name: "Dev Senior", monogram: "DS" },
+  { id: "ux-designer", display_name: "UI/UX Designer", monogram: "UX" },
+  { id: "redactor", display_name: "Redactor", monogram: "RD" },
+  { id: "qa", display_name: "QA", monogram: "QA" },
 ] as const;

@@ -27,7 +27,7 @@ describe("AC1 parity + service flows", () => {
     );
     const mcp = svc.createItem(
       { title: "Desde el chat" },
-      { type: "agent", id: "agent-code" },
+      { type: "agent", id: "grok-bot" },
       "mcp",
     );
     const keys = Object.keys(ui).sort();
@@ -36,7 +36,7 @@ describe("AC1 parity + service flows", () => {
     expect(ui.source).toBe("ui");
     expect(mcp.source).toBe("mcp");
     expect(mcp.last_actor_type).toBe("agent");
-    expect(mcp.last_actor_id).toBe("agent-code");
+    expect(mcp.last_actor_id).toBe("grok-bot");
     expect(ui.last_actor_type).toBe("user");
   });
 
@@ -62,9 +62,9 @@ describe("AC1 parity + service flows", () => {
   it("resolveActor rejects user on mcp and unknown agents", () => {
     expect(() => svc.resolveActor({ id: USER_ACTOR_ID }, "mcp")).toThrow();
     expect(() => svc.resolveActor({ id: "nope" }, "mcp")).toThrow();
-    expect(svc.resolveActor({ id: "agent-code" }, "mcp")).toEqual({
+    expect(svc.resolveActor({ id: "grok-bot" }, "mcp")).toEqual({
       type: "agent",
-      id: "agent-code",
+      id: "grok-bot",
     });
     expect(svc.resolveActor(undefined, "ui")).toEqual({
       type: "user",
@@ -75,21 +75,21 @@ describe("AC1 parity + service flows", () => {
   it("inbox attention includes needs_you and blocked", () => {
     const a = svc.createItem(
       { title: "Necesita" },
-      { type: "agent", id: "agent-code" },
+      { type: "agent", id: "grok-bot" },
       "mcp",
     );
-    svc.delegate(a.id, "agent-code", { type: "user", id: USER_ACTOR_ID }, "ui");
-    svc.askUser(a.id, "¿A o B del titular?", { type: "agent", id: "agent-code" }, "mcp");
+    svc.delegate(a.id, "grok-bot", { type: "user", id: USER_ACTOR_ID }, "ui");
+    svc.askUser(a.id, "¿A o B del titular?", { type: "agent", id: "grok-bot" }, "mcp");
     const b = svc.createItem(
       { title: "Atascado" },
-      { type: "agent", id: "agent-research" },
+      { type: "agent", id: "dev-senior" },
       "mcp",
     );
-    svc.delegate(b.id, "agent-research", { type: "user", id: USER_ACTOR_ID }, "ui");
+    svc.delegate(b.id, "dev-senior", { type: "user", id: USER_ACTOR_ID }, "ui");
     svc.setStatus(
       b.id,
       { status: "blocked", blocked_reason: "falta acceso a /archive" },
-      { type: "agent", id: "agent-research" },
+      { type: "agent", id: "dev-senior" },
       "mcp",
     );
     const inbox = svc.inboxQuery("attention");
@@ -101,38 +101,38 @@ describe("AC1 parity + service flows", () => {
   it("agent_wip excludes needs_you even when assignee stays the agent", () => {
     const needs = svc.createItem(
       { title: "Titular needs_you" },
-      { type: "agent", id: "agent-code" },
+      { type: "agent", id: "grok-bot" },
       "mcp",
     );
-    svc.delegate(needs.id, "agent-code", { type: "user", id: USER_ACTOR_ID }, "ui");
+    svc.delegate(needs.id, "grok-bot", { type: "user", id: USER_ACTOR_ID }, "ui");
     svc.askUser(
       needs.id,
       "¿Publico A o B?",
-      { type: "agent", id: "agent-code" },
+      { type: "agent", id: "grok-bot" },
       "mcp",
     );
     const wip = svc.createItem(
       { title: "Demo in_progress" },
-      { type: "agent", id: "agent-code" },
+      { type: "agent", id: "grok-bot" },
       "mcp",
     );
-    svc.delegate(wip.id, "agent-code", { type: "user", id: USER_ACTOR_ID }, "ui");
+    svc.delegate(wip.id, "grok-bot", { type: "user", id: USER_ACTOR_ID }, "ui");
     svc.setStatus(
       wip.id,
       { status: "in_progress" },
-      { type: "agent", id: "agent-code" },
+      { type: "agent", id: "grok-bot" },
       "mcp",
     );
     const blocked = svc.createItem(
       { title: "Build blocked" },
-      { type: "agent", id: "agent-research" },
+      { type: "agent", id: "dev-senior" },
       "mcp",
     );
-    svc.delegate(blocked.id, "agent-research", { type: "user", id: USER_ACTOR_ID }, "ui");
+    svc.delegate(blocked.id, "dev-senior", { type: "user", id: USER_ACTOR_ID }, "ui");
     svc.setStatus(
       blocked.id,
       { status: "blocked", blocked_reason: "staging caído" },
-      { type: "agent", id: "agent-research" },
+      { type: "agent", id: "dev-senior" },
       "mcp",
     );
     const inbox = svc.inboxQuery("agent_wip");

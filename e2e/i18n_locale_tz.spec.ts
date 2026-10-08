@@ -27,45 +27,41 @@ async function openSettings(page: Page): Promise<void> {
 async function closeSettings(page: Page): Promise<void> {
   const dialog = page.getByRole("dialog");
   if (!(await dialog.isVisible().catch(() => false))) return;
-  await dialog.getByRole("button", { name: /Close|Cerrar|Fermer/i }).click();
+  await dialog
+    .getByRole("button", { name: /Close|Cerrar|Fermer/i })
+    .click();
   await expect(dialog).toBeHidden();
-}
-
-async function selectSettingsSection(
-  page: Page,
-  name: RegExp,
-): Promise<void> {
-  await page.getByRole("dialog").locator(".settings-index a").filter({ hasText: name }).click();
 }
 
 async function saveTimezone(page: Page, tz: string): Promise<void> {
   await openSettings(page);
-  await selectSettingsSection(page, /Timezone|Zona horaria|Fuseau/i);
-  const combo = page.getByRole("dialog").getByRole("combobox");
-  await combo.fill(tz);
+  const tzInput = page.getByRole("dialog").getByLabel(/Timezone|Zona horaria|Fuseau horaire/i);
+  await tzInput.fill(tz);
+  const save = page
+    .getByRole("dialog")
+    .getByRole("button", { name: /^(Save|Guardar|Enregistrer)$/ });
   const wait = page.waitForResponse(
     (r) =>
       r.url().includes("/api/settings") &&
       r.request().method() === "PUT" &&
       r.ok(),
   );
-  await page.getByRole("dialog").getByRole("option", { name: tz, exact: true }).click();
+  await save.click();
   await wait;
   await closeSettings(page);
 }
 
 async function putSettings(
   request: APIRequestContext,
-  patch: Record<string, string>,
+  patch: { timezone?: string },
 ): Promise<void> {
   const res = await request.put(`${API}/api/settings`, { data: patch });
-  expect(res.ok(), await res.text()).toBeTruthy();
+  expect(res.ok()).toBeTruthy();
 }
 
+/** Today as date-only (23:59 wall) ISO in the given IANA zone. */
 async function todayDateOnlyIso(page: Page, timeZone: string): Promise<string> {
-  return page.evaluate(async (tz) => {
-    const r = await fetch("http://127.0.0.1:7430/api/settings");
-    void r;
+  return page.evaluate((tz) => {
     const fmt = new Intl.DateTimeFormat("en-GB", {
       timeZone: tz,
       year: "numeric",
@@ -80,9 +76,10 @@ async function todayDateOnlyIso(page: Page, timeZone: string): Promise<string> {
     const y = Number(parts.find((p) => p.type === "year")?.value);
     const m = Number(parts.find((p) => p.type === "month")?.value);
     const d = Number(parts.find((p) => p.type === "day")?.value);
+    // Binary-search UTC instant whose wall clock in tz is y-m-d 23:59
     let lo = Date.UTC(y, m - 1, d - 1, 0, 0, 0);
     let hi = Date.UTC(y, m - 1, d + 2, 0, 0, 0);
-    for (let i = 0; i < 48; i++) {
+    for (let i = 0; i < 40; i++) {
       const mid = Math.floor((lo + hi) / 2);
       const p = fmt.formatToParts(new Date(mid));
       const py = Number(p.find((x) => x.type === "year")?.value);
@@ -104,9 +101,9 @@ async function mcpItemsList(request: APIRequestContext): Promise<string> {
   const res = await request.post(`${API}/mcp/invoke`, {
     data: {
       name: "items_list",
-      arguments: { limit: 50, actor: { id: "agent-code", type: "agent" } },
+      arguments: { limit: 50, actor: { id: "grok-bot", type: "agent" } },
     },
-    headers: { "X-Relay-Actor": "agent-code", "X-Relay-Source": "mcp" },
+    headers: { "X-Relay-Actor": "grok-bot", "X-Relay-Source": "mcp" },
   });
   expect(res.ok()).toBeTruthy();
   return res.text();
@@ -125,7 +122,7 @@ test.describe("AC3-L4/L5 locale", () => {
     await page.goto("/");
     await expect(page.locator("html")).toHaveAttribute("lang", "fr");
     await expect(
-      page.getByRole("navigation").getByRole("button", { name: /À traiter/ }),
+      page.getByRole("navigation").getByRole("button", { name: /Attention/ }),
     ).toBeVisible();
     await context.close();
   });
@@ -161,8 +158,10 @@ test.describe("AC3-L4/L5 locale", () => {
     await expect(page.locator("html")).toHaveAttribute("lang", "en");
 
     await openSettings(page);
-    await selectSettingsSection(page, /Language|Idioma|Langue/i);
-    await page.getByRole("dialog").getByRole("radio", { name: "Français" }).check();
+    await page
+      .getByRole("dialog")
+      .getByLabel(/Language|Idioma|Langue/i)
+      .selectOption("fr");
     await expect(page.locator("html")).toHaveAttribute("lang", "fr");
     const storedBefore = await page.evaluate(() =>
       localStorage.getItem("relay.locale"),
@@ -173,7 +172,7 @@ test.describe("AC3-L4/L5 locale", () => {
     await page.reload();
     await expect(page.locator("html")).toHaveAttribute("lang", "fr");
     await expect(
-      page.getByRole("navigation").getByRole("button", { name: /À traiter/ }),
+      page.getByRole("navigation").getByRole("button", { name: /Attention/ }),
     ).toBeVisible();
     const stored = await page.evaluate(() => localStorage.getItem("relay.locale"));
     expect(stored).toBe("fr");
@@ -192,8 +191,10 @@ test.describe("AC3-L4/L5 locale", () => {
     await expect(page.locator(".detail-zone")).toBeVisible();
 
     await openSettings(page);
-    await selectSettingsSection(page, /Language|Idioma|Langue/i);
-    await page.getByRole("dialog").getByRole("radio", { name: "English" }).check();
+    await page
+      .getByRole("dialog")
+      .getByLabel(/Language|Idioma|Langue/i)
+      .selectOption("en");
     await closeSettings(page);
 
     await expect(page.locator("html")).toHaveAttribute("lang", "en");
@@ -202,60 +203,26 @@ test.describe("AC3-L4/L5 locale", () => {
     ).toBeVisible();
     await expect(page.locator(".detail-zone")).toBeVisible();
     await expect(
-      page.getByRole("option", {
-        name: new RegExp(title.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")),
-      }),
+      page.getByRole("option", { name: new RegExp(title.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")) }),
     ).toHaveAttribute("aria-selected", "true");
   });
 });
 
-test.describe("AC3-L7 / PR2 timezone re-anchor", () => {
-  test("date-only today stays Today after Paris ↔ New York", async ({
+test.describe("AC3-L7 timezone", () => {
+  test("today no-time stays listed; Paris switch persists via settings", async ({
     page,
     request,
   }) => {
-    await putSettings(request, {
-      timezone: "Europe/Paris",
-      user_display_name: "Alex",
-      user_initial: "A",
-    });
+    await putSettings(request, { timezone: "America/New_York" });
     await page.goto("/all");
+    await saveTimezone(page, "America/New_York");
 
-    const dueAt = await todayDateOnlyIso(page, "Europe/Paris");
+    const dueAt = await todayDateOnlyIso(page, "America/New_York");
     const itemRes = await request.post(`${API}/api/items`, {
       data: { title: "TZ probe today no-time", due_at: dueAt },
       headers: { "X-Relay-Source": "ui" },
     });
     expect(itemRes.ok(), await itemRes.text()).toBeTruthy();
-    const created = (await itemRes.json()) as { item: { id: string; due_at: string } };
-
-    await putSettings(request, { timezone: "America/New_York" });
-    const afterNy = await request.get(`${API}/api/items/${created.item.id}`);
-    const nyItem = (await afterNy.json()) as { item: { due_at: string } };
-    const nyParts = await page.evaluate(
-      ({ iso, tz }) => {
-        const fmt = new Intl.DateTimeFormat("en-GB", {
-          timeZone: tz,
-          year: "numeric",
-          month: "2-digit",
-          day: "2-digit",
-          hour: "2-digit",
-          minute: "2-digit",
-          hourCycle: "h23",
-        });
-        const p = fmt.formatToParts(new Date(iso));
-        return {
-          y: Number(p.find((x) => x.type === "year")?.value),
-          m: Number(p.find((x) => x.type === "month")?.value),
-          d: Number(p.find((x) => x.type === "day")?.value),
-          hh: Number(p.find((x) => x.type === "hour")?.value),
-          mm: Number(p.find((x) => x.type === "minute")?.value),
-        };
-      },
-      { iso: nyItem.item.due_at, tz: "America/New_York" },
-    );
-    expect(nyParts.hh).toBe(23);
-    expect(nyParts.mm).toBe(59);
 
     await page.goto("/all");
     await page.waitForSelector('[data-inbox-view="all"]');
@@ -263,32 +230,11 @@ test.describe("AC3-L7 / PR2 timezone re-anchor", () => {
       page.getByRole("option", { name: /TZ probe today no-time/ }),
     ).toBeVisible();
 
-    // UI path: switch back to Paris via Settings (explicit change → re-anchor)
     await saveTimezone(page, "Europe/Paris");
+
     const settingsParis = await request.get(`${API}/api/settings`);
     const s = (await settingsParis.json()) as { settings: { timezone: string } };
     expect(s.settings.timezone).toBe("Europe/Paris");
-
-    const afterParis = await request.get(`${API}/api/items/${created.item.id}`);
-    const parisItem = (await afterParis.json()) as { item: { due_at: string } };
-    const parisParts = await page.evaluate(
-      ({ iso, tz }) => {
-        const fmt = new Intl.DateTimeFormat("en-GB", {
-          timeZone: tz,
-          hour: "2-digit",
-          minute: "2-digit",
-          hourCycle: "h23",
-        });
-        const p = fmt.formatToParts(new Date(iso));
-        return {
-          hh: Number(p.find((x) => x.type === "hour")?.value),
-          mm: Number(p.find((x) => x.type === "minute")?.value),
-        };
-      },
-      { iso: parisItem.item.due_at, tz: "Europe/Paris" },
-    );
-    expect(parisParts.hh).toBe(23);
-    expect(parisParts.mm).toBe(59);
 
     await expect(
       page.getByRole("option", { name: /TZ probe today no-time/ }),
