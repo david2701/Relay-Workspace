@@ -24,7 +24,12 @@
   --shadow-float: 0 1px 2px rgb(31 29 23 / .06), 0 4px 12px rgb(31 29 23 / .08);
   /* layout */
   --rail-w: 208px; --rail-w-collapsed: 56px; --detail-w: 440px; --list-min-w: 480px;
-  --row-h: 36px; --row-h-reason: 52px; --capture-h: 40px;
+  --row-h: 36px; --row-h-reason: 52px; --row-h-snippet: 68px; --capture-h: 40px;
+  --control-h: 32px; --chip-h: 24px; --section-h: 28px;
+  --picker-w: 580px; --menu-w: 280px;
+  --step-h3: 0.9375rem;
+  --mark-bg: var(--line-strong);
+  --scrim: rgb(20 19 16 / .24);
   /* motion */
   --dur-fast: 120ms; --dur-base: 200ms; --dur-overlay: 240ms; --dur-panel: 160ms;
   --dur-sync-flash: 800ms; --dur-pulse: 2000ms; --dur-undo: 5000ms;
@@ -41,6 +46,7 @@
   --focus: #82B0F3;
   --ok: #73C385; --warn: #EBB25F; --crit: #F87F73;
   --shadow-float: none;
+  --scrim: rgb(5 5 4 / .56);
 }
 @media (prefers-reduced-motion: reduce) {
   :root { --dur-panel: 1ms; --dur-pulse: 0ms; }

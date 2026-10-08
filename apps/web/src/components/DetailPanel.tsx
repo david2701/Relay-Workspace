@@ -8,6 +8,7 @@ import {
 import { api } from "../lib/api";
 import { copy } from "../lib/copy";
 import { formatAbsolute, formatRelative } from "../lib/format";
+import { toPlainText } from "../lib/markdown";
 import type {
   Agent,
   ContextPack,
@@ -17,7 +18,7 @@ import type {
   WorkItem,
 } from "../lib/types";
 import { ActorMark, isStaleWorking, isWorking } from "./ActorMark";
-import { DateTimeField } from "./DateTimeField";
+import { DateTimePicker } from "./DateTimePicker";
 import { StatusGlyph } from "./StatusGlyph";
 import "./DetailPanel.css";
 
@@ -28,6 +29,10 @@ type Props = {
   onClose: () => void;
   onChange: (item: WorkItem) => void;
   onFlash: (id: string) => void;
+  /** Open due / reminder picker (T / Shift+T). */
+  openPicker?: "due" | "reminder" | null;
+  onOpenPickerHandled?: (() => void) | undefined;
+  onOpenNote?: (noteId: string) => void;
 };
 
 const STATUSES: Status[] = [
@@ -47,6 +52,9 @@ export function DetailPanel({
   onClose,
   onChange,
   onFlash,
+  openPicker = null,
+  onOpenPickerHandled,
+  onOpenNote,
 }: Props) {
   const [notes, setNotes] = useState<LinkedNote[]>([]);
   const [allNotes, setAllNotes] = useState<{ id: string; title: string }[]>([]);
@@ -653,7 +661,7 @@ export function DetailPanel({
           rows={3}
           disabled={offline}
           defaultValue={item.goal ?? ""}
-          key={`${item.id}-goal-${item.updated_at}`}
+          key={`${item.id}-goal`}
           placeholder={copy.field.goalPlaceholder}
           onBlur={(e) => {
             const v = e.target.value;
@@ -668,22 +676,32 @@ export function DetailPanel({
       <section className="detail-section">
         <div className="label-caps">Recordatorio</div>
         <div className="reminder-grid">
-          <DateTimeField
+          <DateTimePicker
             label={copy.field.due}
             icon={<CalendarBlank size={14} />}
+            kind="due"
             value={item.due_at}
+            allowDateOnly
             disabled={offline}
-            onChange={(iso) => {
-              if (iso !== item.due_at) void patch({ due_at: iso });
+            readOnly={item.status === "done" || item.status === "cancelled"}
+            requestOpen={openPicker === "due"}
+            onRequestOpenHandled={onOpenPickerHandled}
+            onCommit={async (iso) => {
+              if (iso !== item.due_at) await patch({ due_at: iso });
             }}
           />
-          <DateTimeField
+          <DateTimePicker
             label={copy.field.reminder}
             icon={<Bell size={14} />}
+            kind="reminder"
             value={item.reminder_at}
+            relatedDueAt={item.due_at}
             disabled={offline}
-            onChange={(iso) => {
-              if (iso !== item.reminder_at) void patch({ reminder_at: iso });
+            readOnly={item.status === "done" || item.status === "cancelled"}
+            requestOpen={openPicker === "reminder"}
+            onRequestOpenHandled={onOpenPickerHandled}
+            onCommit={async (iso) => {
+              if (iso !== item.reminder_at) await patch({ reminder_at: iso });
             }}
           />
           <label className="span2">
@@ -735,9 +753,15 @@ export function DetailPanel({
                       : "Referencia"}
                 </div>
                 {grouped[role].map((n) => (
-                  <article key={n.id} className="note-card">
+                  <article key={n.id} className="note-card note-card-openable">
                     <div className="note-card-head">
-                      <strong>{n.title}</strong>
+                      <button
+                        type="button"
+                        className="note-card-open linkish"
+                        onClick={() => onOpenNote?.(n.id)}
+                      >
+                        <strong>{n.title}</strong>
+                      </button>
                       <button
                         type="button"
                         className="linkish"
@@ -749,7 +773,7 @@ export function DetailPanel({
                         Quitar
                       </button>
                     </div>
-                    <p>{n.body_md.split("\n").slice(0, 2).join(" ")}</p>
+                    <p className="note-extract">{toPlainText(n.body_md)}</p>
                     <div className="mono subtle">
                       {formatRelative(n.updated_at)}
                     </div>

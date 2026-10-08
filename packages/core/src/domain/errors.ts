@@ -21,3 +21,15 @@ export class ValidationError extends DomainError {
     this.name = "ValidationError";
   }
 }
+
+export class ConflictError extends DomainError {
+  readonly current_updated_at?: string;
+
+  constructor(message: string, opts?: { current_updated_at?: string }) {
+    super("conflict", message);
+    this.name = "ConflictError";
+    if (opts?.current_updated_at !== undefined) {
+      this.current_updated_at = opts.current_updated_at;
+    }
+  }
+}

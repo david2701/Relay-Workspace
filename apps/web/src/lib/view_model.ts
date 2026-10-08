@@ -1,9 +1,12 @@
+import { matchesQuery } from "./normalize";
 import type { InboxResult, InboxView, WorkItem } from "./types";
 
 export type ViewSection = {
   key: string;
   label: string;
   items: WorkItem[];
+  /** Server section/group count when paginated (may exceed items.length). */
+  count?: number;
 };
 
 export type LingerRow = {
@@ -46,15 +49,26 @@ function isAgentWipStatus(status: string): boolean {
   );
 }
 
-function matchesFilter(item: WorkItem, filter: string): boolean {
+/** Title-only fallback (offline / no search API). Accent-insensitive. */
+export function matchesFilter(item: WorkItem, filter: string): boolean {
   if (!filter.trim()) return true;
-  return item.title.toLowerCase().includes(filter.toLowerCase());
+  return matchesQuery(item.title, filter);
+}
+
+function passesFilter(
+  item: WorkItem,
+  filter: string,
+  allowedIds: ReadonlySet<string> | null | undefined,
+): boolean {
+  if (allowedIds) return allowedIds.has(item.id);
+  return matchesFilter(item, filter);
 }
 
 /**
  * Single source of truth for list rows + section counts.
  * Only uses inbox when inbox.view matches the active view.
  * Linger is view-scoped and never duplicates an id already in the inbox payload.
+ * When `allowedIds` is set (server search), it replaces the title filter.
  */
 export function buildViewSections(args: {
   inbox: InboxResult | null;
@@ -62,6 +76,7 @@ export function buildViewSections(args: {
   lingerRows: readonly LingerRow[];
   pendingRows: readonly WorkItem[];
   filter: string;
+  allowedIds?: ReadonlySet<string> | null;
   now?: number;
 }): ViewSection[] {
   const now = args.now ?? Date.now();
@@ -74,6 +89,7 @@ export function buildViewSections(args: {
       !inboxIds.has(r.item.id),
   );
   const filter = args.filter;
+  const allowedIds = args.allowedIds;
   if (args.inboxView === "attention" && args.inbox.sections) {
     return args.inbox.sections.map((section) => {
       const sectionIds = new Set(section.items.map((i) => i.id));
@@ -86,8 +102,9 @@ export function buildViewSections(args: {
           return i.status !== "needs_you" && i.status !== "blocked";
         });
       const items = dedupeItems([...lingerInSection, ...section.items]).filter(
-        (i) => matchesFilter(i, filter),
+        (i) => passesFilter(i, filter, allowedIds),
       );
+      const serverCount = args.inbox?.section_counts?.[section.key];
       return {
         key: section.key,
         label:
@@ -97,6 +114,7 @@ export function buildViewSections(args: {
               ? "Atascado"
               : "Para hoy",
         items,
+        count: serverCount ?? items.length,
       };
     });
   }
@@ -114,18 +132,32 @@ export function buildViewSections(args: {
         }
         return true;
       });
+    const groupCountMap = new Map(
+      (args.inbox.group_counts ?? []).map((g) => [g.key, g.count]),
+    );
     return args.inbox.groups.map((group, index) => {
       const items = dedupeItems([
         ...(index === 0 ? orphanLinger : []),
         ...group.items,
-      ]).filter((i) => matchesFilter(i, filter));
+      ]).filter((i) => passesFilter(i, filter, allowedIds));
+      const serverCount = groupCountMap.get(group.key);
       if (args.inboxView === "done") {
         const terminal = items.filter(
           (i) => i.status === "done" || i.status === "cancelled",
         );
-        return { key: group.key, label: group.label, items: terminal };
+        return {
+          key: group.key,
+          label: group.label,
+          items: terminal,
+          count: serverCount ?? terminal.length,
+        };
       }
-      return { key: group.key, label: group.label, items };
+      return {
+        key: group.key,
+        label: group.label,
+        items,
+        count: serverCount ?? items.length,
+      };
     });
   }
   // Flat views: agent_wip / all
@@ -140,13 +172,24 @@ export function buildViewSections(args: {
     .map((r) => r.item)
     .filter((i) => {
       if (args.inboxView === "agent_wip") {
-        // Never linger needs_you / inbox / done into Con agentes.
+        // Keep agent WIP rows, and briefly keep done/cancelled so AC3 can
+        // flash the completion before the row leaves Con agentes.
+        // Never linger needs_you / inbox here (those belong in Atención).
+        if (i.status === "needs_you" || i.status === "inbox") return false;
+        if (i.status === "done" || i.status === "cancelled") return true;
         return i.assignee_type === "agent" && isAgentWipStatus(i.status);
       }
       return true;
     });
   const items = dedupeItems([...lingerItems, ...pending, ...base]).filter((i) =>
-    matchesFilter(i, filter),
+    passesFilter(i, filter, allowedIds),
   );
-  return [{ key: "all", label: "", items }];
+  return [
+    {
+      key: "all",
+      label: "",
+      items,
+      count: args.inbox.total_count ?? items.length,
+    },
+  ];
 }

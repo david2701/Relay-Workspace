@@ -41,6 +41,22 @@ function percentile(sorted, p) {
   return sorted[idx];
 }
 
+async function waitOptionVisible(page, title, timeout, _section) {
+  const deadline = Date.now() + timeout;
+  const re = new RegExp(title.replace(/[.*+?^${}()|[\]\\]/g, "\\$&"));
+  // Rely on the app flash→scrollToIndex (oldest-first section end). Do not
+  // jump scrollTop to scrollHeight — that lands in «Para hoy» at 10k.
+  while (Date.now() < deadline) {
+    const opt = page.getByRole("option", { name: re });
+    if ((await opt.count()) > 0) {
+      await opt.first().scrollIntoViewIfNeeded().catch(() => {});
+      if (await opt.first().isVisible().catch(() => false)) return;
+    }
+    await page.waitForTimeout(50);
+  }
+  throw new Error(`Option not visible within ${timeout}ms: ${title}`);
+}
+
 async function measureNeedsYou(page, i) {
   const title = `SLA needs_you ${i} ${Date.now()}`;
   const created = await mcp("items_create", { title });
@@ -52,9 +68,7 @@ async function measureNeedsYou(page, i) {
     reason: "¿Cierro A o B para el SLA?",
   });
   const mcpDone = Date.now();
-  await page
-    .getByRole("option", { name: new RegExp(title) })
-    .waitFor({ state: "visible", timeout: MAX_MS + 200 });
+  await waitOptionVisible(page, title, MAX_MS + 200, "needs_you");
   return { mcpReturnMs: mcpDone - t0, uiMs: Date.now() - mcpDone, totalMs: Date.now() - t0 };
 }
 
@@ -70,10 +84,7 @@ async function measureBlocked(page, i) {
     blocked_reason: "staging caído para SLA",
   });
   const mcpDone = Date.now();
-  await page
-    .getByRole("group", { name: /Atascado/ })
-    .getByRole("option", { name: new RegExp(title) })
-    .waitFor({ state: "visible", timeout: MAX_MS + 200 });
+  await waitOptionVisible(page, title, MAX_MS + 200, "blocked");
   return { mcpReturnMs: mcpDone - t0, uiMs: Date.now() - mcpDone, totalMs: Date.now() - t0 };
 }
 
@@ -130,8 +141,11 @@ async function main() {
   if (!health.ok) throw new Error(`API not healthy at ${API}`);
   const browser = await chromium.launch({ headless: true });
   const page = await browser.newPage({ viewport: { width: 1440, height: 900 } });
-  await page.goto(WEB);
-  await page.waitForTimeout(400);
+  await page.goto(WEB, { waitUntil: "domcontentloaded" });
+  await page.getByRole("button", { name: /Atención/ }).click();
+  await page.locator('[data-inbox-view="attention"]').waitFor({ timeout: 60_000 });
+  // Large seeds need the first snapshot painted before SLA samples start.
+  await page.getByRole("option").first().waitFor({ state: "visible", timeout: 60_000 });
   const results = [];
   results.push(await runVariant(page, "needs_you", measureNeedsYou));
   results.push(await runVariant(page, "blocked", measureBlocked));

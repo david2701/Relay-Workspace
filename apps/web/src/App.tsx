@@ -1,21 +1,43 @@
 import {
-  Children,
-  type ReactNode,
   useCallback,
   useEffect,
+  useLayoutEffect,
   useMemo,
   useRef,
   useState,
 } from "react";
 import { ActorMark } from "./components/ActorMark";
 import { DetailPanel } from "./components/DetailPanel";
+import { FilterBar } from "./components/FilterBar";
 import { ItemRow } from "./components/ItemRow";
+import { NoteView } from "./components/NoteView";
+import { focusSearchField } from "./components/SearchField";
 import { ThemeSwitch } from "./components/ThemeSwitch";
+import { VirtualItemList } from "./components/VirtualItemList";
 import { usePoll } from "./hooks/usePoll";
 import { useTheme } from "./hooks/useTheme";
+import { useUrlState } from "./hooks/useUrlState";
 import { markForOwner } from "./lib/actor_mark";
 import { api } from "./lib/api";
 import { copy } from "./lib/copy";
+import { groupByDue } from "./lib/date_groups";
+import { itemMatchesFacets } from "./lib/facet_filter";
+import {
+  applyInboxDelta,
+  ensureAttentionSections,
+  isInboxDelta,
+} from "./lib/inbox_merge";
+import {
+  ATTENTION_PAGE_SIZE,
+  appendInboxPage,
+  INBOX_PAGE_SIZE,
+} from "./lib/inbox_page";
+import { toPlainText } from "./lib/markdown";
+import { matchesQuery } from "./lib/normalize";
+import {
+  readTodoGroupBy,
+  TODO_GROUP_KEY,
+} from "./lib/todo_group_pref";
 import type {
   Agent,
   AppView,
@@ -23,8 +45,13 @@ import type {
   InboxView,
   Note,
   Recommendation,
+  SearchMatch,
   WorkItem,
 } from "./lib/types";
+import {
+  EMPTY_FACETS,
+  hasActiveFacets,
+} from "./lib/url_state";
 import {
   assertNoDuplicateIds,
   buildViewSections,
@@ -32,6 +59,20 @@ import {
 } from "./lib/view_model";
 import "./components/ActorMark.css";
 import "./App.css";
+
+const COLLAPSED_GROUPS_KEY = "relay.groups.collapsed.all";
+
+function readCollapsedGroups(): Set<string> {
+  try {
+    const raw = localStorage.getItem(COLLAPSED_GROUPS_KEY);
+    if (!raw) return new Set();
+    const arr = JSON.parse(raw) as unknown;
+    if (!Array.isArray(arr)) return new Set();
+    return new Set(arr.filter((x): x is string => typeof x === "string"));
+  } catch {
+    return new Set();
+  }
+}
 
 const VIEWS: { id: AppView; label: string }[] = [
   { id: "attention", label: copy.nav.attention },
@@ -48,10 +89,43 @@ function dismissedKey(id: string): string {
 
 export default function App() {
   const { theme, setTheme } = useTheme();
-  const [view, setView] = useState<AppView>("attention");
-  const [selectedId, setSelectedId] = useState<string | null>(null);
-  const [selectedItem, setSelectedItem] = useState<WorkItem | null>(null);
   const [agents, setAgents] = useState<Agent[]>([]);
+  const knownActors = useMemo(
+    () => new Set(agents.map((a) => a.id)),
+    [agents],
+  );
+  const {
+    state: urlState,
+    setView: setUrlView,
+    setQuery,
+    setFacets,
+    clearFilters,
+    setItem: setUrlItem,
+    setNote: setUrlNote,
+    replaceAll: replaceUrl,
+  } = useUrlState({ knownActors });
+  const view = urlState.view;
+  const [selectedItem, setSelectedItem] = useState<WorkItem | null>(null);
+  const selectedId = urlState.item;
+  const selectedNoteId = urlState.note;
+  const setSelectedId = useCallback(
+    (id: string | null) => {
+      setUrlItem(id);
+    },
+    [setUrlItem],
+  );
+  const openNote = useCallback(
+    (noteId: string) => {
+      setUrlNote(noteId);
+    },
+    [setUrlNote],
+  );
+  const closeNote = useCallback(() => {
+    setUrlNote(null);
+  }, [setUrlNote]);
+  const onNoteChange = useCallback((n: Note) => {
+    setNotes((prev) => prev.map((x) => (x.id === n.id ? n : x)));
+  }, []);
   const [flashIds, setFlashIds] = useState<Set<string>>(new Set());
   const [capture, setCapture] = useState("");
   const [pendingRows, setPendingRows] = useState<WorkItem[]>([]);
@@ -68,27 +142,51 @@ export default function App() {
     undo?: () => void;
   } | null>(null);
   const [notes, setNotes] = useState<Note[]>([]);
-  const [filter, setFilter] = useState("");
   const [gPending, setGPending] = useState(false);
+  const [todoGroupBy, setTodoGroupBy] = useState<"due" | "none">(readTodoGroupBy);
+  const [collapsedGroups, setCollapsedGroups] = useState<Set<string>>(
+    readCollapsedGroups,
+  );
+  const [openPicker, setOpenPicker] = useState<"due" | "reminder" | null>(null);
+  const [facetsOpen, setFacetsOpen] = useState(false);
+  const [searchMatches, setSearchMatches] = useState<Map<string, SearchMatch>>(
+    () => new Map(),
+  );
+  const [searchAllowedIds, setSearchAllowedIds] = useState<Set<string> | null>(
+    null,
+  );
+  const [searchTotal, setSearchTotal] = useState<number | null>(null);
+  const [searching, setSearching] = useState(false);
+  const [searchError, setSearchError] = useState<string | null>(null);
   const captureRef = useRef<HTMLInputElement>(null);
+  const listRef = useRef<HTMLDivElement>(null);
   const prevUpdated = useRef<Map<string, string>>(new Map());
   const prevItems = useRef<Map<string, WorkItem>>(new Map());
   const prevView = useRef<InboxView>("attention");
   const viewEpoch = useRef(0);
   const hydratedView = useRef<InboxView | null>(null);
   const syncAge = useRef(0);
+  const syncCursorRef = useRef<string | null>(null);
+  const inboxStateRef = useRef<InboxResult | null>(null);
+  const searchGen = useRef(0);
   const [tick, setTick] = useState(0);
 
   const selectView = useCallback((next: AppView) => {
     if (next === view) return;
-    // Wipe linger synchronously so the first paint of the new view never
-    // inherits rows from the previous lens (BUG-2).
+    setUrlView(next, true);
+  }, [view, setUrlView]);
+
+  // Wipe linger before paint on every view change (rail, G+letter, popstate).
+  const lastViewRef = useRef(view);
+  useLayoutEffect(() => {
+    if (lastViewRef.current === view) return;
+    lastViewRef.current = view;
     viewEpoch.current += 1;
     hydratedView.current = null;
     prevItems.current = new Map();
     prevUpdated.current = new Map();
     setLingerRows([]);
-    setView(next);
+    setFacetsOpen(false);
   }, [view]);
 
   useEffect(() => {
@@ -96,18 +194,98 @@ export default function App() {
   }, []);
 
   const inboxView: InboxView = view === "notes" ? "attention" : view;
+  const loadingMoreRef = useRef(false);
+
+  // Reset incremental sync when the lens changes (usePoll also clears data).
+  useEffect(() => {
+    syncCursorRef.current = null;
+    inboxStateRef.current = null;
+    loadingMoreRef.current = false;
+  }, [inboxView]);
 
   const {
     data: inboxRaw,
     error,
     offline,
     lastOkAt,
-    setData: setInbox,
+    setData: setInboxRaw,
     reload,
   } = usePoll<InboxResult>(
-    () => api.inbox(inboxView),
+    async () => {
+      if (syncCursorRef.current && inboxStateRef.current) {
+        try {
+          const payload = await api.inbox(inboxView, {
+            since: syncCursorRef.current,
+          });
+          if (isInboxDelta(payload)) {
+            const merged = applyInboxDelta(inboxStateRef.current, payload);
+            syncCursorRef.current = payload.sync_cursor;
+            inboxStateRef.current = merged;
+            return merged;
+          }
+          // Non-delta response: re-fetch a bounded first page (never adopt a
+          // multi-MB full snapshot into the web client).
+        } catch {
+          // Fall through to paged snapshot on delta errors.
+        }
+      }
+      const pageSize =
+        inboxView === "attention" ? ATTENTION_PAGE_SIZE : INBOX_PAGE_SIZE;
+      const snap = ensureAttentionSections(
+        (await api.inbox(inboxView, {
+          limit: pageSize,
+        })) as InboxResult,
+      );
+      syncCursorRef.current = snap.sync_cursor ?? null;
+      inboxStateRef.current = snap;
+      return snap;
+    },
     [inboxView],
   );
+
+  const loadMoreInbox = useCallback(async () => {
+    const cur = inboxStateRef.current;
+    if (!cur?.has_more || !cur.next_cursor || loadingMoreRef.current) {
+      return;
+    }
+    loadingMoreRef.current = true;
+    const cursor = cur.next_cursor;
+    try {
+      const page = (await api.inbox(inboxView, {
+        limit: INBOX_PAGE_SIZE,
+        cursor,
+      })) as InboxResult;
+      // Merge onto the *latest* ref — a delta poll may have landed while
+      // this page fetch was in flight (AC3 mutations must not be wiped).
+      const latest = inboxStateRef.current ?? cur;
+      const merged = appendInboxPage(latest, page);
+      if (latest.sync_cursor) merged.sync_cursor = latest.sync_cursor;
+      if (latest.counters) merged.counters = latest.counters;
+      if (latest.section_counts) merged.section_counts = latest.section_counts;
+      if (latest.total_count !== undefined) {
+        merged.total_count = latest.total_count;
+      }
+      inboxStateRef.current = merged;
+      setInboxRaw(merged);
+    } catch {
+      // Ignore; next scroll will retry.
+    } finally {
+      loadingMoreRef.current = false;
+    }
+  }, [inboxView, setInboxRaw]);
+
+  const setInbox = useCallback(
+    (updater: ((prev: InboxResult | null) => InboxResult | null) | InboxResult | null) => {
+      setInboxRaw((prev) => {
+        const next =
+          typeof updater === "function" ? updater(prev) : updater;
+        if (next) inboxStateRef.current = next;
+        return next;
+      });
+    },
+    [setInboxRaw],
+  );
+
   // Ignore a previous view's payload while the matching fetch is in flight.
   const inbox =
     inboxRaw && inboxRaw.view === inboxView ? inboxRaw : null;
@@ -126,11 +304,22 @@ export default function App() {
     const id = window.setInterval(() => {
       void api.getItem(selectedId).then((r) => {
         setSelectedItem((prev) => {
-          if (prev && document.activeElement?.closest("[contenteditable], textarea, input")) {
+          const active = document.activeElement;
+          const editingField = active?.closest(
+            "[contenteditable], textarea, input, .dtp-trigger, .dtp-popover",
+          );
+          if (prev && editingField) {
             if (prev.updated_at !== r.item.updated_at) {
               flash(r.item.id);
             }
-            return prev.title === r.item.title ? { ...r.item, title: prev.title } : r.item;
+            // Keep local drafts for title / Objetivo while the field is focused.
+            const title =
+              active?.closest(".detail-title") || active?.closest("[contenteditable]")
+                ? prev.title
+                : r.item.title;
+            const goal =
+              active?.closest("#goal-field, .goal-field") ? prev.goal : r.item.goal;
+            return { ...r.item, title, goal };
           }
           if (prev && prev.updated_at !== r.item.updated_at) flash(r.item.id);
           return r.item;
@@ -152,7 +341,10 @@ export default function App() {
     const nextItems = new Map<string, WorkItem>();
     for (const item of inbox.items) {
       const prev = prevUpdated.current.get(item.id);
+      const canFlashNew =
+        hydratedView.current === inboxView && prevView.current === inboxView;
       if (prev && prev !== item.updated_at) flash(item.id);
+      else if (!prev && canFlashNew) flash(item.id);
       nextMap.set(item.id, item.updated_at);
       nextItems.set(item.id, item);
     }
@@ -211,34 +403,248 @@ export default function App() {
 
   function flash(id: string) {
     setFlashIds((prev) => new Set(prev).add(id));
+    // Keep the seek token past one poll tick so virtualized oldest-first
+    // rows at section ends still scroll into view (AC3 ≤2 s).
     window.setTimeout(() => {
       setFlashIds((prev) => {
         const n = new Set(prev);
         n.delete(id);
         return n;
       });
-    }, 800);
+    }, 2500);
   }
 
+  const facetsActive = hasActiveFacets(urlState.facets);
+  const qTrim = urlState.q.trim();
+  const qActive = qTrim.length >= 2;
+  /** True when the list is actually narrowed (not a 1-char stub). */
+  const filtersActive =
+    facetsActive || qActive || (view === "notes" && qTrim.length > 0);
+
+  // Debounced server search (150 ms from 2 chars; facets alone also search).
+  useEffect(() => {
+    if (view === "notes") {
+      setSearchAllowedIds(null);
+      setSearchMatches(new Map());
+      setSearchTotal(null);
+      setSearching(false);
+      setSearchError(null);
+      return;
+    }
+    const needSearch = facetsActive || qActive;
+    if (!needSearch) {
+      setSearchAllowedIds(null);
+      setSearchMatches(new Map());
+      setSearchTotal(null);
+      setSearching(false);
+      setSearchError(null);
+      return;
+    }
+    if (offline) {
+      // Offline: facets (and title) on client; no API search / note hits.
+      if (inbox) {
+        const ids = new Set(
+          inbox.items
+            .filter((i) => {
+              if (facetsActive && !itemMatchesFacets(i, urlState.facets)) {
+                return false;
+              }
+              if (qActive && !matchesQuery(i.title, qTrim)) return false;
+              return facetsActive || qActive;
+            })
+            .map((i) => i.id),
+        );
+        setSearchAllowedIds(ids);
+        setSearchTotal(ids.size);
+      } else {
+        setSearchAllowedIds(null);
+        setSearchTotal(null);
+      }
+      setSearchMatches(new Map());
+      setSearching(false);
+      setSearchError(null);
+      return;
+    }
+    const gen = ++searchGen.current;
+    setSearching(true);
+    const handle = window.setTimeout(() => {
+      void (async () => {
+        try {
+          const res = await api.search({
+            ...(qActive ? { q: qTrim } : {}),
+            ...(urlState.facets.status.length > 0
+              ? { status: urlState.facets.status }
+              : {}),
+            ...(urlState.facets.actor.length > 0
+              ? { actor: urlState.facets.actor }
+              : {}),
+            ...(urlState.facets.due
+              ? { due: urlState.facets.due }
+              : {}),
+            ...(urlState.facets.due === "range" && urlState.facets.from
+              ? { from: urlState.facets.from }
+              : {}),
+            ...(urlState.facets.due === "range" && urlState.facets.to
+              ? { to: urlState.facets.to }
+              : {}),
+            view: inboxView,
+            limit: 200,
+          });
+          if (searchGen.current !== gen) return;
+          const ids = new Set(res.items.map((h) => h.item.id));
+          const map = new Map<string, SearchMatch>();
+          for (const h of res.items) map.set(h.item.id, h.match);
+          setSearchAllowedIds(ids);
+          setSearchMatches(map);
+          setSearchTotal(res.total);
+          setSearchError(null);
+        } catch {
+          if (searchGen.current !== gen) return;
+          setSearchError("No se pudo buscar. Reintentar");
+        } finally {
+          if (searchGen.current === gen) setSearching(false);
+        }
+      })();
+    }, qActive ? 150 : 0);
+    return () => window.clearTimeout(handle);
+  }, [
+    view,
+    inboxView,
+    facetsActive,
+    qActive,
+    qTrim,
+    urlState.facets,
+    offline,
+    inbox,
+  ]);
+
+  const baseUnfilteredCount = useMemo(() => {
+    if (!inbox) return 0;
+    if (typeof inbox.total_count === "number") return inbox.total_count;
+    if (inbox.section_counts) {
+      return Object.values(inbox.section_counts).reduce((n, c) => n + c, 0);
+    }
+    return buildViewSections({
+      inbox,
+      inboxView,
+      lingerRows,
+      pendingRows,
+      filter: "",
+      now: Date.now(),
+    }).reduce((n, s) => n + (s.count ?? s.items.length), 0);
+  }, [inbox, inboxView, lingerRows, pendingRows, tick]);
+
   const viewSections = useMemo(() => {
+    const offlineTitleFilter =
+      offline && qTrim.length > 0 && !facetsActive ? qTrim : "";
     const sections = buildViewSections({
       inbox,
       inboxView,
       lingerRows,
       pendingRows,
-      filter,
+      filter: offlineTitleFilter,
+      allowedIds: searchAllowedIds,
       now: Date.now(),
     });
-    if (import.meta.env.DEV && sections.length > 0) {
-      assertNoDuplicateIds(sections, inboxView);
+    let result = sections;
+    if (view === "all" && todoGroupBy === "due") {
+      const items = sections.flatMap((s) => s.items);
+      const buckets = groupByDue(items, new Date());
+      const byKey = new Map<string, (typeof buckets)[number]>(
+        buckets.map((g) => [g.key, g]),
+      );
+      const serverCounts = inbox?.group_counts;
+      if (serverCounts && serverCounts.length > 0) {
+        // Headers use full-view server totals; rows are the loaded page only.
+        // Groups with count > 0 stay visible even when no rows are loaded yet.
+        result = serverCounts
+          .filter((c) => c.count > 0)
+          .map((c) => ({
+            key: c.key,
+            label: c.label,
+            items: byKey.get(c.key)?.items ?? [],
+            count: c.count,
+          }));
+      } else {
+        result = buckets.map((g) => ({
+          key: g.key,
+          label: g.label,
+          items: g.items,
+          count: g.items.length,
+        }));
+      }
     }
-    return sections;
-  }, [inbox, inboxView, lingerRows, pendingRows, filter, tick]);
+    if (import.meta.env.DEV && result.length > 0) {
+      assertNoDuplicateIds(result, inboxView);
+    }
+    return result;
+  }, [
+    inbox,
+    inboxView,
+    lingerRows,
+    pendingRows,
+    searchAllowedIds,
+    offline,
+    qTrim,
+    facetsActive,
+    tick,
+    view,
+    todoGroupBy,
+  ]);
 
-  const flatItems = useMemo(
-    () => viewSections.flatMap((s) => s.items),
-    [viewSections],
-  );
+  const flatItems = useMemo(() => {
+    if (view === "all" && todoGroupBy === "due") {
+      return viewSections
+        .filter((s) => !collapsedGroups.has(s.key))
+        .flatMap((s) => s.items);
+    }
+    return viewSections.flatMap((s) => s.items);
+  }, [viewSections, view, todoGroupBy, collapsedGroups]);
+
+  const filteredNotes = useMemo(() => {
+    if (view !== "notes") return notes;
+    if (!qTrim) return notes;
+    return notes.filter(
+      (n) =>
+        matchesQuery(n.title, qTrim) ||
+        matchesQuery(toPlainText(n.body_md), qTrim),
+    );
+  }, [notes, view, qTrim]);
+
+  const filteredCount =
+    view === "notes" ? filteredNotes.length : flatItems.length;
+  const notesTotal = notes.length;
+  // Never paint «Todo · 0» while the first snapshot is still loading.
+  const inboxReady = Boolean(inbox) || Boolean(error);
+  const headerCount =
+    view === "notes"
+      ? filtersActive
+        ? `${filteredNotes.length} de ${notesTotal}`
+        : String(notesTotal)
+      : !inboxReady
+        ? null
+        : filtersActive && baseUnfilteredCount > 0
+          ? `${flatItems.length} de ${baseUnfilteredCount}`
+          : String(baseUnfilteredCount || flatItems.length);
+  const countLive =
+    filtersActive
+      ? `${filteredCount} resultados de ${
+          view === "notes"
+            ? notesTotal
+            : baseUnfilteredCount || searchTotal || filteredCount
+        }`
+      : null;
+
+  // If selection falls outside filtered results, move to first / clear.
+  useEffect(() => {
+    if (view === "notes") return;
+    if (!selectedId) return;
+    if (flatItems.some((i) => i.id === selectedId)) return;
+    if (searchAllowedIds && !searchAllowedIds.has(selectedId)) {
+      const first = flatItems[0];
+      setSelectedId(first ? first.id : null);
+    }
+  }, [flatItems, selectedId, searchAllowedIds, view, setSelectedId]);
 
   // Rail Atención counter: when Atención is painted, use the rendered
   // Te necesita row count (same list as the header · N). Otherwise use
@@ -323,22 +729,72 @@ export default function App() {
         (t.tagName === "INPUT" ||
           t.tagName === "TEXTAREA" ||
           t.isContentEditable);
+      // Ignore picker/menu chrome; the main item list is also role=listbox.
+      const overlayHost = t?.closest(
+        "[role=dialog],[role=grid],[role=menu]",
+      );
+      const listbox = t?.closest("[role=listbox]");
+      const inOverlay =
+        !!overlayHost ||
+        (!!listbox && !listbox.classList.contains("item-list"));
+
+      // ⌘K reserved for palette (P1) — do nothing globally.
+      if ((e.metaKey || e.ctrlKey) && (e.key === "k" || e.key === "K")) {
+        return;
+      }
+
+      // Esc chain §4.2: popover/menu → note editor → search → shortcuts → capture → deselect
       if (e.key === "Escape") {
+        if (inOverlay) return; // DateTimePicker / FacetMenu / dialogs stopPropagation
+        if (facetsOpen) {
+          e.stopPropagation();
+          setFacetsOpen(false);
+          return;
+        }
+        // NoteView / NoteEditor handle Esc (save+exit or back) via stopPropagation.
+        if (
+          selectedNoteId &&
+          t?.closest("[data-note-panel], .note-editor, .note-view")
+        ) {
+          return;
+        }
+        if (selectedNoteId) {
+          e.stopPropagation();
+          closeNote();
+          return;
+        }
+        const searchEl = document.getElementById(
+          "view-filter",
+        ) as HTMLInputElement | null;
+        if (document.activeElement === searchEl) {
+          e.stopPropagation();
+          if (urlState.q) {
+            setQuery("");
+          } else {
+            searchEl?.blur();
+            listRef.current?.focus();
+          }
+          return;
+        }
         if (showShortcuts) {
+          e.stopPropagation();
           setShowShortcuts(false);
           return;
         }
         if (document.activeElement === captureRef.current) {
+          e.stopPropagation();
           setCapture("");
           captureRef.current?.blur();
           return;
         }
         if (selectedId) {
+          e.stopPropagation();
           setSelectedId(null);
           return;
         }
       }
-      if (typing) return;
+      // Native checkbox / inputs: Space must not complete the list item (V12-M10).
+      if (typing || inOverlay) return;
       if (e.key === "n" || e.key === "N") {
         e.preventDefault();
         captureRef.current?.focus();
@@ -350,8 +806,20 @@ export default function App() {
       }
       if (e.key === "/") {
         e.preventDefault();
-        document.getElementById("view-filter")?.focus();
+        focusSearchField();
         return;
+      }
+      if (e.key === "f" || e.key === "F") {
+        if (e.shiftKey) {
+          e.preventDefault();
+          clearFilters();
+          return;
+        }
+        if (view !== "notes") {
+          e.preventDefault();
+          setFacetsOpen(true);
+          return;
+        }
       }
       if (e.key === "g" || e.key === "G") {
         setGPending(true);
@@ -372,6 +840,11 @@ export default function App() {
           selectView(v);
           setGPending(false);
         }
+        return;
+      }
+      if ((e.key === "t" || e.key === "T") && selectedId) {
+        e.preventDefault();
+        setOpenPicker(e.shiftKey ? "reminder" : "due");
         return;
       }
       if (e.key === "j" || e.key === "ArrowDown") {
@@ -489,15 +962,64 @@ export default function App() {
 
       <main className="list-zone">
         <header className="list-head">
-          <h2>{title}</h2>
-          <input
-            id="view-filter"
-            className="view-filter"
-            placeholder="Filtrar por título"
-            value={filter}
-            onChange={(e) => setFilter(e.target.value)}
-          />
+          <div className="list-head-title">
+            <h2>{title}</h2>
+            {headerCount !== null ? (
+              <span className="list-head-count mono" aria-hidden>
+                · {headerCount}
+              </span>
+            ) : null}
+          </div>
+          <div className="list-head-actions">
+            {view === "all" ? (
+              <button
+                type="button"
+                className="group-toggle"
+                aria-label={
+                  todoGroupBy === "due"
+                    ? "Agrupar: Fecha"
+                    : "Agrupar: Ninguno"
+                }
+                onClick={() => {
+                  const next = todoGroupBy === "due" ? "none" : "due";
+                  setTodoGroupBy(next);
+                  localStorage.setItem(TODO_GROUP_KEY, next);
+                }}
+              >
+                {todoGroupBy === "due" ? "Agrupar: Fecha" : "Agrupar: Ninguno"}
+              </button>
+            ) : null}
+          </div>
         </header>
+
+        <FilterBar
+          q={urlState.q}
+          facets={urlState.facets}
+          agents={agents}
+          offline={offline}
+          searching={searching}
+          searchError={searchError}
+          countLive={countLive}
+          hideFacets={view === "notes"}
+          hideOwner={false}
+          placeholder={
+            view === "notes"
+              ? "Buscar en notas…"
+              : "Buscar en ítems y notas…"
+          }
+          onQueryChange={setQuery}
+          onFacetsChange={setFacets}
+          onClear={clearFilters}
+          facetsOpen={facetsOpen}
+          onFacetsOpenChange={setFacetsOpen}
+          onFocusFirstResult={() => {
+            const first = flatItems[0];
+            if (first) {
+              setSelectedId(first.id);
+              listRef.current?.focus();
+            }
+          }}
+        />
 
         {offline ? (
           <div className="banner offline" role="status">
@@ -593,6 +1115,7 @@ relay web   →  http://127.0.0.1:7421`}</pre>
                   const mark = item
                     ? markForOwner(item, agents)
                     : { kind: "user" as const, name: "David", monogram: "D" };
+                  const title = r.title || item?.title || "Sin título";
                   return (
                     <div key={r.item_id} className="suggested-row" role="listitem">
                       <ActorMark
@@ -602,9 +1125,7 @@ relay web   →  http://127.0.0.1:7421`}</pre>
                         size={20}
                       />
                       <div className="sug-text">
-                        <div className="sug-title">
-                          {item?.title ?? r.item_id}
-                        </div>
+                        <div className="sug-title">{title}</div>
                         <div className="sug-reason">{r.reason}</div>
                       </div>
                       <button
@@ -636,17 +1157,38 @@ relay web   →  http://127.0.0.1:7421`}</pre>
           <div className="notes-list">
             {notes.length === 0 ? (
               <Empty text={copy.empty.notes} />
+            ) : filteredNotes.length === 0 ? (
+              <Empty
+                text="Nada coincide con estos filtros."
+                action={{
+                  label: "Quitar filtros",
+                  onClick: clearFilters,
+                }}
+              />
             ) : (
-              notes.map((n) => (
-                <article key={n.id} className="note-card list-note">
+              filteredNotes.map((n) => (
+                <article
+                  key={n.id}
+                  className={`note-card list-note${selectedNoteId === n.id ? " is-selected" : ""}`}
+                  role="button"
+                  tabIndex={0}
+                  onClick={() => openNote(n.id)}
+                  onKeyDown={(e) => {
+                    if (e.key === "Enter" || e.key === " ") {
+                      e.preventDefault();
+                      openNote(n.id);
+                    }
+                  }}
+                >
                   <strong>{n.title}</strong>
-                  <p>{n.body_md.slice(0, 120)}</p>
+                  <p className="note-extract">{toPlainText(n.body_md)}</p>
                 </article>
               ))
             )}
           </div>
         ) : (
           <div
+            ref={listRef}
             className="item-list"
             role="listbox"
             tabIndex={0}
@@ -654,43 +1196,67 @@ relay web   →  http://127.0.0.1:7421`}</pre>
             aria-activedescendant={selectedId ? `row-${selectedId}` : undefined}
           >
             {!inbox && !error ? <Skeleton /> : null}
-            {inbox
-              ? viewSections.map((section) =>
-                  section.label ? (
-                    <Section key={section.key} label={section.label}>
-                      {section.items.map((item) => (
-                        <ItemRow
-                          key={item.id}
-                          item={item}
-                          agents={agents}
-                          selected={selectedId === item.id}
-                          flash={flashIds.has(item.id)}
-                          showChatBadge={view === "all"}
-                          showCompletedBy={view === "done"}
-                          onSelect={() => setSelectedId(item.id)}
-                        />
-                      ))}
-                    </Section>
-                  ) : (
-                    <div key={section.key || "all"}>
-                      {section.items.map((item) => (
-                        <ItemRow
-                          key={item.id}
-                          item={item}
-                          agents={agents}
-                          selected={selectedId === item.id}
-                          flash={flashIds.has(item.id)}
-                          showChatBadge={view === "all"}
-                          showCompletedBy={view === "done"}
-                          onSelect={() => setSelectedId(item.id)}
-                        />
-                      ))}
-                    </div>
-                  ),
-                )
-              : null}
+            {inbox ? (
+              <VirtualItemList
+                scrollRef={listRef}
+                sections={viewSections}
+                agents={agents}
+                selectedId={selectedId}
+                flashIds={flashIds}
+                showChatBadge={view === "all"}
+                showCompletedBy={view === "done"}
+                dueGroupMode={view === "all" && todoGroupBy === "due"}
+                matches={searchMatches}
+                {...(view === "all" && todoGroupBy === "due"
+                  ? {
+                      collapsedKeys: collapsedGroups,
+                      onToggleGroup: (key: string) => {
+                        setCollapsedGroups((prev) => {
+                          const next = new Set(prev);
+                          if (next.has(key)) next.delete(key);
+                          else next.add(key);
+                          localStorage.setItem(
+                            COLLAPSED_GROUPS_KEY,
+                            JSON.stringify([...next]),
+                          );
+                          return next;
+                        });
+                      },
+                    }
+                  : {})}
+                onSelect={setSelectedId}
+                hasMore={!!inbox.has_more}
+                onLoadMore={() => {
+                  void loadMoreInbox();
+                }}
+              />
+            ) : null}
             {inbox && flatItems.length === 0 ? (
-              view === "attention" ? (
+              filtersActive ? (
+                <Empty
+                  text="Nada coincide con estos filtros."
+                  action={{
+                    label: "Quitar filtros",
+                    onClick: clearFilters,
+                  }}
+                  secondary={
+                    qTrim
+                      ? {
+                          label: `Buscar «${qTrim}» en todas las vistas`,
+                          onClick: () => {
+                            replaceUrl({
+                              view: "all",
+                              q: qTrim,
+                              facets: { ...EMPTY_FACETS },
+                              item: null,
+                              note: null,
+                            });
+                          },
+                        }
+                      : undefined
+                  }
+                />
+              ) : view === "attention" ? (
                 <Empty
                   text={copy.empty.attention}
                   action={{
@@ -721,7 +1287,7 @@ relay web   →  http://127.0.0.1:7421`}</pre>
                     agents={agents}
                     selected={selectedId === item.id}
                     flash={flashIds.has(item.id)}
-                    onSelect={() => setSelectedId(item.id)}
+                    onSelect={setSelectedId}
                   />
                   {view !== "all" ? (
                     <div className="elsewhere mono">
@@ -751,21 +1317,42 @@ relay web   →  http://127.0.0.1:7421`}</pre>
         ) : null}
       </main>
 
-      {selectedId && window.innerWidth < 1024 ? (
-        <div className="detail-scrim" onClick={() => setSelectedId(null)} />
+      {(selectedId || selectedNoteId) && window.innerWidth < 1024 ? (
+        <div
+          className="detail-scrim"
+          onClick={() => {
+            if (selectedNoteId) closeNote();
+            else setSelectedId(null);
+          }}
+        />
       ) : null}
 
-      <DetailPanel
-        item={selectedItem}
-        agents={agents}
-        offline={offline}
-        onClose={() => setSelectedId(null)}
-        onChange={(item) => {
-          setSelectedItem(item);
-          void reload();
-        }}
-        onFlash={flash}
-      />
+      {selectedNoteId ? (
+        <NoteView
+          noteId={selectedNoteId}
+          offline={offline}
+          returnLabel={
+            selectedId ? "← Volver al ítem" : "← Cerrar"
+          }
+          onBack={closeNote}
+          onNoteChange={onNoteChange}
+        />
+      ) : (
+        <DetailPanel
+          item={selectedItem}
+          agents={agents}
+          offline={offline}
+          onClose={() => setSelectedId(null)}
+          onChange={(item) => {
+            setSelectedItem(item);
+            void reload();
+          }}
+          onFlash={flash}
+          openPicker={openPicker}
+          onOpenPickerHandled={() => setOpenPicker(null)}
+          onOpenNote={openNote}
+        />
+      )}
 
       {showShortcuts ? (
         <div className="modal-scrim" onClick={() => setShowShortcuts(false)}>
@@ -784,6 +1371,7 @@ relay web   →  http://127.0.0.1:7421`}</pre>
               <li>D — delegar · M — me lo quedo · L — vincular nota</li>
               <li>S — estado · Shift+R — reabrir</li>
               <li>G luego A/G/P/H/T/O — cambiar vista</li>
+              <li>T — para cuándo · Shift+T — avisarme</li>
             </ul>
             <button type="button" className="btn-secondary" onClick={() => setShowShortcuts(false)}>
               Cerrar
@@ -801,43 +1389,14 @@ relay web   →  http://127.0.0.1:7421`}</pre>
   );
 }
 
-function Section({
-  label,
-  children,
-}: {
-  label: string;
-  children: ReactNode;
-}) {
-  // Count is derived from the same children painted below — never a
-  // separate poll/state (V1).
-  const count = Children.toArray(children).filter(Boolean).length;
-  if (!label && count === 0) return <>{children}</>;
-  return (
-    <div
-      role="group"
-      aria-label={label || undefined}
-      data-section-count={count}
-    >
-      {label ? (
-        <div className="section-label label-caps">
-          {label}
-          <span className="mono" data-section-count-text>
-            {" "}
-            · {count}
-          </span>
-        </div>
-      ) : null}
-      {children}
-    </div>
-  );
-}
-
 function Empty({
   text,
   action,
+  secondary,
 }: {
   text: string;
-  action?: { label: string; onClick: () => void };
+  action?: { label: string; onClick: () => void } | undefined;
+  secondary?: { label: string; onClick: () => void } | undefined;
 }) {
   return (
     <div className="empty">
@@ -845,6 +1404,11 @@ function Empty({
       {action ? (
         <button type="button" className="linkish" onClick={action.onClick}>
           {action.label}
+        </button>
+      ) : null}
+      {secondary ? (
+        <button type="button" className="linkish" onClick={secondary.onClick}>
+          {secondary.label}
         </button>
       ) : null}
     </div>

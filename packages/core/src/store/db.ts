@@ -3,8 +3,21 @@ import { dirname } from "node:path";
 import { DatabaseSync } from "node:sqlite";
 import { DEFAULT_AGENTS } from "../schemas/agent.js";
 import { MIGRATIONS } from "./migrations.js";
+import { rebuildSearchFts } from "./search_index.js";
 
 export type RelayDb = DatabaseSync;
+
+/** SQLite schema cookie — increments on every commit from any connection. */
+export function readSqliteDataVersion(db: RelayDb): number {
+  const row = db.prepare("PRAGMA data_version").get() as
+    | { data_version?: number }
+    | Record<string, number>
+    | undefined;
+  if (!row) return 0;
+  if (typeof row.data_version === "number") return row.data_version;
+  const first = Object.values(row)[0];
+  return typeof first === "number" ? first : 0;
+}
 
 export function openDatabase(dbPath: string): RelayDb {
   mkdirSync(dirname(dbPath), { recursive: true });
@@ -27,6 +40,7 @@ function migrate(db: RelayDb): void {
     .prepare("SELECT COALESCE(MAX(version), 0) AS v FROM schema_migrations")
     .get() as { v: number };
   const current = row.v;
+  let appliedV2 = false;
   for (const m of MIGRATIONS) {
     if (m.version <= current) continue;
     db.exec("BEGIN");
@@ -36,10 +50,14 @@ function migrate(db: RelayDb): void {
         "INSERT INTO schema_migrations (version, applied_at) VALUES (?, ?)",
       ).run(m.version, new Date().toISOString());
       db.exec("COMMIT");
+      if (m.version === 2) appliedV2 = true;
     } catch (err) {
       db.exec("ROLLBACK");
       throw err;
     }
+  }
+  if (appliedV2) {
+    rebuildSearchFts(db);
   }
 }
 

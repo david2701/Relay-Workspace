@@ -6,7 +6,7 @@ export async function waitInboxView(page: Page, view: string): Promise<void> {
   });
 }
 
-/** Assert every labeled section's «· N» matches its visible option rows. */
+/** Assert every labeled section's «· N» matches data-section-count (model count). */
 export async function expectSectionCountsMatch(page: Page): Promise<void> {
   const groups = page.locator('.item-list [role="group"]');
   const n = await groups.count();
@@ -21,21 +21,30 @@ export async function expectSectionCountsMatch(page: Page): Promise<void> {
     const attr = await group.getAttribute("data-section-count");
     if (attr !== null) expect(Number(attr)).toBe(expected);
     const rows = group.getByRole("option");
-    await expect(rows).toHaveCount(expected);
+    const visible = await rows.count();
+    const virtualized =
+      (await group.getAttribute("data-virtualized")) === "true";
+    if (virtualized) {
+      // Only mounted rows are in the DOM; count must be ≤ model N.
+      expect(visible).toBeLessThanOrEqual(expected);
+    } else {
+      await expect(rows).toHaveCount(expected);
+    }
   }
 }
 
-/** Rail Atención counter must equal Te necesita row count when that section is shown. */
+/** Rail Atención counter must equal Te necesita data-section-count when shown. */
 export async function expectRailMatchesTeNecesita(page: Page): Promise<void> {
   const te = page.getByRole("group", { name: /^Te necesita$/ });
   if ((await te.count()) === 0) return;
-  const rows = await te.getByRole("option").count();
+  const attr = await te.first().getAttribute("data-section-count");
+  const expected = attr !== null ? Number(attr) : 0;
   const counter = page.locator('[data-rail-counter="attention"]');
-  if (rows === 0) {
+  if (expected === 0) {
     await expect(counter).toHaveCount(0);
     return;
   }
-  await expect(counter).toHaveText(String(rows));
+  await expect(counter).toHaveText(String(expected));
 }
 
 export async function expectHechosOnlyTerminal(page: Page): Promise<void> {

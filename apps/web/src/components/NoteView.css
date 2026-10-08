@@ -1,0 +1,82 @@
+.note-view {
+  display: flex;
+  flex-direction: column;
+}
+
+.note-view.is-editing {
+  min-height: 100%;
+}
+
+.note-view-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-3);
+  min-height: var(--control-h);
+  padding: var(--space-2) var(--space-4);
+  border-bottom: 1px solid var(--line);
+}
+
+.note-view-actions {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+}
+
+.note-view-actions kbd {
+  font: inherit;
+  font-size: var(--step-data);
+  margin-left: 4px;
+  color: var(--ink-muted);
+}
+
+.note-title {
+  margin: var(--space-4) var(--space-4) var(--space-2);
+  font-size: var(--step-h1);
+  font-weight: 600;
+  color: var(--ink);
+  line-height: 1.25;
+}
+
+.note-meta {
+  margin: 0 var(--space-4) var(--space-3);
+  font-size: var(--step-data);
+  color: var(--ink-muted);
+}
+
+.note-empty {
+  margin: var(--space-5);
+  color: var(--ink-muted);
+  font-size: var(--step-body);
+}
+
+.note-error {
+  padding: var(--space-5);
+  color: var(--ink-2);
+}
+
+.note-draft-banner {
+  margin: 0 var(--space-4) var(--space-3);
+  padding: var(--space-3);
+  background: color-mix(in srgb, var(--warn) 12%, var(--raised));
+  border: 1px solid var(--line);
+  border-radius: var(--radius-sm);
+  font-size: var(--step-meta);
+  color: var(--ink);
+}
+
+.note-skel {
+  padding: var(--space-5);
+  display: grid;
+  gap: var(--space-3);
+}
+
+.note-skel-bar {
+  height: 12px;
+  background: var(--sunken);
+  border-radius: var(--radius-xs);
+}
+
+.note-skel-bar.short {
+  width: 60%;
+}

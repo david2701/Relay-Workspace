@@ -1,0 +1,842 @@
+{
+  "generated_at": "2026-10-08T08:09:18.887Z",
+  "dbPath": "/tmp/relay-mcp-docs.db",
+  "seed": {
+    "dbPath": "/tmp/relay-mcp-docs.db",
+    "needsYouId": "itm_maj7i9qv5r",
+    "blockedId": "itm_r9j7pimxt9",
+    "inProgressId": "itm_uyoen5x0lf"
+  },
+  "tool_names": [
+    "items_list",
+    "items_get",
+    "items_create",
+    "items_update",
+    "items_set_status",
+    "items_complete",
+    "items_reopen",
+    "items_delegate",
+    "items_ask_user",
+    "notes_create",
+    "notes_get",
+    "notes_update",
+    "notes_list",
+    "notes_search",
+    "notes_link",
+    "notes_unlink",
+    "context_get",
+    "inbox_query",
+    "search",
+    "inbox_recommend"
+  ],
+  "calls": {
+    "items_list": {
+      "args": {
+        "limit": 2
+      },
+      "response": {
+        "items": [
+          {
+            "id": "itm_hlm0y1stl0",
+            "title": "Redactar changelog de la semana",
+            "goal": "Changelog publicado en el canal interno",
+            "status": "done",
+            "assignee_type": "agent",
+            "assignee_id": "redactor",
+            "due_at": null,
+            "reminder_at": null,
+            "reminder_intent": null,
+            "priority": "none",
+            "blocked_reason": null,
+            "needs_you_reason": null,
+            "source": "ui",
+            "created_at": "2026-10-08T08:09:18.871Z",
+            "updated_at": "2026-10-08T08:09:18.878Z",
+            "started_at": null,
+            "completed_at": "2026-10-08T08:09:18.878Z",
+            "completed_by_type": "agent",
+            "completed_by_id": "redactor",
+            "last_actor_type": "agent",
+            "last_actor_id": "redactor",
+            "list_id": null
+          },
+          {
+            "id": "itm_xs3nms94e7",
+            "title": "Comprar dominio relay.dev",
+            "goal": null,
+            "status": "inbox",
+            "assignee_type": "unassigned",
+            "assignee_id": null,
+            "due_at": null,
+            "reminder_at": null,
+            "reminder_intent": null,
+            "priority": "none",
+            "blocked_reason": null,
+            "needs_you_reason": null,
+            "source": "ui",
+            "created_at": "2026-10-08T08:09:18.863Z",
+            "updated_at": "2026-10-08T08:09:18.863Z",
+            "started_at": null,
+            "completed_at": null,
+            "completed_by_type": null,
+            "completed_by_id": null,
+            "last_actor_type": "user",
+            "last_actor_id": "david",
+            "list_id": null
+          }
+        ],
+        "next_cursor": "eyJpZCI6Iml0bV94czNubXM5NGU3IiwidXBkYXRlZF9hdCI6IjIwMjYtMTAtMDhUMDg6MDk6MTguODYzWiJ9",
+        "has_more": true,
+        "total_count": 6
+      }
+    },
+    "items_get": {
+      "args": {
+        "id": "itm_maj7i9qv5r"
+      },
+      "response": {
+        "item": {
+          "id": "itm_maj7i9qv5r",
+          "title": "Elegir titular del post de lanzamiento",
+          "goal": "Post publicado en el blog con titular aprobado por David",
+          "status": "needs_you",
+          "assignee_type": "agent",
+          "assignee_id": "grok-bot",
+          "due_at": "2026-10-09T02:09:18.842Z",
+          "reminder_at": "2026-10-08T12:09:18.842Z",
+          "reminder_intent": "Revisar el borrador antes de la demo",
+          "priority": "none",
+          "blocked_reason": null,
+          "needs_you_reason": "¿Publico la versión A («Relay») o la B («Relevo»)? El post sale mañana a las 9:00.",
+          "source": "mcp",
+          "created_at": "2026-10-08T08:09:18.842Z",
+          "updated_at": "2026-10-08T05:09:18.850Z",
+          "started_at": null,
+          "completed_at": null,
+          "completed_by_type": null,
+          "completed_by_id": null,
+          "last_actor_type": "agent",
+          "last_actor_id": "grok-bot",
+          "list_id": null
+        }
+      }
+    },
+    "items_create": {
+      "args": {
+        "title": "MCP docs sample item",
+        "goal": "Ejemplo real para la documentación MCP",
+        "priority": "medium",
+        "actor": {
+          "id": "grok-bot",
+          "type": "agent"
+        }
+      },
+      "response": {
+        "item": {
+          "id": "itm_p0se48sadp",
+          "title": "MCP docs sample item",
+          "goal": "Ejemplo real para la documentación MCP",
+          "status": "inbox",
+          "assignee_type": "unassigned",
+          "assignee_id": null,
+          "due_at": null,
+          "reminder_at": null,
+          "reminder_intent": null,
+          "priority": "medium",
+          "blocked_reason": null,
+          "needs_you_reason": null,
+          "source": "mcp",
+          "created_at": "2026-10-08T08:09:18.889Z",
+          "updated_at": "2026-10-08T08:09:18.889Z",
+          "started_at": null,
+          "completed_at": null,
+          "completed_by_type": null,
+          "completed_by_id": null,
+          "last_actor_type": "agent",
+          "last_actor_id": "grok-bot",
+          "list_id": null
+        }
+      }
+    },
+    "items_update": {
+      "args": {
+        "id": "itm_p0se48sadp",
+        "title": "MCP docs sample item (updated)",
+        "actor": {
+          "id": "grok-bot",
+          "type": "agent"
+        }
+      },
+      "response": {
+        "item": {
+          "id": "itm_p0se48sadp",
+          "title": "MCP docs sample item (updated)",
+          "goal": "Ejemplo real para la documentación MCP",
+          "status": "inbox",
+          "assignee_type": "unassigned",
+          "assignee_id": null,
+          "due_at": null,
+          "reminder_at": null,
+          "reminder_intent": null,
+          "priority": "medium",
+          "blocked_reason": null,
+          "needs_you_reason": null,
+          "source": "mcp",
+          "created_at": "2026-10-08T08:09:18.889Z",
+          "updated_at": "2026-10-08T08:09:18.898Z",
+          "started_at": null,
+          "completed_at": null,
+          "completed_by_type": null,
+          "completed_by_id": null,
+          "last_actor_type": "agent",
+          "last_actor_id": "grok-bot",
+          "list_id": null
+        }
+      }
+    },
+    "items_delegate": {
+      "args": {
+        "id": "itm_p0se48sadp",
+        "agent_id": "grok-bot",
+        "actor": {
+          "id": "grok-bot",
+          "type": "agent"
+        }
+      },
+      "response": {
+        "item": {
+          "id": "itm_p0se48sadp",
+          "title": "MCP docs sample item (updated)",
+          "goal": "Ejemplo real para la documentación MCP",
+          "status": "assigned",
+          "assignee_type": "agent",
+          "assignee_id": "grok-bot",
+          "due_at": null,
+          "reminder_at": null,
+          "reminder_intent": null,
+          "priority": "medium",
+          "blocked_reason": null,
+          "needs_you_reason": null,
+          "source": "mcp",
+          "created_at": "2026-10-08T08:09:18.889Z",
+          "updated_at": "2026-10-08T08:09:18.901Z",
+          "started_at": null,
+          "completed_at": null,
+          "completed_by_type": null,
+          "completed_by_id": null,
+          "last_actor_type": "agent",
+          "last_actor_id": "grok-bot",
+          "list_id": null
+        }
+      }
+    },
+    "items_set_status": {
+      "args": {
+        "id": "itm_p0se48sadp",
+        "status": "in_progress",
+        "actor": {
+          "id": "grok-bot",
+          "type": "agent"
+        }
+      },
+      "response": {
+        "item": {
+          "id": "itm_p0se48sadp",
+          "title": "MCP docs sample item (updated)",
+          "goal": "Ejemplo real para la documentación MCP",
+          "status": "in_progress",
+          "assignee_type": "agent",
+          "assignee_id": "grok-bot",
+          "due_at": null,
+          "reminder_at": null,
+          "reminder_intent": null,
+          "priority": "medium",
+          "blocked_reason": null,
+          "needs_you_reason": null,
+          "source": "mcp",
+          "created_at": "2026-10-08T08:09:18.889Z",
+          "updated_at": "2026-10-08T08:09:18.905Z",
+          "started_at": "2026-10-08T08:09:18.905Z",
+          "completed_at": null,
+          "completed_by_type": null,
+          "completed_by_id": null,
+          "last_actor_type": "agent",
+          "last_actor_id": "grok-bot",
+          "list_id": null
+        }
+      }
+    },
+    "notes_create": {
+      "args": {
+        "title": "Nota huérfana de ejemplo",
+        "body_md": "Texto buscable sobre el lanzamiento de Relay."
+      },
+      "response": {
+        "note": {
+          "id": "nte_0wtjk5yrn1",
+          "title": "Nota huérfana de ejemplo",
+          "body_md": "Texto buscable sobre el lanzamiento de Relay.",
+          "created_at": "2026-10-08T08:09:18.908Z",
+          "updated_at": "2026-10-08T08:09:18.908Z"
+        }
+      }
+    },
+    "notes_list": {
+      "args": {
+        "limit": 2
+      },
+      "response": {
+        "notes": [
+          {
+            "id": "nte_0wtjk5yrn1",
+            "title": "Nota huérfana de ejemplo",
+            "body_md": "Texto buscable sobre el lanzamiento de Relay.",
+            "created_at": "2026-10-08T08:09:18.908Z",
+            "updated_at": "2026-10-08T08:09:18.908Z"
+          },
+          {
+            "id": "nte_d8v631x80e",
+            "title": "Nombre del producto: Relay provisional",
+            "body_md": "«Relevo» descartado en ES por colisión con relevos deportivos.\nPendiente de validar con el post de lanzamiento.",
+            "created_at": "2026-10-08T08:09:18.866Z",
+            "updated_at": "2026-10-08T08:09:18.866Z"
+          }
+        ],
+        "next_cursor": "eyJpZCI6Im50ZV9kOHY2MzF4ODBlIiwidXBkYXRlZF9hdCI6IjIwMjYtMTAtMDhUMDg6MDk6MTguODY2WiJ9",
+        "has_more": true,
+        "total_count": 3
+      }
+    },
+    "notes_get": {
+      "args": {
+        "id": "nte_0wtjk5yrn1"
+      },
+      "response": {
+        "note": {
+          "id": "nte_0wtjk5yrn1",
+          "title": "Nota huérfana de ejemplo",
+          "body_md": "Texto buscable sobre el lanzamiento de Relay.",
+          "created_at": "2026-10-08T08:09:18.908Z",
+          "updated_at": "2026-10-08T08:09:18.908Z"
+        },
+        "links": []
+      }
+    },
+    "notes_update": {
+      "args": {
+        "id": "nte_0wtjk5yrn1",
+        "body_md": "Texto actualizado sobre el lanzamiento de Relay.",
+        "if_updated_at": "2026-10-08T08:09:18.908Z"
+      },
+      "response": {
+        "note": {
+          "id": "nte_0wtjk5yrn1",
+          "title": "Nota huérfana de ejemplo",
+          "body_md": "Texto actualizado sobre el lanzamiento de Relay.",
+          "created_at": "2026-10-08T08:09:18.908Z",
+          "updated_at": "2026-10-08T08:09:18.912Z"
+        }
+      }
+    },
+    "notes_search": {
+      "args": {
+        "q": "lanzamiento",
+        "limit": 5
+      },
+      "response": {
+        "notes": [
+          {
+            "note": {
+              "id": "nte_0wtjk5yrn1",
+              "title": "Nota huérfana de ejemplo",
+              "body_md": "Texto actualizado sobre el lanzamiento de Relay.",
+              "created_at": "2026-10-08T08:09:18.908Z",
+              "updated_at": "2026-10-08T08:09:18.912Z"
+            },
+            "match": {
+              "field": "note",
+              "snippet": "Texto actualizado sobre el lanzamiento de Relay.",
+              "ranges": [
+                [
+                  27,
+                  38
+                ]
+              ],
+              "note_id": "nte_0wtjk5yrn1"
+            }
+          }
+        ],
+        "total": 1
+      }
+    },
+    "notes_link": {
+      "args": {
+        "item_id": "itm_p0se48sadp",
+        "note_id": "nte_0wtjk5yrn1",
+        "role": "context"
+      },
+      "response": {
+        "link": {
+          "item_id": "itm_p0se48sadp",
+          "note_id": "nte_0wtjk5yrn1",
+          "role": "context"
+        }
+      }
+    },
+    "context_get": {
+      "args": {
+        "id": "itm_maj7i9qv5r"
+      },
+      "response": {
+        "context": {
+          "item_id": "itm_maj7i9qv5r",
+          "title": "Elegir titular del post de lanzamiento",
+          "goal": "Post publicado en el blog con titular aprobado por David",
+          "status": "needs_you",
+          "blocked_reason": null,
+          "needs_you_reason": "¿Publico la versión A («Relay») o la B («Relevo»)? El post sale mañana a las 9:00.",
+          "assignee_type": "agent",
+          "assignee_id": "grok-bot",
+          "assignee_display_name": "Grok Bot",
+          "due_at": "2026-10-09T02:09:18.842Z",
+          "reminder_at": "2026-10-08T12:09:18.842Z",
+          "reminder_intent": "Revisar el borrador antes de la demo",
+          "notes": [
+            {
+              "id": "nte_d8v631x80e",
+              "title": "Nombre del producto: Relay provisional",
+              "role": "decision",
+              "body_preview": "«Relevo» descartado en ES por colisión con relevos deportivos.\nPendiente de validar con el post de lanzamiento.",
+              "body_md": "«Relevo» descartado en ES por colisión con relevos deportivos.\nPendiente de validar con el post de lanzamiento."
+            },
+            {
+              "id": "nte_jtk5d2h8bo",
+              "title": "Brief de lanzamiento",
+              "role": "context",
+              "body_preview": "Público: equipos pequeños que usan varias IAs.\nTono: preciso, sereno.\nNombre provisional: Relay.",
+              "body_md": "Público: equipos pequeños que usan varias IAs.\nTono: preciso, sereno.\nNombre provisional: Relay."
+            }
+          ]
+        },
+        "markdown": "# Elegir titular del post de lanzamiento\n\n## Objetivo\nPost publicado en el blog con titular aprobado por David\n\n## Estado\nneeds_you: ¿Publico la versión A («Relay») o la B («Relevo»)? El post sale mañ…"
+      }
+    },
+    "inbox_query": {
+      "args": {
+        "view": "attention",
+        "limit": 2
+      },
+      "response": {
+        "view": "attention",
+        "items": [
+          {
+            "id": "itm_maj7i9qv5r",
+            "title": "Elegir titular del post de lanzamiento",
+            "goal": "Post publicado en el blog con titular aprobado por David",
+            "status": "needs_you",
+            "assignee_type": "agent",
+            "assignee_id": "grok-bot",
+            "due_at": "2026-10-09T02:09:18.842Z",
+            "reminder_at": "2026-10-08T12:09:18.842Z",
+            "reminder_intent": "Revisar el borrador antes de la demo",
+            "priority": "none",
+            "blocked_reason": null,
+            "needs_you_reason": "¿Publico la versión A («Relay») o la B («Relevo»)? El post sale mañana a las 9:00.",
+            "source": "mcp",
+            "created_at": "2026-10-08T08:09:18.842Z",
+            "updated_at": "2026-10-08T05:09:18.850Z",
+            "started_at": null,
+            "completed_at": null,
+            "completed_by_type": null,
+            "completed_by_id": null,
+            "last_actor_type": "agent",
+            "last_actor_id": "grok-bot",
+            "list_id": null
+          },
+          {
+            "id": "itm_r9j7pimxt9",
+            "title": "Migrar notas antiguas al store",
+            "goal": "Todas las notas de /archive indexadas en Relay",
+            "status": "blocked",
+            "assignee_type": "agent",
+            "assignee_id": "dev-senior",
+            "due_at": null,
+            "reminder_at": null,
+            "reminder_intent": null,
+            "priority": "medium",
+            "blocked_reason": "falta acceso de lectura a la carpeta /archive",
+            "needs_you_reason": null,
+            "source": "ui",
+            "created_at": "2026-10-08T08:09:18.851Z",
+            "updated_at": "2026-10-08T08:09:18.856Z",
+            "started_at": null,
+            "completed_at": null,
+            "completed_by_type": null,
+            "completed_by_id": null,
+            "last_actor_type": "agent",
+            "last_actor_id": "dev-senior",
+            "list_id": null
+          }
+        ],
+        "counters": {
+          "needs_you": 1
+        },
+        "total_count": 3,
+        "next_cursor": "eyJpZCI6Iml0bV9yOWo3cGlteHQ5IiwidXBkYXRlZF9hdCI6IjIwMjYtMTAtMDhUMDg6MDk6MTguODU2WiJ9",
+        "has_more": true,
+        "sync_cursor": "2026-10-08T08:09:18.905Z",
+        "server_time": "2026-10-08T08:09:18.918Z",
+        "section_counts": {
+          "needs_you": 1,
+          "blocked": 1,
+          "today": 1
+        },
+        "sections": [
+          {
+            "key": "needs_you",
+            "items": [
+              {
+                "id": "itm_maj7i9qv5r",
+                "title": "Elegir titular del post de lanzamiento",
+                "goal": "Post publicado en el blog con titular aprobado por David",
+                "status": "needs_you",
+                "assignee_type": "agent",
+                "assignee_id": "grok-bot",
+                "due_at": "2026-10-09T02:09:18.842Z",
+                "reminder_at": "2026-10-08T12:09:18.842Z",
+                "reminder_intent": "Revisar el borrador antes de la demo",
+                "priority": "none",
+                "blocked_reason": null,
+                "needs_you_reason": "¿Publico la versión A («Relay») o la B («Relevo»)? El post sale mañana a las 9:00.",
+                "source": "mcp",
+                "created_at": "2026-10-08T08:09:18.842Z",
+                "updated_at": "2026-10-08T05:09:18.850Z",
+                "started_at": null,
+                "completed_at": null,
+                "completed_by_type": null,
+                "completed_by_id": null,
+                "last_actor_type": "agent",
+                "last_actor_id": "grok-bot",
+                "list_id": null
+              }
+            ]
+          },
+          {
+            "key": "blocked",
+            "items": [
+              {
+                "id": "itm_r9j7pimxt9",
+                "title": "Migrar notas antiguas al store",
+                "goal": "Todas las notas de /archive indexadas en Relay",
+                "status": "blocked",
+                "assignee_type": "agent",
+                "assignee_id": "dev-senior",
+                "due_at": null,
+                "reminder_at": null,
+                "reminder_intent": null,
+                "priority": "medium",
+                "blocked_reason": "falta acceso de lectura a la carpeta /archive",
+                "needs_you_reason": null,
+                "source": "ui",
+                "created_at": "2026-10-08T08:09:18.851Z",
+                "updated_at": "2026-10-08T08:09:18.856Z",
+                "started_at": null,
+                "completed_at": null,
+                "completed_by_type": null,
+                "completed_by_id": null,
+                "last_actor_type": "agent",
+                "last_actor_id": "dev-senior",
+                "list_id": null
+              }
+            ]
+          },
+          "…+1 more"
+        ]
+      }
+    },
+    "search": {
+      "args": {
+        "q": "titular",
+        "limit": 5
+      },
+      "response": {
+        "items": [
+          {
+            "item": {
+              "id": "itm_maj7i9qv5r",
+              "title": "Elegir titular del post de lanzamiento",
+              "goal": "Post publicado en el blog con titular aprobado por David",
+              "status": "needs_you",
+              "assignee_type": "agent",
+              "assignee_id": "grok-bot",
+              "due_at": "2026-10-09T02:09:18.842Z",
+              "reminder_at": "2026-10-08T12:09:18.842Z",
+              "reminder_intent": "Revisar el borrador antes de la demo",
+              "priority": "none",
+              "blocked_reason": null,
+              "needs_you_reason": "¿Publico la versión A («Relay») o la B («Relevo»)? El post sale mañana a las 9:00.",
+              "source": "mcp",
+              "created_at": "2026-10-08T08:09:18.842Z",
+              "updated_at": "2026-10-08T05:09:18.850Z",
+              "started_at": null,
+              "completed_at": null,
+              "completed_by_type": null,
+              "completed_by_id": null,
+              "last_actor_type": "agent",
+              "last_actor_id": "grok-bot",
+              "list_id": null
+            },
+            "match": {
+              "field": "title",
+              "snippet": "Elegir titular del post de lanzamiento",
+              "ranges": [
+                [
+                  7,
+                  14
+                ]
+              ]
+            }
+          }
+        ],
+        "total": 1
+      }
+    },
+    "inbox_recommend": {
+      "args": {
+        "limit": 3
+      },
+      "response": {
+        "recommendations": [
+          {
+            "item_id": "itm_maj7i9qv5r",
+            "kind": "needs_you_waiting",
+            "score": 103.00001944444445,
+            "reason": "Te espera desde hace 3 h"
+          },
+          {
+            "item_id": "itm_r9j7pimxt9",
+            "kind": "blocked",
+            "score": 90,
+            "reason": "Atascado: falta acceso de lectura a la carpeta /archive"
+          },
+          {
+            "item_id": "itm_uyoen5x0lf",
+            "kind": "reminder_soon",
+            "score": 84.00002388888889,
+            "reason": "Aviso en 1 h: Revisar el borrador antes de la demo"
+          }
+        ]
+      }
+    },
+    "items_ask_user": {
+      "args": {
+        "id": "itm_p0se48sadp",
+        "reason": "¿Sigo con el borrador A o espero tu OK?",
+        "actor": {
+          "id": "grok-bot",
+          "type": "agent"
+        }
+      },
+      "response": {
+        "item": {
+          "id": "itm_p0se48sadp",
+          "title": "MCP docs sample item (updated)",
+          "goal": "Ejemplo real para la documentación MCP",
+          "status": "needs_you",
+          "assignee_type": "agent",
+          "assignee_id": "grok-bot",
+          "due_at": null,
+          "reminder_at": null,
+          "reminder_intent": null,
+          "priority": "medium",
+          "blocked_reason": null,
+          "needs_you_reason": "¿Sigo con el borrador A o espero tu OK?",
+          "source": "mcp",
+          "created_at": "2026-10-08T08:09:18.889Z",
+          "updated_at": "2026-10-08T08:09:18.921Z",
+          "started_at": "2026-10-08T08:09:18.905Z",
+          "completed_at": null,
+          "completed_by_type": null,
+          "completed_by_id": null,
+          "last_actor_type": "agent",
+          "last_actor_id": "grok-bot",
+          "list_id": null
+        }
+      }
+    },
+    "items_set_status_return": {
+      "args": {
+        "id": "itm_p0se48sadp",
+        "status": "assigned",
+        "actor": {
+          "id": "grok-bot",
+          "type": "agent"
+        }
+      },
+      "response": {
+        "item": {
+          "id": "itm_p0se48sadp",
+          "title": "MCP docs sample item (updated)",
+          "goal": "Ejemplo real para la documentación MCP",
+          "status": "assigned",
+          "assignee_type": "agent",
+          "assignee_id": "grok-bot",
+          "due_at": null,
+          "reminder_at": null,
+          "reminder_intent": null,
+          "priority": "medium",
+          "blocked_reason": null,
+          "needs_you_reason": "¿Sigo con el borrador A o espero tu OK?",
+          "source": "mcp",
+          "created_at": "2026-10-08T08:09:18.889Z",
+          "updated_at": "2026-10-08T08:09:18.926Z",
+          "started_at": "2026-10-08T08:09:18.905Z",
+          "completed_at": null,
+          "completed_by_type": null,
+          "completed_by_id": null,
+          "last_actor_type": "agent",
+          "last_actor_id": "grok-bot",
+          "list_id": null
+        }
+      },
+      "note": "In the web UI David clicks «Devolver a Grok Bot»; agents then see assigned again."
+    },
+    "items_complete": {
+      "args": {
+        "id": "itm_p0se48sadp",
+        "actor": {
+          "id": "grok-bot",
+          "type": "agent"
+        }
+      },
+      "response": {
+        "item": {
+          "id": "itm_p0se48sadp",
+          "title": "MCP docs sample item (updated)",
+          "goal": "Ejemplo real para la documentación MCP",
+          "status": "done",
+          "assignee_type": "agent",
+          "assignee_id": "grok-bot",
+          "due_at": null,
+          "reminder_at": null,
+          "reminder_intent": null,
+          "priority": "medium",
+          "blocked_reason": null,
+          "needs_you_reason": "¿Sigo con el borrador A o espero tu OK?",
+          "source": "mcp",
+          "created_at": "2026-10-08T08:09:18.889Z",
+          "updated_at": "2026-10-08T08:09:18.934Z",
+          "started_at": "2026-10-08T08:09:18.905Z",
+          "completed_at": "2026-10-08T08:09:18.934Z",
+          "completed_by_type": "agent",
+          "completed_by_id": "grok-bot",
+          "last_actor_type": "agent",
+          "last_actor_id": "grok-bot",
+          "list_id": null
+        }
+      }
+    },
+    "items_reopen": {
+      "args": {
+        "id": "itm_p0se48sadp",
+        "actor": {
+          "id": "grok-bot",
+          "type": "agent"
+        }
+      },
+      "response": {
+        "item": {
+          "id": "itm_p0se48sadp",
+          "title": "MCP docs sample item (updated)",
+          "goal": "Ejemplo real para la documentación MCP",
+          "status": "assigned",
+          "assignee_type": "agent",
+          "assignee_id": "grok-bot",
+          "due_at": null,
+          "reminder_at": null,
+          "reminder_intent": null,
+          "priority": "medium",
+          "blocked_reason": null,
+          "needs_you_reason": "¿Sigo con el borrador A o espero tu OK?",
+          "source": "mcp",
+          "created_at": "2026-10-08T08:09:18.889Z",
+          "updated_at": "2026-10-08T08:09:18.939Z",
+          "started_at": "2026-10-08T08:09:18.905Z",
+          "completed_at": null,
+          "completed_by_type": null,
+          "completed_by_id": null,
+          "last_actor_type": "agent",
+          "last_actor_id": "grok-bot",
+          "list_id": null
+        }
+      }
+    },
+    "notes_unlink": {
+      "args": {
+        "item_id": "itm_p0se48sadp",
+        "note_id": "nte_0wtjk5yrn1"
+      },
+      "response": {
+        "ok": true
+      }
+    }
+  },
+  "errors": {
+    "not_found": {
+      "ok": false,
+      "error": {
+        "name": "NotFoundError",
+        "code": "not_found",
+        "message": "WorkItem not found: item_does_not_exist"
+      }
+    },
+    "validation_blocked_reason": {
+      "ok": false,
+      "error": {
+        "name": "ValidationError",
+        "code": "validation_error",
+        "message": "blocked_reason is required (min 3 characters)"
+      }
+    },
+    "invalid_transition_reopen": {
+      "ok": false,
+      "error": {
+        "name": "ValidationError",
+        "code": "validation_error",
+        "message": "Only done or cancelled items can be reopened"
+      }
+    },
+    "missing_actor": {
+      "ok": false,
+      "error": {
+        "name": "ValidationError",
+        "code": "validation_error",
+        "message": "MCP actor required: pass actor.id (agent catalog id) or X-Relay-Actor header"
+      }
+    },
+    "unknown_agent": {
+      "ok": false,
+      "error": {
+        "name": "ValidationError",
+        "code": "validation_error",
+        "message": "Unknown agent id: nope"
+      }
+    },
+    "user_via_mcp": {
+      "ok": false,
+      "error": {
+        "name": "ZodError",
+        "message": "[\n  {\n    \"received\": \"user\",\n    \"code\": \"invalid_enum_value\",\n    \"options\": [\n      \"agent\"\n    ],\n    \"path\": [\n      \"actor\",\n      \"type\"\n    ],\n    \"message\": \"Invalid enum value. Expected 'agent', received 'user'\"\n  }\n]"
+      }
+    },
+    "conflict_409": {
+      "ok": false,
+      "error": {
+        "name": "ConflictError",
+        "code": "conflict",
+        "message": "Note nte_cjqf6c2lmz was modified (expected updated_at=2026-10-08T08:09:18.947Z)",
+        "current_updated_at": "2026-10-08T08:09:18.953Z"
+      }
+    }
+  }
+}

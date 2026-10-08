@@ -4,6 +4,7 @@ import {
   InboxViewSchema,
   NoteRoleSchema,
   type RelayService,
+  SearchQuerySchema,
   SetStatusInputSchema,
   UpdateItemInputSchema,
   UpdateNoteInputSchema,
@@ -18,6 +19,11 @@ const ActorParam = z.object({
     })
     .optional(),
   actor_id: z.string().optional(),
+});
+
+const PageArgsSchema = z.object({
+  limit: z.number().int().min(1).max(200).optional(),
+  cursor: z.string().optional(),
 });
 
 function actorOf(
@@ -42,9 +48,24 @@ export function createMcpTools(svc: RelayService): McpToolDef[] {
   return [
     {
       name: "items_list",
-      description: "List all work items",
-      inputSchema: z.object({}),
-      handler: () => ({ items: svc.listItems() }),
+      description: "List work items (optional limit/cursor pagination)",
+      inputSchema: PageArgsSchema,
+      handler: (raw) => {
+        const { limit, cursor } = PageArgsSchema.parse(raw ?? {});
+        if (limit !== undefined) {
+          const page = svc.listItems({
+            limit,
+            ...(cursor !== undefined ? { cursor } : {}),
+          });
+          return {
+            items: page.items,
+            next_cursor: page.meta.next_cursor,
+            has_more: page.meta.has_more,
+            total_count: page.meta.total_count,
+          };
+        }
+        return { items: svc.listItems() };
+      },
     },
     {
       name: "items_get",
@@ -159,18 +180,63 @@ export function createMcpTools(svc: RelayService): McpToolDef[] {
     },
     {
       name: "notes_update",
-      description: "Update a note",
-      inputSchema: UpdateNoteInputSchema.extend({ id: z.string() }),
+      description: "Update a note (optional if_updated_at for optimistic concurrency)",
+      inputSchema: UpdateNoteInputSchema.extend({
+        id: z.string(),
+        if_updated_at: z.string().optional(),
+      }),
       handler: (raw) => {
-        const parsed = UpdateNoteInputSchema.extend({ id: z.string() }).parse(raw);
-        return { note: svc.updateNote(parsed.id, parsed) };
+        const parsed = UpdateNoteInputSchema.extend({
+          id: z.string(),
+          if_updated_at: z.string().optional(),
+        }).parse(raw);
+        const { id, if_updated_at, ...input } = parsed;
+        return {
+          note: svc.updateNote(
+            id,
+            input,
+            if_updated_at !== undefined ? { if_updated_at } : undefined,
+          ),
+        };
       },
     },
     {
       name: "notes_list",
-      description: "List all notes",
-      inputSchema: z.object({}),
-      handler: () => ({ notes: svc.listNotes() }),
+      description: "List notes (optional limit/cursor pagination)",
+      inputSchema: PageArgsSchema,
+      handler: (raw) => {
+        const { limit, cursor } = PageArgsSchema.parse(raw ?? {});
+        if (limit !== undefined) {
+          const page = svc.listNotes({
+            limit,
+            ...(cursor !== undefined ? { cursor } : {}),
+          });
+          return {
+            notes: page.items,
+            next_cursor: page.meta.next_cursor,
+            has_more: page.meta.has_more,
+            total_count: page.meta.total_count,
+          };
+        }
+        return { notes: svc.listNotes() };
+      },
+    },
+    {
+      name: "notes_search",
+      description: "Search orphan (unlinked) notes by text query",
+      inputSchema: z.object({
+        q: z.string().min(1),
+        limit: z.number().int().min(1).max(200).optional(),
+      }),
+      handler: (raw) => {
+        const { q, limit } = z
+          .object({
+            q: z.string().min(1),
+            limit: z.number().int().min(1).max(200).optional(),
+          })
+          .parse(raw);
+        return svc.searchOrphanNotes(q, limit !== undefined ? { limit } : undefined);
+      },
     },
     {
       name: "notes_link",
@@ -219,14 +285,37 @@ export function createMcpTools(svc: RelayService): McpToolDef[] {
     },
     {
       name: "inbox_query",
-      description: "Query an inbox view",
-      inputSchema: z.object({ view: InboxViewSchema.default("attention") }),
+      description: "Query an inbox view (optional limit/cursor pagination or since sync)",
+      inputSchema: z.object({
+        view: InboxViewSchema.default("attention"),
+        limit: z.number().int().min(1).max(200).optional(),
+        cursor: z.string().optional(),
+        since: z.string().optional(),
+      }),
       handler: (raw) => {
-        const { view } = z
-          .object({ view: InboxViewSchema.default("attention") })
-          .parse(raw);
-        return svc.inboxQuery(view);
+        const parsed = z
+          .object({
+            view: InboxViewSchema.default("attention"),
+            limit: z.number().int().min(1).max(200).optional(),
+            cursor: z.string().optional(),
+            since: z.string().optional(),
+          })
+          .parse(raw ?? {});
+        const opts: { limit?: number; cursor?: string; since?: string } = {};
+        if (parsed.limit !== undefined) opts.limit = parsed.limit;
+        if (parsed.cursor !== undefined) opts.cursor = parsed.cursor;
+        if (parsed.since !== undefined) opts.since = parsed.since;
+        return Object.keys(opts).length > 0
+          ? svc.inboxQuery(parsed.view, opts)
+          : svc.inboxQuery(parsed.view);
       },
+    },
+    {
+      name: "search",
+      description:
+        "Search work items (q, status, actor, due, from, to, view, label, limit, cursor)",
+      inputSchema: SearchQuerySchema,
+      handler: (raw) => svc.search(SearchQuerySchema.parse(raw ?? {})),
     },
     {
       name: "inbox_recommend",

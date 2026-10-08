@@ -1,11 +1,18 @@
 import type { InboxView } from "../schemas/enums.js";
-import type { InboxQueryResult } from "../schemas/inbox.js";
+import type {
+  InboxQueryResult,
+  InboxSyncResult,
+} from "../schemas/inbox.js";
 import type { WorkItem } from "../schemas/work_item.js";
+import { decodeCursor, encodeCursor } from "./cursor.js";
+import { countDueGroups } from "./date_groups.js";
 import {
-  addDays,
-  endOfLocalDay,
-  startOfLocalDay,
-} from "./time.js";
+  addParisDays,
+  endOfParisDay,
+  parisWeekday,
+  startOfParisDay,
+} from "./paris_time.js";
+import { nowIso } from "./time.js";
 
 function isTerminal(item: WorkItem): boolean {
   return item.status === "done" || item.status === "cancelled";
@@ -27,8 +34,8 @@ function nearestSchedule(item: WorkItem): Date | null {
 const WEEKDAY_ES = ["dom", "lun", "mar", "mié", "jue", "vie", "sáb"] as const;
 
 function groupLabel(date: Date, now: Date): { key: string; label: string } {
-  const today = startOfLocalDay(now);
-  const target = startOfLocalDay(date);
+  const today = startOfParisDay(now);
+  const target = startOfParisDay(date);
   const diffDays = Math.round(
     (target.getTime() - today.getTime()) / (1000 * 60 * 60 * 24),
   );
@@ -38,7 +45,7 @@ function groupLabel(date: Date, now: Date): { key: string; label: string } {
   if (diffDays > 1 && diffDays < 7) {
     return {
       key: `dow-${diffDays}`,
-      label: WEEKDAY_ES[date.getDay()] ?? "día",
+      label: WEEKDAY_ES[parisWeekday(date)] ?? "día",
     };
   }
   if (diffDays < -1 && diffDays > -7) {
@@ -47,52 +54,71 @@ function groupLabel(date: Date, now: Date): { key: string; label: string } {
   return { key: "this_week", label: "Esta semana" };
 }
 
-export type InboxQueryArgs = {
-  items: readonly WorkItem[];
-  view: InboxView;
-  now?: Date;
+type AttentionBuckets = {
+  needsYou: WorkItem[];
+  blocked: WorkItem[];
+  today: WorkItem[];
 };
 
-export function queryInbox(args: InboxQueryArgs): InboxQueryResult {
-  const now = args.now ?? new Date();
-  const counters = { needs_you: countNeedsYou(args.items) };
-  if (args.view === "attention") {
-    const needsYou = args.items
-      .filter((i) => i.status === "needs_you")
-      .sort((a, b) => a.updated_at.localeCompare(b.updated_at));
-    const blocked = args.items
-      .filter((i) => i.status === "blocked")
-      .sort((a, b) => a.updated_at.localeCompare(b.updated_at));
-    const endToday = endOfLocalDay(now);
-    const today = args.items
-      .filter((i) => {
-        if (isTerminal(i)) return false;
-        if (i.status === "needs_you" || i.status === "blocked") return false;
-        const due = i.due_at ? new Date(i.due_at) : null;
-        const rem = i.reminder_at ? new Date(i.reminder_at) : null;
-        const hitDue = due !== null && due.getTime() <= endToday.getTime();
-        const hitRem = rem !== null && rem.getTime() <= endToday.getTime();
-        return hitDue || hitRem;
-      })
-      .sort((a, b) => {
-        const na = nearestSchedule(a)?.getTime() ?? 0;
-        const nb = nearestSchedule(b)?.getTime() ?? 0;
-        return na - nb;
-      });
+function buildAttention(items: readonly WorkItem[], now: Date): AttentionBuckets {
+  // Spec order (v1.1 §1.2): needs_you / blocked oldest-first; today by schedule.
+  const needsYou = items
+    .filter((i) => i.status === "needs_you")
+    .sort((a, b) => a.updated_at.localeCompare(b.updated_at));
+  const blocked = items
+    .filter((i) => i.status === "blocked")
+    .sort((a, b) => a.updated_at.localeCompare(b.updated_at));
+  const endToday = endOfParisDay(now);
+  const today = items
+    .filter((i) => {
+      if (isTerminal(i)) return false;
+      if (i.status === "needs_you" || i.status === "blocked") return false;
+      const due = i.due_at ? new Date(i.due_at) : null;
+      const rem = i.reminder_at ? new Date(i.reminder_at) : null;
+      const hitDue = due !== null && due.getTime() <= endToday.getTime();
+      const hitRem = rem !== null && rem.getTime() <= endToday.getTime();
+      return hitDue || hitRem;
+    })
+    .sort((a, b) => {
+      const na = nearestSchedule(a)?.getTime() ?? 0;
+      const nb = nearestSchedule(b)?.getTime() ?? 0;
+      return na - nb;
+    });
+  return { needsYou, blocked, today };
+}
+
+type GroupBucket = { key: string; label: string; items: WorkItem[] };
+
+function buildFullView(
+  items: readonly WorkItem[],
+  view: InboxView,
+  now: Date,
+): {
+  items: WorkItem[];
+  sections?: InboxQueryResult["sections"];
+  groups?: InboxQueryResult["groups"];
+  section_counts?: InboxQueryResult["section_counts"];
+  group_counts?: InboxQueryResult["group_counts"];
+} {
+  if (view === "attention") {
+    const { needsYou, blocked, today } = buildAttention(items, now);
     return {
-      view: "attention",
       items: [...needsYou, ...blocked, ...today],
       sections: [
         { key: "needs_you", items: needsYou },
         { key: "blocked", items: blocked },
         { key: "today", items: today },
       ],
-      counters,
+      section_counts: {
+        needs_you: needsYou.length,
+        blocked: blocked.length,
+        today: today.length,
+      },
     };
   }
-  if (args.view === "agent_wip") {
+  if (view === "agent_wip") {
     const order = { in_progress: 0, assigned: 1, blocked: 2 } as const;
-    const items = args.items
+    const filtered = items
       .filter(
         (i) =>
           i.assignee_type === "agent" &&
@@ -106,11 +132,11 @@ export function queryInbox(args: InboxQueryArgs): InboxQueryResult {
         if (oa !== ob) return oa - ob;
         return b.updated_at.localeCompare(a.updated_at);
       });
-    return { view: "agent_wip", items, counters };
+    return { items: filtered };
   }
-  if (args.view === "upcoming") {
-    const horizon = addDays(endOfLocalDay(now), 7);
-    const items = args.items
+  if (view === "upcoming") {
+    const horizon = addParisDays(endOfParisDay(now), 7);
+    const filtered = items
       .filter((i) => {
         if (isTerminal(i)) return false;
         const near = nearestSchedule(i);
@@ -122,8 +148,8 @@ export function queryInbox(args: InboxQueryArgs): InboxQueryResult {
         const nb = nearestSchedule(b)?.getTime() ?? 0;
         return na - nb;
       });
-    const groupMap = new Map<string, { key: string; label: string; items: WorkItem[] }>();
-    for (const item of items) {
+    const groupMap = new Map<string, GroupBucket>();
+    for (const item of filtered) {
       const near = nearestSchedule(item);
       if (!near) continue;
       const g = groupLabel(near, now);
@@ -131,23 +157,27 @@ export function queryInbox(args: InboxQueryArgs): InboxQueryResult {
       if (existing) existing.items.push(item);
       else groupMap.set(g.key, { ...g, items: [item] });
     }
+    const groups = [...groupMap.values()];
     return {
-      view: "upcoming",
-      items,
-      groups: [...groupMap.values()],
-      counters,
+      items: filtered,
+      groups,
+      group_counts: groups.map((g) => ({
+        key: g.key,
+        label: g.label,
+        count: g.items.length,
+      })),
     };
   }
-  if (args.view === "done") {
-    const weekAgo = addDays(startOfLocalDay(now), -7);
-    const items = args.items
+  if (view === "done") {
+    const weekAgo = addParisDays(startOfParisDay(now), -7);
+    const filtered = items
       .filter((i) => {
         if (!isTerminal(i) || !i.completed_at) return false;
         return new Date(i.completed_at).getTime() >= weekAgo.getTime();
       })
       .sort((a, b) => (b.completed_at ?? "").localeCompare(a.completed_at ?? ""));
-    const groupMap = new Map<string, { key: string; label: string; items: WorkItem[] }>();
-    for (const item of items) {
+    const groupMap = new Map<string, GroupBucket>();
+    for (const item of filtered) {
       if (!item.completed_at) continue;
       const g = groupLabel(new Date(item.completed_at), now);
       const key =
@@ -165,16 +195,170 @@ export function queryInbox(args: InboxQueryArgs): InboxQueryResult {
     const order = ["today", "yesterday", "this_week"];
     const groups = order
       .map((k) => groupMap.get(k))
-      .filter((g): g is NonNullable<typeof g> => g !== undefined);
-    return { view: "done", items, groups, counters };
+      .filter((g): g is GroupBucket => g !== undefined);
+    return {
+      items: filtered,
+      groups,
+      group_counts: groups.map((g) => ({
+        key: g.key,
+        label: g.label,
+        count: g.items.length,
+      })),
+    };
   }
-  // all
-  const items = args.items
+  const filtered = items
     .filter((i) => !isTerminal(i))
     .sort((a, b) => {
       if (a.status === "inbox" && b.status !== "inbox") return -1;
       if (b.status === "inbox" && a.status !== "inbox") return 1;
       return b.updated_at.localeCompare(a.updated_at);
     });
-  return { view: "all", items, counters };
+  return {
+    items: filtered,
+    // Full-view date-group totals for Todo «Agrupar: Fecha» (page-independent).
+    group_counts: countDueGroups(filtered, now),
+  };
+}
+
+function resolveCursorId(cursor: string | undefined): string | null {
+  if (!cursor) return null;
+  if (cursor.startsWith("itm_")) return cursor;
+  return decodeCursor(cursor)?.id ?? null;
+}
+
+function paginateItems(
+  items: readonly WorkItem[],
+  opts: { limit?: number; cursor?: string },
+): { page: WorkItem[]; next_cursor: string | null; has_more: boolean } {
+  let start = 0;
+  const cursorId = resolveCursorId(opts.cursor);
+  if (cursorId) {
+    const idx = items.findIndex((i) => i.id === cursorId);
+    start = idx >= 0 ? idx + 1 : 0;
+  }
+  if (opts.limit === undefined) {
+    const page = items.slice(start);
+    return { page, next_cursor: null, has_more: false };
+  }
+  const page = items.slice(start, start + opts.limit);
+  const has_more = start + opts.limit < items.length;
+  const last = page[page.length - 1];
+  const next_cursor =
+    has_more && last
+      ? encodeCursor({ id: last.id, updated_at: last.updated_at })
+      : null;
+  return { page, next_cursor, has_more };
+}
+
+function sliceSections(
+  sections: NonNullable<InboxQueryResult["sections"]>,
+  pageIds: Set<string>,
+): InboxQueryResult["sections"] {
+  return sections.map((s) => ({
+    key: s.key,
+    items: s.items.filter((i) => pageIds.has(i.id)),
+  }));
+}
+
+function sliceGroups(
+  groups: NonNullable<InboxQueryResult["groups"]>,
+  pageIds: Set<string>,
+): InboxQueryResult["groups"] {
+  return groups
+    .map((g) => ({
+      key: g.key,
+      label: g.label,
+      items: g.items.filter((i) => pageIds.has(i.id)),
+    }))
+    .filter((g) => g.items.length > 0);
+}
+
+export type InboxQueryArgs = {
+  items: readonly WorkItem[];
+  view: InboxView;
+  now?: Date;
+  limit?: number;
+  /** Opaque cursor or raw item id of the last item on the previous page. */
+  cursor?: string;
+};
+
+export function queryInbox(args: InboxQueryArgs): InboxQueryResult {
+  const now = args.now ?? new Date();
+  const counters = { needs_you: countNeedsYou(args.items) };
+  const full = buildFullView(args.items, args.view, now);
+  const pageOpts: { limit?: number; cursor?: string } = {};
+  if (args.limit !== undefined) pageOpts.limit = args.limit;
+  if (args.cursor !== undefined) pageOpts.cursor = args.cursor;
+  const { page, next_cursor, has_more } = paginateItems(full.items, pageOpts);
+  // List pages omit goal (detail fetch still has it) to keep web first-paint
+  // payloads under ~200 KB at the Atención window of 200 rows.
+  const pageItems =
+    args.limit !== undefined
+      ? page.map((item) => (item.goal ? { ...item, goal: null } : item))
+      : page;
+  const pageIds = new Set(pageItems.map((i) => i.id));
+  const result: InboxQueryResult = {
+    view: args.view,
+    items: pageItems,
+    counters,
+    total_count: full.items.length,
+    next_cursor,
+    has_more,
+    // Wall-clock cursor (not max(updated_at)): seed/future dates must not
+    // hide later mutations from incremental poll.
+    sync_cursor: nowIso(now),
+    server_time: nowIso(now),
+  };
+  if (full.section_counts) result.section_counts = full.section_counts;
+  if (full.group_counts) result.group_counts = full.group_counts;
+  // Paged responses: send flat `items` only (client rebuilds sections) so the
+  // JSON is not doubled by sections[].items — keeps Atención ≤200 KB.
+  if (full.sections && args.limit === undefined) {
+    result.sections = sliceSections(full.sections, pageIds);
+  }
+  if (full.groups) result.groups = sliceGroups(full.groups, pageIds);
+  return result;
+}
+
+export type InboxSyncArgs = {
+  items: readonly WorkItem[];
+  view: InboxView;
+  since: string;
+  now?: Date;
+};
+
+export function buildInboxSync(args: InboxSyncArgs): InboxSyncResult {
+  const now = args.now ?? new Date();
+  const counters = { needs_you: countNeedsYou(args.items) };
+  const full = buildFullView(args.items, args.view, now);
+  const inView = new Set(full.items.map((i) => i.id));
+  const changed = args.items.filter((i) => i.updated_at > args.since);
+  const upserts: WorkItem[] = [];
+  const removed_ids: string[] = [];
+  for (const item of changed) {
+    if (inView.has(item.id)) upserts.push(item);
+    else removed_ids.push(item.id);
+  }
+  const result: InboxSyncResult = {
+    view: args.view,
+    mode: "delta",
+    upserts,
+    removed_ids,
+    counters,
+    total_count: full.items.length,
+    sync_cursor: nowIso(now),
+    server_time: nowIso(now),
+  };
+  if (full.section_counts) result.section_counts = full.section_counts;
+  if (full.group_counts) result.group_counts = full.group_counts;
+  return result;
+}
+
+/** Membership helper for search view filter. */
+export function itemIdsInView(
+  items: readonly WorkItem[],
+  view: InboxView,
+  now: Date = new Date(),
+): Set<string> {
+  return new Set(buildFullView(items, view, now).items.map((i) => i.id));
 }

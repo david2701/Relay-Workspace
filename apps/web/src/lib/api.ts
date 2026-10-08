@@ -2,15 +2,37 @@ import type {
   Agent,
   ContextPack,
   InboxResult,
+  InboxSyncDelta,
   InboxView,
   LinkedNote,
   Note,
   NoteRole,
+  NotesSearchResult,
   Recommendation,
+  SearchResult,
   WorkItem,
 } from "./types";
 
 const BASE = import.meta.env.VITE_API_URL ?? "http://127.0.0.1:7420";
+
+export class ApiError extends Error {
+  status: number;
+  code?: string;
+  current_updated_at?: string;
+
+  constructor(
+    message: string,
+    opts: { status: number; code?: string; current_updated_at?: string },
+  ) {
+    super(message);
+    this.name = "ApiError";
+    this.status = opts.status;
+    if (opts.code !== undefined) this.code = opts.code;
+    if (opts.current_updated_at !== undefined) {
+      this.current_updated_at = opts.current_updated_at;
+    }
+  }
+}
 
 async function request<T>(path: string, init?: RequestInit): Promise<T> {
   const res = await fetch(`${BASE}${path}`, {
@@ -22,8 +44,25 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
     },
   });
   if (!res.ok) {
-    const body = (await res.json().catch(() => ({}))) as { message?: string };
-    throw new Error(body.message ?? `HTTP ${res.status}`);
+    const body = (await res.json().catch(() => ({}))) as {
+      message?: string;
+      error?:
+        | string
+        | { code?: string; message?: string; current_updated_at?: string };
+    };
+    const errObj = typeof body.error === "object" ? body.error : undefined;
+    const message =
+      errObj?.message ??
+      body.message ??
+      (typeof body.error === "string" ? body.error : undefined) ??
+      `HTTP ${res.status}`;
+    throw new ApiError(message, {
+      status: res.status,
+      ...(errObj?.code !== undefined ? { code: errObj.code } : {}),
+      ...(errObj?.current_updated_at !== undefined
+        ? { current_updated_at: errObj.current_updated_at }
+        : {}),
+    });
   }
   return res.json() as Promise<T>;
 }
@@ -32,7 +71,16 @@ export const api = {
   base: BASE,
   health: () => request<{ ok: boolean }>("/api/health"),
   agents: () => request<{ agents: Agent[] }>("/api/agents"),
-  inbox: (view: InboxView) => request<InboxResult>(`/api/inbox?view=${view}`),
+  inbox: (
+    view: InboxView,
+    opts?: { since?: string; limit?: number; cursor?: string },
+  ) => {
+    const params = new URLSearchParams({ view });
+    if (opts?.since) params.set("since", opts.since);
+    if (opts?.limit != null) params.set("limit", String(opts.limit));
+    if (opts?.cursor) params.set("cursor", opts.cursor);
+    return request<InboxResult | InboxSyncDelta>(`/api/inbox?${params}`);
+  },
   recommend: () =>
     request<{ recommendations: Recommendation[] }>("/api/inbox/recommend"),
   getItem: (id: string) => request<{ item: WorkItem }>(`/api/items/${id}`),
@@ -79,15 +127,28 @@ export const api = {
       }),
     }),
   notes: () => request<{ notes: Note[] }>("/api/notes"),
+  getNote: (id: string) =>
+    request<{ note: Note; links: { item_id: string; note_id: string; role: string }[] }>(
+      `/api/notes/${id}`,
+    ),
   createNote: (title: string, body_md = "") =>
     request<{ note: Note }>("/api/notes", {
       method: "POST",
       body: JSON.stringify({ title, body_md }),
     }),
-  updateNote: (id: string, patch: { title?: string; body_md?: string }) =>
+  updateNote: (
+    id: string,
+    patch: { title?: string; body_md?: string },
+    opts?: { if_updated_at?: string },
+  ) =>
     request<{ note: Note }>(`/api/notes/${id}`, {
       method: "PATCH",
-      body: JSON.stringify(patch),
+      body: JSON.stringify({
+        ...patch,
+        ...(opts?.if_updated_at !== undefined
+          ? { if_updated_at: opts.if_updated_at }
+          : {}),
+      }),
     }),
   itemNotes: (id: string) =>
     request<{ notes: LinkedNote[] }>(`/api/items/${id}/links`),
@@ -110,4 +171,38 @@ export const api = {
     request<{ context: ContextPack; markdown: string }>(
       `/api/items/${id}/context`,
     ),
+  search: (opts: {
+    q?: string;
+    status?: string[];
+    actor?: string[];
+    due?: string;
+    from?: string;
+    to?: string;
+    view?: InboxView;
+    label?: string;
+    limit?: number;
+    cursor?: string;
+  }) => {
+    const params = new URLSearchParams();
+    if (opts.q) params.set("q", opts.q);
+    if (opts.status && opts.status.length > 0) {
+      params.set("status", opts.status.join(","));
+    }
+    if (opts.actor && opts.actor.length > 0) {
+      params.set("actor", opts.actor.join(","));
+    }
+    if (opts.due) params.set("due", opts.due);
+    if (opts.from) params.set("from", opts.from);
+    if (opts.to) params.set("to", opts.to);
+    if (opts.view) params.set("view", opts.view);
+    if (opts.label) params.set("label", opts.label);
+    if (opts.limit != null) params.set("limit", String(opts.limit));
+    if (opts.cursor) params.set("cursor", opts.cursor);
+    return request<SearchResult>(`/api/search?${params}`);
+  },
+  searchNotes: (q: string, opts?: { limit?: number }) => {
+    const params = new URLSearchParams({ q });
+    if (opts?.limit != null) params.set("limit", String(opts.limit));
+    return request<NotesSearchResult>(`/api/notes/search?${params}`);
+  },
 };

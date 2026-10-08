@@ -41,13 +41,22 @@ export function recommendInbox(args: RecommendArgs): Recommendation[] {
   const now = args.now ?? new Date();
   const limit = args.limit ?? 3;
   const candidates: Recommendation[] = [];
+  function push(
+    item: WorkItem,
+    partial: Omit<Recommendation, "item_id" | "title">,
+  ) {
+    candidates.push({
+      item_id: item.id,
+      title: item.title,
+      ...partial,
+    });
+  }
   for (const item of args.items) {
     if (item.status === "done" || item.status === "cancelled") continue;
     if (item.status === "needs_you") {
       const waiting = hoursBetween(new Date(item.updated_at), now);
       if (waiting > THRESHOLDS.needsYouSuggestHours) {
-        candidates.push({
-          item_id: item.id,
+        push(item, {
           kind: "needs_you_waiting",
           score: 100 + waiting,
           reason: `Te espera desde hace ${formatHours(waiting)}`,
@@ -55,8 +64,7 @@ export function recommendInbox(args: RecommendArgs): Recommendation[] {
       }
     }
     if (item.status === "blocked" && item.blocked_reason) {
-      candidates.push({
-        item_id: item.id,
+      push(item, {
         kind: "blocked",
         score: 90,
         reason: `Atascado: ${item.blocked_reason}`,
@@ -73,16 +81,14 @@ export function recommendInbox(args: RecommendArgs): Recommendation[] {
             : overdueHours < 48
               ? "ayer"
               : `hace ${formatHours(overdueHours)}`;
-        candidates.push({
-          item_id: item.id,
+        push(item, {
           kind: "overdue",
           score: 95 + overdueHours,
           reason: `Venció ${dayLabel}`,
         });
       } else if (hours <= THRESHOLDS.dueSoonHours) {
         const when = isSameLocalDay(due, now) ? "hoy" : "mañana";
-        candidates.push({
-          item_id: item.id,
+        push(item, {
           kind: "due_soon",
           score: 80 - hours,
           reason: `Vence ${when} a las ${formatTime(item.due_at)}`,
@@ -96,8 +102,7 @@ export function recommendInbox(args: RecommendArgs): Recommendation[] {
         const mins = Math.max(1, Math.round(hours * 60));
         const rel = mins < 60 ? `${mins} min` : `${Math.round(hours)} h`;
         const intent = item.reminder_intent?.trim();
-        candidates.push({
-          item_id: item.id,
+        push(item, {
           kind: "reminder_soon",
           score: 85 - hours,
           reason: intent
@@ -113,8 +118,7 @@ export function recommendInbox(args: RecommendArgs): Recommendation[] {
     ) {
       const stale = hoursBetween(new Date(item.updated_at), now);
       if (stale > THRESHOLDS.staleHours) {
-        candidates.push({
-          item_id: item.id,
+        push(item, {
           kind: "stale_wip",
           score: 70 + stale,
           reason: `Sin avances de ${agentName(args.agents, item.assignee_id)} desde hace ${formatHours(stale)}`,

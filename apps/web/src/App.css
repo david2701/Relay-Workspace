@@ -146,13 +146,20 @@
   letter-spacing: -0.005em;
 }
 
-.view-filter {
+.list-head-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.group-toggle {
+  height: var(--control-h);
+  padding: 0 10px;
   border: 1px solid var(--line);
-  background: var(--sunken);
   border-radius: var(--radius-sm);
-  padding: 4px 8px;
+  background: var(--raised);
   font-size: var(--step-meta);
-  width: min(220px, 40%);
+  color: var(--ink-2);
 }
 
 .capture-wrap {
@@ -243,9 +250,65 @@
 }
 
 .section-label {
-  padding: 10px 16px 4px;
+  height: var(--section-h);
+  padding: 0 16px;
   display: flex;
+  align-items: center;
   gap: 4px;
+  background: var(--paper);
+  color: var(--ink-muted);
+  position: sticky;
+  top: 0;
+  z-index: 1;
+}
+
+.date-group-header {
+  height: var(--section-h);
+  width: 100%;
+  padding: 0 16px;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  background: var(--paper);
+  color: var(--ink-muted);
+  position: sticky;
+  top: 0;
+  z-index: 1;
+  text-align: left;
+  font-size: var(--step-label);
+}
+
+.date-group-chevron {
+  transition: transform var(--dur-fast) var(--ease-out);
+  transform: rotate(90deg);
+  flex-shrink: 0;
+}
+
+.date-group-header.collapsed .date-group-chevron {
+  transform: rotate(0deg);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .date-group-chevron {
+    transition: none;
+  }
+}
+
+.list-head-actions {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.group-toggle {
+  font-size: var(--step-meta);
+  color: var(--ink-2);
+  white-space: nowrap;
+}
+
+.group-toggle:focus-visible {
+  outline: 2px solid var(--focus);
+  outline-offset: 2px;
 }
 
 .empty {
@@ -319,6 +382,22 @@
 
 .list-note {
   margin-bottom: 10px;
+  cursor: pointer;
+}
+
+.list-note.is-selected {
+  border-color: var(--accent);
+  box-shadow: inset 2px 0 0 var(--accent);
+}
+
+.list-note .note-extract {
+  margin: 6px 0 0;
+  color: var(--ink-2);
+  font-size: var(--step-meta);
+  display: -webkit-box;
+  -webkit-line-clamp: 3;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
 }
 
 .modal-scrim {

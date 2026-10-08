@@ -12,6 +12,7 @@
     "lint": "cd ../.. && biome lint apps/server",
     "test": "vitest run",
     "seed": "tsx scripts/seed.ts",
+    "seed:large": "tsx scripts/seed_large.ts",
     "demo:ac3": "tsx scripts/ac3_demo.ts"
   },
   "dependencies": {

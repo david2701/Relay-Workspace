@@ -1,10 +1,28 @@
+import { memo } from "react";
 import { markForCompleter, markForWitness } from "../lib/actor_mark";
 import { copy } from "../lib/copy";
-import { formatDue, formatRelative } from "../lib/format";
-import type { Agent, WorkItem } from "../lib/types";
+import {
+  formatDue,
+  formatDueForGroup,
+  formatRelative,
+  formatReminder,
+} from "../lib/format";
+import type { Agent, SearchMatch, WorkItem } from "../lib/types";
 import { ActorMark, isStaleWorking, isWorking } from "./ActorMark";
+import { MatchSnippet } from "./MatchSnippet";
 import { StatusGlyph } from "./StatusGlyph";
 import "./ItemRow.css";
+
+function truncateIntent(intent: string | null | undefined): string | null {
+  if (!intent) return null;
+  const t = intent.trim();
+  if (t.length <= 24) return t;
+  const slice = t.slice(0, 24);
+  const sp = slice.lastIndexOf(" ");
+  // Prefer a word boundary whenever one exists in the window.
+  const cut = sp >= 4 ? slice.slice(0, sp) : slice;
+  return `${cut}…`;
+}
 
 type Props = {
   item: WorkItem;
@@ -13,16 +31,21 @@ type Props = {
   flash?: boolean;
   showChatBadge?: boolean;
   showCompletedBy?: boolean;
-  onSelect: () => void;
+  /** When grouped by due date, compact the due chip (§1.8). */
+  dueGroupKey?: string | undefined;
+  match?: SearchMatch | undefined;
+  onSelect: (id: string) => void;
 };
 
-export function ItemRow({
+export const ItemRow = memo(function ItemRow({
   item,
   agents,
   selected,
   flash,
   showChatBadge,
   showCompletedBy,
+  dueGroupKey,
+  match,
   onSelect,
 }: Props) {
   const witness = markForWitness(item, agents);
@@ -34,19 +57,38 @@ export function ItemRow({
       : item.status === "blocked" && item.blocked_reason
         ? `Atascado: ${item.blocked_reason}`
         : null;
-  const due = item.due_at ? formatDue(item.due_at) : null;
-  const reminder =
+  const reminderRaw =
     item.reminder_at && item.status !== "done" && item.status !== "cancelled"
       ? {
-          time: formatDue(item.reminder_at).text.replace(/^Hoy /, "").replace(/^Mañana /, "Mañ "),
+          time: formatReminder(item.reminder_at).text,
           intent: item.reminder_intent,
         }
       : null;
+  // Fecha groups: header owns the day. Show at most one schedule chip
+  // (reminder preferred) so meta never mid-word-squeezes due+reminder.
+  let due: { text: string; tone: "muted" | "warn" | "crit" } | null = null;
+  if (item.due_at && item.status !== "done" && item.status !== "cancelled") {
+    if (!dueGroupKey) {
+      due = formatDue(item.due_at);
+    } else if (!reminderRaw && dueGroupKey !== "none") {
+      due = formatDueForGroup(item.due_at, dueGroupKey);
+    }
+  }
+  const reminder = reminderRaw
+    ? {
+        time: reminderRaw.time,
+        intent: due?.text
+          ? null
+          : truncateIntent(reminderRaw.intent),
+      }
+    : null;
 
+  const showSnippet = match && match.field !== "title";
   const aria = [
     item.title,
     copy.statusLabel[item.status],
     reasonLine,
+    showSnippet ? match.snippet : null,
     witness.name,
     due?.text,
   ]
@@ -67,10 +109,11 @@ export function ItemRow({
         item.status === "done" || item.status === "cancelled" ? "terminal" : "",
         item.status === "cancelled" ? "cancelled" : "",
         reasonLine ? "with-reason" : "",
+        showSnippet ? "with-snippet" : "",
       ]
         .filter(Boolean)
         .join(" ")}
-      onClick={onSelect}
+      onClick={() => onSelect(item.id)}
       tabIndex={-1}
     >
       <span className="testigo-rule" aria-hidden />
@@ -85,6 +128,7 @@ export function ItemRow({
           ) : null}
         </div>
         {reasonLine ? <div className="item-reason">{reasonLine}</div> : null}
+        {showSnippet ? <MatchSnippet match={match} /> : null}
         {showCompletedBy &&
         (item.status === "done" || item.status === "cancelled") ? (
           <div className="item-reason completed-by-line">
@@ -111,21 +155,23 @@ export function ItemRow({
         ) : null}
       </div>
       <div className="item-meta">
-        {due && item.status !== "done" && item.status !== "cancelled" ? (
+        {due?.text &&
+        item.status !== "done" &&
+        item.status !== "cancelled" ? (
           <span className={`due-chip mono tone-${due.tone}`}>{due.text}</span>
         ) : null}
         {reminder ? (
           <span
             className="reminder-chip"
-            title={reminder.intent ?? undefined}
+            title={
+              reminder.intent
+                ? `${reminder.time} · ${reminder.intent}`
+                : reminder.time
+            }
           >
             <span className="mono">{reminder.time}</span>
             {reminder.intent ? (
-              <span className="intent">
-                {" "}
-                · {reminder.intent.slice(0, 24)}
-                {reminder.intent.length > 24 ? "…" : ""}
-              </span>
+              <span className="intent"> · {reminder.intent}</span>
             ) : null}
           </span>
         ) : null}
@@ -150,4 +196,4 @@ export function ItemRow({
       </div>
     </div>
   );
-}
+});

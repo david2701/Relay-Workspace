@@ -58,6 +58,7 @@ export type LinkedNote = Note & { role: NoteRole };
 
 export type Recommendation = {
   item_id: string;
+  title: string;
   reason: string;
   score: number;
   kind: string;
@@ -69,6 +70,28 @@ export type InboxResult = {
   sections?: { key: "needs_you" | "blocked" | "today"; items: WorkItem[] }[];
   groups?: { key: string; label: string; items: WorkItem[] }[];
   counters: { needs_you: number };
+  total_count?: number;
+  section_counts?: Record<string, number>;
+  group_counts?: Array<{ key: string; label: string; count: number }>;
+  sync_cursor?: string;
+  server_time?: string;
+  next_cursor?: string | null;
+  has_more?: boolean;
+  mode?: "snapshot";
+};
+
+/** Incremental inbox poll payload (GET /api/inbox?view=X&since=…). */
+export type InboxSyncDelta = {
+  mode: "delta";
+  view?: InboxView;
+  upserts: WorkItem[];
+  removed_ids: string[];
+  counters: { needs_you: number };
+  section_counts?: Record<string, number>;
+  group_counts?: Array<{ key: string; label: string; count: number }>;
+  total_count?: number;
+  sync_cursor: string;
+  server_time?: string;
 };
 
 export type ContextPack = {
@@ -91,4 +114,35 @@ export type ContextPack = {
     body_preview: string;
     body_md: string;
   }[];
+};
+
+export type SearchMatchField =
+  | "title"
+  | "goal"
+  | "blocked_reason"
+  | "needs_you_reason"
+  | "reminder_intent"
+  | "note";
+
+export type SearchMatch = {
+  field: SearchMatchField;
+  note_id?: string;
+  snippet: string;
+  ranges: Array<[number, number]>;
+};
+
+export type SearchHit = {
+  item: WorkItem;
+  match: SearchMatch;
+};
+
+export type SearchResult = {
+  items: SearchHit[];
+  total: number;
+  next_cursor?: string;
+};
+
+export type NotesSearchResult = {
+  notes: Array<{ note: Note; match: SearchMatch }>;
+  total: number;
 };
