@@ -112,7 +112,7 @@
   "facet.searchAria": "Search items and notes",
   "facet.status": "Status",
   "facet.you": "You",
-  "facets.valueCount": "{count, plural, =0 {no results} one {# result} other {# results}}",
+  "facets.valueCount": "{count, plural, =0 {None} one {#} ",
   "field.due": "Due",
   "field.goal": "Goal",
   "field.goalMissing": "Without a goal, the agent won’t know when it’s finished",
