@@ -5,6 +5,7 @@ import {
   LinkNoteInputSchema,
   NoteRoleSchema,
   type RelayService,
+  SearchQuerySchema,
   SetStatusInputSchema,
   UpdateItemInputSchema,
   UpdateNoteInputSchema,
@@ -25,6 +26,20 @@ const ActorBodySchema = z
   })
   .passthrough();
 
+const PageLimitSchema = z.coerce.number().int().min(1).max(200);
+
+const NotePatchSchema = UpdateNoteInputSchema.extend({
+  if_updated_at: z.string().optional(),
+});
+
+function parseSearchFromQuery(query: Record<string, string>) {
+  const raw: Record<string, unknown> = { ...query };
+  if (typeof raw.limit === "string" && raw.limit.length > 0) {
+    raw.limit = Number(raw.limit);
+  }
+  return SearchQuerySchema.parse(raw);
+}
+
 export function createApi(svc: RelayService): Hono {
   const app = new Hono();
 
@@ -32,7 +47,28 @@ export function createApi(svc: RelayService): Hono {
 
   app.get("/agents", (c) => c.json({ agents: svc.listAgents() }));
 
-  app.get("/items", (c) => c.json({ items: svc.listItems() }));
+  app.get("/items", (c) => {
+    try {
+      const limitRaw = c.req.query("limit");
+      if (limitRaw !== undefined) {
+        const limit = PageLimitSchema.parse(limitRaw);
+        const cursor = c.req.query("cursor");
+        const page = svc.listItems({
+          limit,
+          ...(cursor !== undefined ? { cursor } : {}),
+        });
+        return c.json({
+          items: page.items,
+          next_cursor: page.meta.next_cursor,
+          has_more: page.meta.has_more,
+          total_count: page.meta.total_count,
+        });
+      }
+      return c.json({ items: svc.listItems() });
+    } catch (err) {
+      return handleError(c, err);
+    }
+  });
 
   app.get("/items/:id", (c) => {
     try {
@@ -145,7 +181,28 @@ export function createApi(svc: RelayService): Hono {
     }
   });
 
-  app.get("/notes", (c) => c.json({ notes: svc.listNotes() }));
+  app.get("/notes", (c) => {
+    try {
+      const limitRaw = c.req.query("limit");
+      if (limitRaw !== undefined) {
+        const limit = PageLimitSchema.parse(limitRaw);
+        const cursor = c.req.query("cursor");
+        const page = svc.listNotes({
+          limit,
+          ...(cursor !== undefined ? { cursor } : {}),
+        });
+        return c.json({
+          notes: page.items,
+          next_cursor: page.meta.next_cursor,
+          has_more: page.meta.has_more,
+          total_count: page.meta.total_count,
+        });
+      }
+      return c.json({ notes: svc.listNotes() });
+    } catch (err) {
+      return handleError(c, err);
+    }
+  });
 
   app.get("/notes/:id", (c) => {
     try {
@@ -170,8 +227,15 @@ export function createApi(svc: RelayService): Hono {
 
   app.patch("/notes/:id", async (c) => {
     try {
-      const input = UpdateNoteInputSchema.parse(await c.req.json());
-      return c.json({ note: svc.updateNote(c.req.param("id"), input) });
+      const raw = await c.req.json();
+      const parsed = NotePatchSchema.parse(raw);
+      const { if_updated_at, ...input } = parsed;
+      const note = svc.updateNote(
+        c.req.param("id"),
+        input,
+        if_updated_at !== undefined ? { if_updated_at } : undefined,
+      );
+      return c.json({ note });
     } catch (err) {
       return handleError(c, err);
     }
@@ -239,7 +303,30 @@ export function createApi(svc: RelayService): Hono {
   app.get("/inbox", (c) => {
     try {
       const view = InboxViewSchema.parse(c.req.query("view") ?? "attention");
-      return c.json(svc.inboxQuery(view));
+      const limitRaw = c.req.query("limit");
+      const cursor = c.req.query("cursor");
+      const since = c.req.query("since");
+      const opts: {
+        limit?: number;
+        cursor?: string;
+        since?: string;
+      } = {};
+      if (limitRaw !== undefined) {
+        opts.limit = PageLimitSchema.parse(limitRaw);
+      }
+      if (cursor !== undefined) opts.cursor = cursor;
+      if (since !== undefined) opts.since = since;
+      return c.json(
+        Object.keys(opts).length > 0 ? svc.inboxQuery(view, opts) : svc.inboxQuery(view),
+      );
+    } catch (err) {
+      return handleError(c, err);
+    }
+  });
+
+  app.get("/search", (c) => {
+    try {
+      return c.json(svc.search(parseSearchFromQuery(c.req.query())));
     } catch (err) {
       return handleError(c, err);
     }

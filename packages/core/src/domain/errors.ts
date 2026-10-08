@@ -23,8 +23,13 @@ export class ValidationError extends DomainError {
 }
 
 export class ConflictError extends DomainError {
-  constructor(message: string) {
+  readonly current_updated_at?: string;
+
+  constructor(message: string, opts?: { current_updated_at?: string }) {
     super("conflict", message);
     this.name = "ConflictError";
+    if (opts?.current_updated_at !== undefined) {
+      this.current_updated_at = opts.current_updated_at;
+    }
   }
 }

@@ -328,8 +328,10 @@ export class RelayService {
     if (opts?.if_updated_at !== undefined) {
       const ok = this.notes.updateIfUnchanged(note, opts.if_updated_at);
       if (!ok) {
+        const latest = this.notes.get(id);
         throw new ConflictError(
           `Note ${id} was modified (expected updated_at=${opts.if_updated_at})`,
+          { current_updated_at: latest?.updated_at ?? current.updated_at },
         );
       }
       return note;
