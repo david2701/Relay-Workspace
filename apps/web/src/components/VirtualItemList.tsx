@@ -163,9 +163,11 @@ export function VirtualItemList({
   const t = useT();
   const rows = useMemo(
     () =>
-      flattenSections(sections, collapsedKeys, (s) =>
-        s.labelKey ? t(s.labelKey) : s.label,
-      ),
+      flattenSections(sections, collapsedKeys, (s) => {
+        if (s.labelKey) return t(s.labelKey);
+        if (s.label) return s.label;
+        return s.key;
+      }),
     [sections, collapsedKeys, t],
   );
   const useVirtual = rows.length > VIRTUALIZE_THRESHOLD;
@@ -227,8 +229,10 @@ export function VirtualItemList({
           const collapsed = !!collapsedKeys?.has(section.key);
           const items = collapsed ? [] : section.items;
           const count = sectionCount(section);
-          // Attention sections carry labelKey + empty label; resolve like flattenSections.
-          const label = section.labelKey ? t(section.labelKey) : section.label;
+          // Attention sections carry labelKey; other views resolve label in App.
+          const label = section.labelKey
+            ? t(section.labelKey)
+            : section.label || section.key;
           if (!label) {
             return (
               <div key={section.key || "all"}>

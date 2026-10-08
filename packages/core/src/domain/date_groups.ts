@@ -15,14 +15,17 @@ export type DueGroupKey =
   | "later"
   | "none";
 
-/** English labels for API/MCP stability (UI translates via group key). */
+/**
+ * Stable group codes for API/MCP. UI maps key → locale `group.*` keys.
+ * Do not put user-visible prose here — check:hardcoded-strings scans this file.
+ */
 export const DUE_GROUP_LABELS: Record<DueGroupKey, string> = {
-  overdue: "Overdue",
-  today: "Today",
-  tomorrow: "Tomorrow",
-  week: "This week",
-  later: "Later",
-  none: "No date",
+  overdue: "overdue",
+  today: "today",
+  tomorrow: "tomorrow",
+  week: "week",
+  later: "later",
+  none: "none",
 };
 
 export const DUE_GROUP_ORDER: DueGroupKey[] = [

@@ -2,6 +2,9 @@
  * AC3-L3: scan apps/web/src for visible string literals outside locale JSON.
  * Covers JSX text nodes and aria-label / title / placeholder / alt literals.
  *
+ * Also scans packages/core domain sources for user-visible labels/reasons that
+ * must stay as stable codes (not EN/ES/FR prose) so the web can translate.
+ *
  * Allowlist entries must include a reason comment (non-visible / brand / technical).
  */
 import { readdirSync, readFileSync, statSync } from "node:fs";
@@ -10,6 +13,7 @@ import { fileURLToPath } from "node:url";
 
 const root = resolve(dirname(fileURLToPath(import.meta.url)), "..");
 const srcRoot = resolve(root, "apps/web/src");
+const coreDomainRoot = resolve(root, "packages/core/src/domain");
 
 const SKIP_DIRS = new Set(["i18n/locales", "test"]);
 
@@ -29,6 +33,20 @@ const ALLOWLIST = [
     reason: "IANA timezone example placeholder, not UI copy",
   },
 ];
+
+/** Core files that emit group labels / recommend reasons to the UI. */
+const CORE_UI_STRING_FILES = [
+  "recommend.ts",
+  "date_groups.ts",
+  "inbox_query.ts",
+];
+
+/**
+ * Banned user-visible prose in core→UI payloads (EN group headers, ES reasons).
+ * Stable codes like "today" / "rec.blocked" are fine.
+ */
+const CORE_PROSE_RE =
+  /\b(Today|Tomorrow|Yesterday|Overdue|Later|This week|No date|Te espera|Atascado|Venció|Vence |Aviso en|Sin avances|hoy a las|mañana)\b/;
 
 function walk(dir, out = []) {
   for (const name of readdirSync(dir)) {
@@ -104,6 +122,26 @@ for (const { abs, rel } of walk(srcRoot)) {
       if (/^[a-z][a-zA-Z0-9]*$/.test(literal)) continue; // camelCase id
       if (isAllowlisted(rel, literal)) continue;
       hits.push({ rel, kind: "jsx", literal });
+    }
+  }
+}
+
+// Core domain: catch EN/ES prose in labels / reasons destined for the UI.
+for (const name of CORE_UI_STRING_FILES) {
+  const abs = join(coreDomainRoot, name);
+  let text;
+  try {
+    text = stripComments(readFileSync(abs, "utf8"));
+  } catch {
+    continue;
+  }
+  const rel = `packages/core/src/domain/${name}`;
+  for (const line of text.split("\n")) {
+    // String literals containing banned prose
+    for (const m of line.matchAll(/(['"`])((?:\\.|(?!\1).)*)\1/g)) {
+      const literal = m[2].replace(/\\'/g, "'").replace(/\\"/g, '"');
+      if (!CORE_PROSE_RE.test(literal)) continue;
+      hits.push({ rel, kind: "core-prose", literal });
     }
   }
 }

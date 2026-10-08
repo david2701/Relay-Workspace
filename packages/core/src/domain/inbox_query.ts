@@ -14,9 +14,6 @@ import {
   startOfZoneDay,
 } from "./zone_time.js";
 
-const weekdayShortEn = (date: Date, timeZone: string): string =>
-  new Intl.DateTimeFormat("en-US", { timeZone, weekday: "short" }).format(date);
-
 function isTerminal(item: WorkItem): boolean {
   return item.status === "done" || item.status === "cancelled";
 }
@@ -34,29 +31,35 @@ function nearestSchedule(item: WorkItem): Date | null {
   return dates[0] ?? null;
 }
 
+/**
+ * Stable group codes only — UI maps key → locale / Intl.
+ * `label` mirrors `key` (never localized prose).
+ * `date` is set for weekday buckets so the client can format via Intl.
+ */
 function groupLabel(
   date: Date,
   now: Date,
   timeZone: string,
-): { key: string; label: string } {
+): { key: string; label: string; date?: string } {
   const today = startOfZoneDay(now, timeZone);
   const target = startOfZoneDay(date, timeZone);
   const diffDays = Math.round(
     (target.getTime() - today.getTime()) / (1000 * 60 * 60 * 24),
   );
-  if (diffDays === 0) return { key: "today", label: "Today" };
-  if (diffDays === 1) return { key: "tomorrow", label: "Tomorrow" };
-  if (diffDays === -1) return { key: "yesterday", label: "Yesterday" };
+  if (diffDays === 0) return { key: "today", label: "today" };
+  if (diffDays === 1) return { key: "tomorrow", label: "tomorrow" };
+  if (diffDays === -1) return { key: "yesterday", label: "yesterday" };
   if (diffDays > 1 && diffDays < 7) {
     return {
       key: `dow-${diffDays}`,
-      label: weekdayShortEn(date, timeZone),
+      label: `dow-${diffDays}`,
+      date: date.toISOString(),
     };
   }
   if (diffDays < -1 && diffDays > -7) {
-    return { key: "this_week", label: "This week" };
+    return { key: "this_week", label: "this_week" };
   }
-  return { key: "this_week", label: "This week" };
+  return { key: "this_week", label: "this_week" };
 }
 
 type AttentionBuckets = {
@@ -96,7 +99,12 @@ function buildAttention(
   return { needsYou, blocked, today };
 }
 
-type GroupBucket = { key: string; label: string; items: WorkItem[] };
+type GroupBucket = {
+  key: string;
+  label: string;
+  date?: string;
+  items: WorkItem[];
+};
 
 function buildFullView(
   items: readonly WorkItem[],
@@ -174,6 +182,7 @@ function buildFullView(
       group_counts: groups.map((g) => ({
         key: g.key,
         label: g.label,
+        ...(g.date ? { date: g.date } : {}),
         count: g.items.length,
       })),
     };
@@ -196,15 +205,9 @@ function buildFullView(
           : g.key === "yesterday"
             ? "yesterday"
             : "this_week";
-      const label =
-        key === "today"
-          ? "Today"
-          : key === "yesterday"
-            ? "Yesterday"
-            : "This week";
       const existing = groupMap.get(key);
       if (existing) existing.items.push(item);
-      else groupMap.set(key, { key, label, items: [item] });
+      else groupMap.set(key, { key, label: key, items: [item] });
     }
     const order = ["today", "yesterday", "this_week"];
     const groups = order
@@ -282,6 +285,7 @@ function sliceGroups(
     .map((g) => ({
       key: g.key,
       label: g.label,
+      ...(g.date ? { date: g.date } : {}),
       items: g.items.filter((i) => pageIds.has(i.id)),
     }))
     .filter((g) => g.items.length > 0);
