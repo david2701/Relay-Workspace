@@ -2,9 +2,10 @@ import {
   buildContextPack,
   contextPackToMarkdown,
 } from "../domain/context_pack.js";
-import { NotFoundError, ValidationError } from "../domain/errors.js";
-import { queryInbox } from "../domain/inbox_query.js";
+import { ConflictError, NotFoundError, ValidationError } from "../domain/errors.js";
+import { buildInboxSync, queryInbox } from "../domain/inbox_query.js";
 import { recommendInbox } from "../domain/recommend.js";
+import { searchItems, searchNotes, type SearchDeps } from "../domain/search.js";
 import { nowIso } from "../domain/time.js";
 import {
   applyStatusChange,
@@ -24,7 +25,10 @@ import { createId } from "../schemas/ids.js";
 import type {
   ContextPack,
   InboxQueryResult,
+  InboxSyncResult,
   Recommendation,
+  SearchQuery,
+  SearchResult,
 } from "../schemas/inbox.js";
 import type {
   CreateNoteInput,
@@ -40,6 +44,8 @@ import type {
   UpdateItemInput,
   WorkItem,
 } from "../schemas/work_item.js";
+import type { PageParams } from "../domain/page.js";
+import type { ListPageResult } from "../store/repositories.js";
 import { openDatabase, type RelayDb } from "../store/db.js";
 import {
   AgentRepository,
@@ -51,6 +57,13 @@ import {
 export type RelayServiceOptions = {
   dbPath: string;
   agents?: readonly Agent[];
+};
+
+export type InboxQueryOptions = {
+  now?: Date;
+  limit?: number;
+  cursor?: string;
+  since?: string;
 };
 
 export class RelayService {
@@ -106,8 +119,13 @@ export class RelayService {
     return { type: "agent", id: agent.id };
   }
 
-  listItems(): WorkItem[] {
-    return this.items.listAll();
+  listItems(): WorkItem[];
+  listItems(params: PageParams): ListPageResult<WorkItem>;
+  listItems(params?: PageParams): WorkItem[] | ListPageResult<WorkItem> {
+    if (!params || (params.limit === undefined && params.cursor === undefined)) {
+      return this.items.listAll();
+    }
+    return this.items.listPage(params);
   }
 
   getItem(id: string): WorkItem {
@@ -267,8 +285,13 @@ export class RelayService {
     return next;
   }
 
-  listNotes(): Note[] {
-    return this.notes.listAll();
+  listNotes(): Note[];
+  listNotes(params: PageParams): ListPageResult<Note>;
+  listNotes(params?: PageParams): Note[] | ListPageResult<Note> {
+    if (!params || (params.limit === undefined && params.cursor === undefined)) {
+      return this.notes.listAll();
+    }
+    return this.notes.listPage(params);
   }
 
   getNote(id: string): Note {
@@ -290,7 +313,11 @@ export class RelayService {
     return note;
   }
 
-  updateNote(id: string, input: UpdateNoteInput): Note {
+  updateNote(
+    id: string,
+    input: UpdateNoteInput,
+    opts?: { if_updated_at?: string },
+  ): Note {
     const current = this.getNote(id);
     const note: Note = {
       ...current,
@@ -298,6 +325,15 @@ export class RelayService {
       body_md: input.body_md ?? current.body_md,
       updated_at: nowIso(),
     };
+    if (opts?.if_updated_at !== undefined) {
+      const ok = this.notes.updateIfUnchanged(note, opts.if_updated_at);
+      if (!ok) {
+        throw new ConflictError(
+          `Note ${id} was modified (expected updated_at=${opts.if_updated_at})`,
+        );
+      }
+      return note;
+    }
     this.notes.upsert(note);
     return note;
   }
@@ -340,12 +376,25 @@ export class RelayService {
     return contextPackToMarkdown(this.getContext(itemId));
   }
 
-  inboxQuery(view: InboxView, now?: Date): InboxQueryResult {
-    const args: Parameters<typeof queryInbox>[0] = {
-      items: this.items.listAll(),
-      view,
-    };
+  inboxQuery(
+    view: InboxView,
+    opts?: InboxQueryOptions,
+  ): InboxQueryResult | InboxSyncResult {
+    const items = this.items.listAll();
+    const now = opts?.now;
+    if (opts?.since !== undefined) {
+      const syncArgs: Parameters<typeof buildInboxSync>[0] = {
+        items,
+        view,
+        since: opts.since,
+      };
+      if (now) syncArgs.now = now;
+      return buildInboxSync(syncArgs);
+    }
+    const args: Parameters<typeof queryInbox>[0] = { items, view };
     if (now) args.now = now;
+    if (opts?.limit !== undefined) args.limit = opts.limit;
+    if (opts?.cursor !== undefined) args.cursor = opts.cursor;
     return queryInbox(args);
   }
 
@@ -357,6 +406,36 @@ export class RelayService {
     };
     if (now) args.now = now;
     return recommendInbox(args);
+  }
+
+  private searchDeps(now?: Date): SearchDeps {
+    const items = this.items.listAll();
+    const notes = this.notes.listAll();
+    const notesById = new Map(notes.map((n) => [n.id, n]));
+    const allLinks = this.links.listAll();
+    const linksByItem = new Map<string, string[]>();
+    const linksByNote = new Map<string, string[]>();
+    for (const link of allLinks) {
+      const itemList = linksByItem.get(link.item_id) ?? [];
+      itemList.push(link.note_id);
+      linksByItem.set(link.item_id, itemList);
+      const noteList = linksByNote.get(link.note_id) ?? [];
+      noteList.push(link.item_id);
+      linksByNote.set(link.note_id, noteList);
+    }
+    const deps: SearchDeps = { db: this.db, items, notesById, linksByItem, linksByNote };
+    if (now) deps.now = now;
+    return deps;
+  }
+
+  search(params: SearchQuery, now?: Date): SearchResult {
+    return searchItems(this.searchDeps(now), params);
+  }
+
+  searchOrphanNotes(q: string, opts?: { limit?: number; now?: Date }) {
+    const noteOpts: { limit?: number } = {};
+    if (opts?.limit !== undefined) noteOpts.limit = opts.limit;
+    return searchNotes(this.searchDeps(opts?.now), q, noteOpts);
   }
 
   /** Test/seed helper */

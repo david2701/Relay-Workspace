@@ -1,3 +1,9 @@
+import {
+  addParisDays,
+  endOfParisDay,
+  startOfParisDay,
+} from "./paris_time.js";
+
 export function nowIso(date: Date = new Date()): string {
   return date.toISOString();
 }
@@ -10,22 +16,19 @@ export function hoursBetween(from: Date, to: Date): number {
   return (to.getTime() - from.getTime()) / (1000 * 60 * 60);
 }
 
+/** @deprecated Use startOfParisDay — local setHours is not Europe/Paris-safe. */
 export function startOfLocalDay(date: Date): Date {
-  const d = new Date(date);
-  d.setHours(0, 0, 0, 0);
-  return d;
+  return startOfParisDay(date);
 }
 
+/** @deprecated Use endOfParisDay — local setHours is not Europe/Paris-safe. */
 export function endOfLocalDay(date: Date): Date {
-  const d = new Date(date);
-  d.setHours(23, 59, 59, 999);
-  return d;
+  return endOfParisDay(date);
 }
 
+/** @deprecated Use addParisDays for calendar-day math in Europe/Paris. */
 export function addDays(date: Date, days: number): Date {
-  const d = new Date(date);
-  d.setDate(d.getDate() + days);
-  return d;
+  return addParisDays(date, days);
 }
 
 export const THRESHOLDS = {

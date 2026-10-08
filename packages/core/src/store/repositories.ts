@@ -1,7 +1,15 @@
 import type { Agent } from "../schemas/agent.js";
 import type { ItemNoteLink, Note } from "../schemas/note.js";
 import type { WorkItem } from "../schemas/work_item.js";
+import { decodeCursor, encodeCursor } from "../domain/cursor.js";
+import type { PageMeta, PageParams } from "../domain/page.js";
 import type { RelayDb } from "./db.js";
+import {
+  rebuildSearchFts,
+  removeFromFts,
+  syncItemToFts,
+  syncNoteToFts,
+} from "./search_index.js";
 
 type ItemRow = {
   id: string;
@@ -55,14 +63,101 @@ function rowToItem(row: ItemRow): WorkItem {
   };
 }
 
+export type ListPageResult<T> = {
+  items: T[];
+  meta: PageMeta;
+};
+
 export class WorkItemRepository {
   constructor(private readonly db: RelayDb) {}
 
   listAll(): WorkItem[] {
     const rows = this.db
-      .prepare("SELECT * FROM work_items ORDER BY updated_at DESC")
+      .prepare(
+        "SELECT * FROM work_items ORDER BY updated_at DESC, id DESC",
+      )
       .all() as ItemRow[];
     return rows.map(rowToItem);
+  }
+
+  listPage(params: PageParams = {}): ListPageResult<WorkItem> {
+    const totalRow = this.db
+      .prepare("SELECT COUNT(*) AS n FROM work_items")
+      .get() as { n: number };
+    const total_count = totalRow.n;
+    if (params.limit === undefined) {
+      const items = this.listAll();
+      return {
+        items,
+        meta: { next_cursor: null, has_more: false, total_count },
+      };
+    }
+    const limit = params.limit;
+    let rows: ItemRow[];
+    if (params.cursor) {
+      const cursor = decodeCursor(params.cursor);
+      if (!cursor) {
+        rows = this.db
+          .prepare(
+            `SELECT * FROM work_items
+             ORDER BY updated_at DESC, id DESC
+             LIMIT ?`,
+          )
+          .all(limit + 1) as ItemRow[];
+      } else {
+        rows = this.db
+          .prepare(
+            `SELECT * FROM work_items
+             WHERE updated_at < ?
+                OR (updated_at = ? AND id < ?)
+             ORDER BY updated_at DESC, id DESC
+             LIMIT ?`,
+          )
+          .all(cursor.updated_at, cursor.updated_at, cursor.id, limit + 1) as ItemRow[];
+      }
+    } else {
+      rows = this.db
+        .prepare(
+          `SELECT * FROM work_items
+           ORDER BY updated_at DESC, id DESC
+           LIMIT ?`,
+        )
+        .all(limit + 1) as ItemRow[];
+    }
+    const has_more = rows.length > limit;
+    const page = has_more ? rows.slice(0, limit) : rows;
+    const items = page.map(rowToItem);
+    const last = items[items.length - 1];
+    const next_cursor =
+      has_more && last
+        ? encodeCursor({ id: last.id, updated_at: last.updated_at })
+        : null;
+    return { items, meta: { next_cursor, has_more, total_count } };
+  }
+
+  listUpdatedSince(since: string): WorkItem[] {
+    const rows = this.db
+      .prepare(
+        `SELECT * FROM work_items
+         WHERE updated_at > ?
+         ORDER BY updated_at ASC, id ASC`,
+      )
+      .all(since) as ItemRow[];
+    return rows.map(rowToItem);
+  }
+
+  maxUpdatedAt(): string | null {
+    const row = this.db
+      .prepare("SELECT MAX(updated_at) AS m FROM work_items")
+      .get() as { m: string | null };
+    return row.m;
+  }
+
+  countNeedsYou(): number {
+    const row = this.db
+      .prepare("SELECT COUNT(*) AS n FROM work_items WHERE status = 'needs_you'")
+      .get() as { n: number };
+    return row.n;
   }
 
   get(id: string): WorkItem | null {
@@ -101,11 +196,21 @@ export class WorkItemRepository {
           list_id=excluded.list_id`,
       )
       .run(item);
+    syncItemToFts(this.db, item);
+  }
+
+  rebuildFts(): void {
+    rebuildSearchFts(this.db);
+  }
+
+  reindexItem(item: WorkItem): void {
+    syncItemToFts(this.db, item);
   }
 
   deleteAll(): void {
     this.db.exec("DELETE FROM item_note_links");
     this.db.exec("DELETE FROM work_items");
+    this.db.exec("DELETE FROM search_fts WHERE entity_type = 'item'");
   }
 }
 
@@ -114,8 +219,72 @@ export class NoteRepository {
 
   listAll(): Note[] {
     return this.db
-      .prepare("SELECT * FROM notes ORDER BY updated_at DESC")
+      .prepare("SELECT * FROM notes ORDER BY updated_at DESC, id DESC")
       .all() as Note[];
+  }
+
+  listPage(params: PageParams = {}): ListPageResult<Note> {
+    const totalRow = this.db
+      .prepare("SELECT COUNT(*) AS n FROM notes")
+      .get() as { n: number };
+    const total_count = totalRow.n;
+    if (params.limit === undefined) {
+      const items = this.listAll();
+      return {
+        items,
+        meta: { next_cursor: null, has_more: false, total_count },
+      };
+    }
+    const limit = params.limit;
+    let rows: Note[];
+    if (params.cursor) {
+      const cursor = decodeCursor(params.cursor);
+      if (!cursor) {
+        rows = this.db
+          .prepare(
+            `SELECT * FROM notes
+             ORDER BY updated_at DESC, id DESC
+             LIMIT ?`,
+          )
+          .all(limit + 1) as Note[];
+      } else {
+        rows = this.db
+          .prepare(
+            `SELECT * FROM notes
+             WHERE updated_at < ?
+                OR (updated_at = ? AND id < ?)
+             ORDER BY updated_at DESC, id DESC
+             LIMIT ?`,
+          )
+          .all(cursor.updated_at, cursor.updated_at, cursor.id, limit + 1) as Note[];
+      }
+    } else {
+      rows = this.db
+        .prepare(
+          `SELECT * FROM notes
+           ORDER BY updated_at DESC, id DESC
+           LIMIT ?`,
+        )
+        .all(limit + 1) as Note[];
+    }
+    const has_more = rows.length > limit;
+    const items = has_more ? rows.slice(0, limit) : rows;
+    const last = items[items.length - 1];
+    const next_cursor =
+      has_more && last
+        ? encodeCursor({ id: last.id, updated_at: last.updated_at })
+        : null;
+    return { items, meta: { next_cursor, has_more, total_count } };
+  }
+
+  listUpdatedSince(since: string): Note[] {
+    return this.db
+      .prepare(
+        `SELECT * FROM notes
+         WHERE updated_at > ?
+         ORDER BY updated_at ASC, id ASC`,
+      )
+      .all(since) as Note[];
   }
 
   get(id: string): Note | null {
@@ -134,11 +303,40 @@ export class NoteRepository {
            title=excluded.title, body_md=excluded.body_md, updated_at=excluded.updated_at`,
       )
       .run(note);
+    syncNoteToFts(this.db, note);
+  }
+
+  /**
+   * Update note only when current updated_at matches expected.
+   * Returns false on conflict (row missing or stamp mismatch).
+   */
+  updateIfUnchanged(note: Note, expectedUpdatedAt: string): boolean {
+    const result = this.db
+      .prepare(
+        `UPDATE notes
+         SET title = @title, body_md = @body_md, updated_at = @updated_at
+         WHERE id = @id AND updated_at = @expected`,
+      )
+      .run({
+        id: note.id,
+        title: note.title,
+        body_md: note.body_md,
+        updated_at: note.updated_at,
+        expected: expectedUpdatedAt,
+      });
+    if (result.changes === 0) return false;
+    syncNoteToFts(this.db, note);
+    return true;
+  }
+
+  reindexNote(note: Note): void {
+    syncNoteToFts(this.db, note);
   }
 
   deleteAll(): void {
     this.db.exec("DELETE FROM item_note_links");
     this.db.exec("DELETE FROM notes");
+    this.db.exec("DELETE FROM search_fts WHERE entity_type = 'note'");
   }
 }
 
@@ -202,3 +400,5 @@ export class AgentRepository {
     return row ?? null;
   }
 }
+
+export { removeFromFts, rebuildSearchFts, syncItemToFts, syncNoteToFts };
