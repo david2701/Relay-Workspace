@@ -22,12 +22,19 @@ MCP (EN): [`docs/mcp/README.en.md`](docs/mcp/README.en.md) · MCP (ES): [`docs/m
 nvm use   # or install Node 24.21+
 corepack enable
 pnpm install
-pnpm seed
+pnpm seed   # builds @relay/core first, then seeds data/relay.db
 ```
+
+`@relay/core` publishes through `dist/` (gitignored). After a clean install,
+`pnpm build:core` emits that package. Root `pnpm typecheck`, `pnpm test`,
+`pnpm test:e2e`, `pnpm seed`, `pnpm seed:large`, and `pnpm demo:ac3` run
+`build:core` automatically. For `pnpm dev` on a fresh clone, run
+`pnpm build:core` once (or any of those scripts) before starting.
 
 ## Run (one command)
 
 ```bash
+pnpm build:core   # once after a clean install, if you have not seeded yet
 pnpm dev
 ```
 
@@ -107,11 +114,11 @@ RELAY_API=http://127.0.0.1:7420 pnpm demo:ac3 -- --variant=needs_you
 ## Verify
 
 ```bash
-pnpm typecheck
+pnpm typecheck   # builds @relay/core, then typechecks all packages
 pnpm lint
-pnpm test
+pnpm test        # builds @relay/core, then unit tests
 pnpm contrast
-pnpm test:e2e
+pnpm test:e2e    # builds @relay/core, then Playwright
 ```
 
 ## Fonts
