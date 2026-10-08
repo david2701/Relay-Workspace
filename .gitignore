@@ -5,6 +5,10 @@ coverage/
 .data/
 data/*.db
 data/*.db-*
+apps/server/data/
+*.db
+*.db-shm
+*.db-wal
 *.log
 .DS_Store
 .env

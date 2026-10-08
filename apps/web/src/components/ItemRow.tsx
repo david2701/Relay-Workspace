@@ -19,7 +19,8 @@ function truncateIntent(intent: string | null | undefined): string | null {
   if (t.length <= 24) return t;
   const slice = t.slice(0, 24);
   const sp = slice.lastIndexOf(" ");
-  const cut = sp >= 12 ? slice.slice(0, sp) : slice;
+  // Prefer a word boundary whenever one exists in the window.
+  const cut = sp >= 4 ? slice.slice(0, sp) : slice;
   return `${cut}…`;
 }
 
