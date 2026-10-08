@@ -27,6 +27,27 @@ async function gotoFresh(page: Page, locale = "en"): Promise<void> {
   await page.goto("/attention");
 }
 
+/** Restore the Playwright webServer baseline so later specs see the list. */
+async function restoreE2eBaseline(request: APIRequestContext): Promise<void> {
+  const seed = await request.post(`${API}/api/seed`, {
+    data: { locale: "en" },
+  });
+  expect(seed.ok(), await seed.text()).toBeTruthy();
+  const settings = await request.put(`${API}/api/settings`, {
+    data: {
+      timezone: "Europe/Paris",
+      user_display_name: "Alex",
+      user_initial: "A",
+      onboarding_completed_at: new Date().toISOString(),
+    },
+  });
+  expect(settings.ok(), await settings.text()).toBeTruthy();
+}
+
+test.afterEach(async ({ request }) => {
+  await restoreE2eBaseline(request);
+});
+
 test.describe("AC3-O1 onboarding empty store", () => {
   test("card → start empty → reload + second client hide card, 0 items", async ({
     page,
