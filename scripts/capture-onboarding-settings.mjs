@@ -117,8 +117,66 @@ for (const loc of LOCALES) {
     );
     await page.screenshot({ path: settingsPath, fullPage: false });
     console.info("wrote", settingsPath);
+    const mark = dialog.locator(".settings-initial-wrap .actor-mark");
+    await mark.waitFor({ state: "visible" });
+    const markPath = resolve(
+      outDir,
+      `settings-mark_${loc.code}_${vp.tag}.png`,
+    );
+    await mark.screenshot({ path: markPath });
+    console.info("wrote", markPath);
     await context.close();
   }
+}
+
+// Side-by-side close-up: onboarding mark (Camille) vs Settings mark (Camille).
+{
+  await prepare("empty");
+  const context = await browser.newContext({
+    viewport: { width: 1440, height: 900 },
+    colorScheme: "light",
+    locale: "fr-FR",
+    timezoneId: "Europe/Paris",
+  });
+  const page = await context.newPage();
+  await page.addInitScript(() => {
+    localStorage.setItem("relay.locale", "fr");
+    localStorage.setItem("relay.theme", "light");
+  });
+  await page.goto(`${WEB}/attention`, { waitUntil: "networkidle" });
+  const card = page.locator(".onboarding-card");
+  await card.waitFor({ state: "visible" });
+  await page.locator("#onboarding-name").fill("Camille Martin");
+  await page.waitForTimeout(150);
+  const onbMark = card.locator(".actor-mark");
+  const onbPath = resolve(outDir, "compare-mark_onboarding_fr.png");
+  await onbMark.screenshot({ path: onbPath });
+  console.info("wrote", onbPath);
+  await context.close();
+
+  await prepare("empty");
+  await completeOnboarding("Camille Martin");
+  const context2 = await browser.newContext({
+    viewport: { width: 1440, height: 900 },
+    colorScheme: "light",
+    locale: "fr-FR",
+    timezoneId: "Europe/Paris",
+  });
+  const page2 = await context2.newPage();
+  await page2.addInitScript(() => {
+    localStorage.setItem("relay.locale", "fr");
+    localStorage.setItem("relay.theme", "light");
+  });
+  await page2.goto(`${WEB}/attention?settings=profile`, {
+    waitUntil: "networkidle",
+  });
+  const dialog = page2.getByRole("dialog");
+  await dialog.waitFor({ state: "visible" });
+  const setMark = dialog.locator(".settings-initial-wrap .actor-mark");
+  const setPath = resolve(outDir, "compare-mark_settings_fr.png");
+  await setMark.screenshot({ path: setPath });
+  console.info("wrote", setPath);
+  await context2.close();
 }
 
 await browser.close();

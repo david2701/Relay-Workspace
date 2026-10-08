@@ -1,3 +1,16 @@
+/* Shared mark chrome — list ActorMark + Settings/onboarding previews. */
+.actor-mark {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  font-weight: 600;
+  line-height: 1;
+  box-sizing: border-box;
+  overflow: hidden;
+  text-align: center;
+}
+
 /* Shape is authoritative in CSS so list compression / inline quirks cannot circle agents. */
 .actor-mark.actor-shape-circle {
   border-radius: 50% !important;

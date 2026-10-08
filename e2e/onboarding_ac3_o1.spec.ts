@@ -127,9 +127,66 @@ test.describe("AC3-O1 onboarding empty store", () => {
     ]);
     await expect(card).toHaveCount(0);
 
-    const itemsRes = await request.get(`${API}/api/items?limit=1`);
-    const itemsBody = (await itemsRes.json()) as { total_count: number };
-    expect(itemsBody.total_count).toBeGreaterThan(0);
+    const itemsRes = await request.get(`${API}/api/items`);
+    expect(itemsRes.ok()).toBeTruthy();
+    const itemsBody = (await itemsRes.json()) as {
+      items: Array<{
+        status: string;
+        blocked_reason: string | null;
+        needs_you_reason: string | null;
+        reminder_at: string | null;
+        reminder_intent: string | null;
+        completed_by_type: string | null;
+      }>;
+    };
+    expect(itemsBody.items.length).toBeGreaterThan(0);
+    const statuses = new Set(itemsBody.items.map((i) => i.status));
+    for (const required of [
+      "inbox",
+      "assigned",
+      "in_progress",
+      "blocked",
+      "needs_you",
+      "done",
+      "cancelled",
+    ]) {
+      expect(statuses.has(required), `missing status ${required}`).toBeTruthy();
+    }
+    expect(
+      itemsBody.items.some(
+        (i) =>
+          i.status === "needs_you" &&
+          (i.needs_you_reason?.trim().length ?? 0) >= 3,
+      ),
+    ).toBeTruthy();
+    expect(
+      itemsBody.items.some(
+        (i) =>
+          i.status === "blocked" && (i.blocked_reason?.trim().length ?? 0) >= 3,
+      ),
+    ).toBeTruthy();
+    expect(
+      itemsBody.items.some(
+        (i) => i.reminder_at != null && (i.reminder_intent?.trim().length ?? 0) > 0,
+      ),
+    ).toBeTruthy();
+    expect(
+      itemsBody.items.some(
+        (i) => i.status === "done" && i.completed_by_type === "agent",
+      ),
+    ).toBeTruthy();
+
+    const notesRes = await request.get(`${API}/api/notes`);
+    const notesBody = (await notesRes.json()) as { notes: { id: string }[] };
+    let linked = 0;
+    for (const note of notesBody.notes) {
+      const detail = await request.get(`${API}/api/notes/${note.id}`);
+      const body = (await detail.json()) as {
+        links: unknown[];
+      };
+      linked += body.links.length;
+    }
+    expect(linked).toBeGreaterThanOrEqual(3);
 
     const agents = await request.get(`${API}/api/agents`);
     const agentBody = (await agents.json()) as {

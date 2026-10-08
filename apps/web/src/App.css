@@ -719,13 +719,8 @@
 }
 
 .onboarding-name-row .onboarding-mark {
+  /* Centering comes from shared .actor-mark in ActorMark.css */
   margin-top: 28px;
-  flex-shrink: 0;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  font-weight: 600;
-  line-height: 1;
 }
 
 .onboarding-counter {

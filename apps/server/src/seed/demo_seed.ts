@@ -55,6 +55,7 @@ type SeedCopy = {
   contextBody: string;
   doneTitle: string;
   doneGoal: string;
+  cancelledTitle: string;
 };
 
 const COPY: Record<AgentLocale, SeedCopy> = {
@@ -84,6 +85,7 @@ const COPY: Record<AgentLocale, SeedCopy> = {
       "Show needs-you, blocked, and today in Attention.\nKeep the clip under three minutes.",
     doneTitle: "Draft this week's changelog",
     doneGoal: "Changelog published on the internal channel",
+    cancelledTitle: "Reserve a backup product domain",
   },
   fr: {
     demoTitle: "Préparer l’enregistrement de la démo produit",
@@ -111,6 +113,7 @@ const COPY: Record<AgentLocale, SeedCopy> = {
       "Montrer needs-you, blocked et aujourd’hui dans À traiter.\nGarder le clip sous trois minutes.",
     doneTitle: "Rédiger le changelog de la semaine",
     doneGoal: "Changelog publié sur le canal interne",
+    cancelledTitle: "Réserver un domaine produit de secours",
   },
   es: {
     demoTitle: "Preparar la grabación de la demo del producto",
@@ -138,6 +141,7 @@ const COPY: Record<AgentLocale, SeedCopy> = {
       "Mostrar te-necesita, atascado y hoy en Atención.\nMantener el clip bajo tres minutos.",
     doneTitle: "Redactar el changelog de esta semana",
     doneGoal: "Changelog publicado en el canal interno",
+    cancelledTitle: "Reservar un dominio de producto de respaldo",
   },
 };
 
@@ -282,6 +286,11 @@ export function seedIntoService(
   );
   svc.delegate(done.id, "agent-writing", user, "ui");
   svc.complete(done.id, writing, "mcp");
+
+  // AC3-D2: all seven statuses — cancelled after a short assigned life.
+  const cancelled = svc.createItem({ title: copy.cancelledTitle }, user, "ui");
+  svc.delegate(cancelled.id, "agent-data", user, "ui");
+  svc.setStatus(cancelled.id, { status: "cancelled" }, user, "ui");
 
   return {
     needsYouId: titular.id,
