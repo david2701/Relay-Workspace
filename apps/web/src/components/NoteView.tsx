@@ -1,12 +1,12 @@
 import { useCallback, useEffect, useId, useState } from "react";
 import { api } from "../lib/api";
-import { formatRelative } from "../lib/format";
 import {
   clearNoteDraft,
   draftIsNewer,
   readNoteDraft,
   toggleTask,
 } from "../lib/markdown";
+import { formatNoteMetaLine } from "../lib/note_meta";
 import type { Note } from "../lib/types";
 import { Markdown } from "./Markdown";
 import { NoteEditor } from "./NoteEditor";
@@ -194,12 +194,9 @@ export function NoteView({
         <h2 id={titleId} className="note-title">
           {note.title}
         </h2>
-        {/* P2: Note has no authorship — date only, never ActorMark */}
+        {/* §6 P2: Note has no authorship — date only, never ActorMark */}
         <p className="note-meta mono">
-          Actualizada {formatRelative(note.updated_at)}
-          {linkCount > 0
-            ? ` · ${linkCount} ítem${linkCount === 1 ? "" : "s"} vinculado${linkCount === 1 ? "" : "s"}`
-            : ""}
+          {formatNoteMetaLine(note.updated_at, linkCount)}
         </p>
 
         {draftPrompt !== null ? (

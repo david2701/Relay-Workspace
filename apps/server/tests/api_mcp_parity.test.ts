@@ -287,3 +287,144 @@ describe("note PATCH conflict 409", () => {
     ).rejects.toBeInstanceOf(ConflictError);
   });
 });
+
+describe("§6 Producto decisions — API/MCP ACs", () => {
+  let dir: string;
+  let svc: RelayService;
+  let app: ReturnType<typeof createApp>;
+  const actor = { type: "user" as const, id: USER_ACTOR_ID };
+
+  beforeEach(() => {
+    dir = mkdtempSync(join(tmpdir(), "relay-p6-"));
+    svc = new RelayService({ dbPath: join(dir, "t.db") });
+    app = createApp(svc, "http://127.0.0.1:7421");
+  });
+
+  afterEach(() => {
+    svc.close();
+    rmSync(dir, { recursive: true, force: true });
+  });
+
+  it("P1: items_get returns hand-picked 23:59 due_at unchanged", async () => {
+    const dueAt = "2026-10-08T21:59:00.000Z";
+    const created = svc.createItem(
+      { title: "Sin hora a mano", due_at: dueAt },
+      actor,
+      "ui",
+    );
+    const mcp = (await invokeMcpTool(svc, "items_get", {
+      id: created.id,
+    })) as { item: { due_at: string | null } };
+    expect(mcp.item.due_at).toBe(dueAt);
+    const http = (await (
+      await app.request(`http://127.0.0.1/api/items/${created.id}`)
+    ).json()) as { item: { due_at: string | null } };
+    expect(http.item.due_at).toBe(dueAt);
+  });
+
+  it("P2: Note schema has no authorship fields via notes_create / API", async () => {
+    const mcp = (await invokeMcpTool(svc, "notes_create", {
+      title: "MCP note",
+      body_md: "desde agente",
+    })) as { note: Record<string, unknown> };
+    const httpRes = await app.request("http://127.0.0.1/api/notes", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ title: "Web note", body_md: "desde web" }),
+    });
+    const http = (await httpRes.json()) as { note: Record<string, unknown> };
+    for (const note of [mcp.note, http.note]) {
+      expect(note).not.toHaveProperty("created_by");
+      expect(note).not.toHaveProperty("updated_by");
+      expect(Object.keys(note).sort()).toEqual(
+        ["body_md", "created_at", "id", "title", "updated_at"].sort(),
+      );
+    }
+  });
+
+  it("P3: search actor=david includes needs_you of grok-bot; assigned inverts", async () => {
+    const need = svc.createItem({ title: "P3 need demo" }, actor, "ui");
+    svc.delegate(need.id, "grok-bot", actor, "ui");
+    svc.askUser(
+      need.id,
+      "Need decision",
+      { type: "agent", id: "grok-bot" },
+      "mcp",
+    );
+    const davidHttp = (await (
+      await app.request(
+        "http://127.0.0.1/api/search?q=P3&actor=david&limit=20",
+      )
+    ).json()) as { items: Array<{ item: { id: string } }> };
+    const davidMcp = (await invokeMcpTool(svc, "search", {
+      q: "P3",
+      actor: ["david"],
+      limit: 20,
+    })) as typeof davidHttp;
+    expect(davidHttp.items.map((h) => h.item.id)).toContain(need.id);
+    expect(davidMcp.items.map((h) => h.item.id)).toContain(need.id);
+
+    const grokHttp = (await (
+      await app.request(
+        "http://127.0.0.1/api/search?q=P3&actor=grok-bot&limit=20",
+      )
+    ).json()) as typeof davidHttp;
+    expect(grokHttp.items.every((h) => h.item.id !== need.id)).toBe(true);
+
+    svc.setStatus(
+      need.id,
+      { status: "assigned" },
+      { type: "agent", id: "grok-bot" },
+      "mcp",
+    );
+    const afterDavid = (await (
+      await app.request(
+        "http://127.0.0.1/api/search?q=P3&actor=david&limit=20",
+      )
+    ).json()) as typeof davidHttp;
+    const afterGrok = (await (
+      await app.request(
+        "http://127.0.0.1/api/search?q=P3&actor=grok-bot&limit=20",
+      )
+    ).json()) as typeof davidHttp;
+    expect(afterDavid.items.every((h) => h.item.id !== need.id)).toBe(true);
+    expect(afterGrok.items.map((h) => h.item.id)).toContain(need.id);
+  });
+
+  it("P4: orphan notes excluded from item search; found via notes search", async () => {
+    const linkedItem = svc.createItem({ title: "Host" }, actor, "ui");
+    const linked = svc.createNote({
+      title: "Linked",
+      body_md: "palabra demo vinculada",
+    });
+    svc.linkNote(linkedItem.id, linked.id);
+    const orphan = svc.createNote({
+      title: "Orphan demo",
+      body_md: "palabra demo huérfana",
+    });
+
+    const itemSearch = (await (
+      await app.request("http://127.0.0.1/api/search?q=demo&limit=20")
+    ).json()) as {
+      items: Array<{ item: { id: string }; match: { note_id?: string } }>;
+    };
+    const itemIds = itemSearch.items.map((h) => h.item.id);
+    expect(itemIds).toContain(linkedItem.id);
+    expect(
+      itemSearch.items.every((h) => h.match.note_id !== orphan.id),
+    ).toBe(true);
+
+    const notesHttp = (await (
+      await app.request("http://127.0.0.1/api/notes/search?q=demo&limit=20")
+    ).json()) as { notes: Array<{ note: { id: string } }> };
+    const notesMcp = (await invokeMcpTool(svc, "notes_search", {
+      q: "demo",
+      limit: 20,
+    })) as typeof notesHttp;
+    expect(notesHttp.notes.map((n) => n.note.id)).toContain(orphan.id);
+    expect(notesHttp.notes.every((n) => n.note.id !== linked.id)).toBe(true);
+    expect(notesMcp.notes.map((n) => n.note.id)).toEqual(
+      notesHttp.notes.map((n) => n.note.id),
+    );
+  });
+});

@@ -25,6 +25,10 @@ import { itemMatchesFacets } from "./lib/facet_filter";
 import { applyInboxDelta, isInboxDelta } from "./lib/inbox_merge";
 import { toPlainText } from "./lib/markdown";
 import { matchesQuery } from "./lib/normalize";
+import {
+  readTodoGroupBy,
+  TODO_GROUP_KEY,
+} from "./lib/todo_group_pref";
 import type {
   Agent,
   AppView,
@@ -47,14 +51,7 @@ import {
 import "./components/ActorMark.css";
 import "./App.css";
 
-const TODO_GROUP_KEY = "relay.todo.groupBy";
 const COLLAPSED_GROUPS_KEY = "relay.groups.collapsed.all";
-
-function readTodoGroupBy(): "due" | "none" {
-  const v = localStorage.getItem(TODO_GROUP_KEY);
-  if (v === "none") return "none";
-  return "due";
-}
 
 function readCollapsedGroups(): Set<string> {
   try {

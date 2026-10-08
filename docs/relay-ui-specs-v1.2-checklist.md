@@ -24,8 +24,8 @@ Assumptions locked by §6 (Producto 8 oct 2026): 23:59 = sin hora; no note autho
 | V12-D14 | PASS | `date_groups.test.ts` order |
 | V12-D15 | gap | Collapsed keys in `localStorage`; J-skip logic; no reload e2e |
 | V12-D16 | gap | Narrow sheet + scrim; focus-trap incomplete |
-| §6 P1 AC | PASS | Hand-picked 23:59 shown without time (same as Sin hora) |
-| §6 P5 AC | PASS | Default `relay.todo.groupBy=due` on first `/all` load |
+| §6 P1 AC | PASS | `product_decisions_v12.test.ts` + API `items_get` same `due_at` |
+| §6 P5 AC | PASS | `readTodoGroupBy` empty → `due`; `none` persists (`todo_group_pref`) |
 
 ## Spec F — Filters + search
 
@@ -46,8 +46,8 @@ Assumptions locked by §6 (Producto 8 oct 2026): 23:59 = sin hora; no note autho
 | V12-F13 | PASS | Empty copy without illustrations |
 | V12-F14 | PASS | Tokens `--chip-h` / `--control-h` |
 | V12-F15 | PASS | Contrast matrix includes `--ink`/`--mark-bg` |
-| §6 P3 AC | PASS | `needs_you` → actor david in search + facets |
-| §6 P4 AC | PASS | `/api/search` + MCP; orphans via `/notes?q=` / `notes_search` |
+| §6 P3 AC | PASS | `product_decisions_v12` + API/MCP search: needs_you↔assigned invert |
+| §6 P4 AC | PASS | Item search excludes orphans; `/api/notes/search` + MCP `notes_search` |
 
 ## Spec M — Markdown notes
 
@@ -69,7 +69,7 @@ Assumptions locked by §6 (Producto 8 oct 2026): 23:59 = sin hora; no note autho
 | V12-M14 | PASS | 409 banner + keep editor text |
 | V12-M15 | PASS | Draft localStorage recover/discard |
 | V12-M16 | PASS | Contrast pairs in matrix |
-| §6 P2 AC | PASS | Metadata date-only; no ActorMark on notes |
+| §6 P2 AC | PASS | `formatNoteMetaLine` date-only; Note keys exclude `created_by` |
 
 ## Keyboard chain (§4.2)
 
