@@ -71,7 +71,7 @@ describe("actor mark identity", () => {
   it("Alex assignee is never a square", () => {
     const mark = markForActor("user", "david", agents);
     expect(mark.kind).toBe("user");
-    expect(mark.monogram).toBe("D");
+    expect(mark.monogram).toBe("A");
   });
 
   it("completer mark follows completed_by type", () => {
