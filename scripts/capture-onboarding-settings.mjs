@@ -59,6 +59,7 @@ for (const loc of LOCALES) {
       viewport: { width: vp.w, height: vp.h },
       colorScheme: "light",
       locale: loc.code === "en" ? "en-US" : loc.code === "fr" ? "fr-FR" : "es-ES",
+      timezoneId: "Europe/Paris",
     });
     const page = await context.newPage();
     await page.addInitScript((code) => {
@@ -69,6 +70,8 @@ for (const loc of LOCALES) {
     const card = page.locator(".onboarding-card");
     await card.waitFor({ state: "visible" });
     await page.locator("#onboarding-name").fill(loc.name);
+    // Collapse timezone picker so the rest of the card is visible.
+    await page.keyboard.press("Escape");
     await page.waitForTimeout(200);
     const cardPath = resolve(
       outDir,
@@ -88,6 +91,7 @@ for (const loc of LOCALES) {
       viewport: { width: vp.w, height: vp.h },
       colorScheme: "light",
       locale: loc.code === "en" ? "en-US" : loc.code === "fr" ? "fr-FR" : "es-ES",
+      timezoneId: "Europe/Paris",
     });
     const page = await context.newPage();
     await page.addInitScript((code) => {

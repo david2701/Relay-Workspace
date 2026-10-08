@@ -381,7 +381,8 @@ export function SettingsPanel({
                     }}
                   />
                   <span
-                    className="actor-mark"
+                    className="actor-mark actor-user actor-shape-circle"
+                    style={{ width: 22, height: 22, fontSize: 11 }}
                     data-kind="user"
                     data-shape="circle"
                     data-monogram={initial || "·"}

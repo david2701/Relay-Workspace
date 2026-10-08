@@ -263,7 +263,8 @@ export function OnboardingCard({ isPreloaded, onCompleted }: Props) {
               ) : null}
             </label>
             <span
-              className="actor-mark"
+              className="actor-mark actor-user actor-shape-circle onboarding-mark"
+              style={{ width: 22, height: 22, fontSize: 11 }}
               data-kind="user"
               data-shape="circle"
               data-monogram={liveInitial}

@@ -718,9 +718,14 @@
   margin-bottom: 0;
 }
 
-.onboarding-name-row .actor-mark {
+.onboarding-name-row .onboarding-mark {
   margin-top: 28px;
   flex-shrink: 0;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-weight: 600;
+  line-height: 1;
 }
 
 .onboarding-counter {
@@ -805,10 +810,26 @@
   gap: 6px;
 }
 
+.app-shell.is-onboarding {
+  grid-template-columns: var(--rail-w) minmax(0, 1fr);
+}
+
+.app-shell.is-onboarding .onboarding-shell {
+  grid-column: 2 / -1;
+  min-height: 0;
+  overflow: auto;
+}
+
 .app-shell.is-onboarding .list-zone,
 .app-shell.is-onboarding .detail-panel,
 .app-shell.is-onboarding .note-view {
   display: none;
+}
+
+@media (max-width: 1279px) {
+  .app-shell.is-onboarding {
+    grid-template-columns: var(--rail-w-collapsed) minmax(0, 1fr);
+  }
 }
 
 @media (max-width: 520px) {
