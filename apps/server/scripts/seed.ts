@@ -37,7 +37,7 @@ export function seedDatabase(dbPath: string = resolvedDb): {
 
   const demo = svc.createItem(
     {
-      title: "Prepare the product demo recording Grok Bot",
+      title: "Prepare the product demo recording",
       goal: "Three-minute demo of the chat → Relay → done loop",
       priority: "high",
       due_at: hoursFromNow(3),
