@@ -11,8 +11,8 @@ import { DetailPanel } from "./components/DetailPanel";
 import { FilterBar } from "./components/FilterBar";
 import { ItemRow } from "./components/ItemRow";
 import { NoteView } from "./components/NoteView";
-import { focusSearchField } from "./components/SearchField";
 import { OnboardingCard } from "./components/OnboardingCard";
+import { focusSearchField } from "./components/SearchField";
 import {
   parseSettingsSection,
   SettingsPanel,
