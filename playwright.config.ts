@@ -14,6 +14,17 @@ export default defineConfig({
     baseURL: E2E_WEB,
     headless: true,
     viewport: { width: 1440, height: 900 },
+    // Keep legacy Spanish UI selectors working in existing e2e; i18n specs
+    // override via addInitScript / localStorage.clear.
+    storageState: {
+      cookies: [],
+      origins: [
+        {
+          origin: E2E_WEB,
+          localStorage: [{ name: "relay.locale", value: "es" }],
+        },
+      ],
+    },
   },
   webServer: [
     {

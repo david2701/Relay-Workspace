@@ -34,6 +34,17 @@ export function SettingsPanel({
     if (open) setDraft(settings);
   }, [open, settings]);
 
+  useEffect(() => {
+    if (!open) return;
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key !== "Escape") return;
+      e.stopPropagation();
+      onClose();
+    };
+    window.addEventListener("keydown", onKey, true);
+    return () => window.removeEventListener("keydown", onKey, true);
+  }, [open, onClose]);
+
   if (!open) return null;
 
   return (
@@ -48,6 +59,7 @@ export function SettingsPanel({
         <label className="settings-field">
           <span>{t("settings.language")}</span>
           <select
+            aria-label={t("settings.language")}
             value={locale}
             onChange={(e) => {
               const next = e.target.value as LocaleCode;
@@ -64,6 +76,7 @@ export function SettingsPanel({
         <label className="settings-field">
           <span>{t("settings.name")}</span>
           <input
+            aria-label={t("settings.name")}
             value={draft.user_display_name}
             onChange={(e) => {
               const v = e.target.value;
@@ -75,6 +88,7 @@ export function SettingsPanel({
         <label className="settings-field">
           <span>{t("settings.initial")}</span>
           <input
+            aria-label={t("settings.initial")}
             maxLength={4}
             value={draft.user_initial}
             onChange={(e) => {
@@ -87,6 +101,7 @@ export function SettingsPanel({
         <label className="settings-field">
           <span>{t("settings.timezone")}</span>
           <input
+            aria-label={t("settings.timezone")}
             value={draft.timezone}
             onChange={(e) => {
               const v = e.target.value;
@@ -98,7 +113,7 @@ export function SettingsPanel({
         </label>
         <div className="settings-actions">
           <button type="button" className="btn-secondary" onClick={onClose}>
-            {t("settings.save")}
+            {t("settings.close")}
           </button>
           <button
             type="button"
