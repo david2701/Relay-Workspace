@@ -23,7 +23,9 @@
     "contrast": "node scripts/contrast-matrix.mjs",
     "capture:ac12": "node scripts/capture-ac12.mjs",
     "benchmark:ac3": "node scripts/benchmark-ac3-sla.mjs",
-    "benchmark:large": "node scripts/benchmark-large.mjs"
+    "benchmark:large": "node scripts/benchmark-large.mjs",
+    "check:mcp-docs": "node scripts/check-mcp-docs-tools.mjs",
+    "capture:mcp-examples": "node scripts/capture-mcp-examples.mjs"
   },
   "devDependencies": {
     "@biomejs/biome": "^2.5.15",

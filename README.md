@@ -6,7 +6,8 @@ an attention inbox, an MCP server, and a professional Spanish web UI.
 
 Canonical product brief: [`docs/task-hub-brief-v2.md`](docs/task-hub-brief-v2.md)  
 UI specs (v1.1): [`docs/relay-ui-specs.md`](docs/relay-ui-specs.md)  
-Plan: [`docs/PLAN.md`](docs/PLAN.md)
+Plan: [`docs/PLAN.md`](docs/PLAN.md)  
+MCP (EN): [`docs/mcp/README.en.md`](docs/mcp/README.en.md) · MCP (ES): [`docs/mcp/README.es.md`](docs/mcp/README.es.md)
 
 ## Stack
 
@@ -37,7 +38,14 @@ pnpm dev
 
 Server binds to **127.0.0.1 only**. Data file: `data/relay.db` (WAL).
 
-## MCP connection
+## MCP
+
+Full reference (tools, actor identity, connection configs, errors, end-to-end flow):
+
+- English: [`docs/mcp/README.en.md`](docs/mcp/README.en.md)
+- Español: [`docs/mcp/README.es.md`](docs/mcp/README.es.md)
+
+Verify documented tools match the server: `pnpm check:mcp-docs`.
 
 Agents identify themselves with catalog id via:
 
