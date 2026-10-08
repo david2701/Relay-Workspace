@@ -1,28 +1,36 @@
 /**
  * Settings dialog per ui-spec v0.3 §2 — profile, language, timezone, theme, about.
- * Autosave on change; no Save button. PROVISIONAL shell until onboarding lands.
+ * Autosave on change; no Save button.
  */
 import { useEffect, useMemo, useRef, useState } from "react";
 import { formatLocaleDisplayName } from "../i18n/format_locale";
 import { useI18n } from "../i18n/I18nProvider";
+import { translate } from "../i18n/translate";
 import type { LocaleCode, MessageKey } from "../i18n/types";
 import { SUPPORTED_LOCALES } from "../i18n/types";
 import type { RelaySettings } from "../lib/api";
+import { graphemeCount, MAX_NAME_GRAPHEMES } from "../lib/grapheme";
 import { initialFromName } from "../lib/initial_from_name";
 import { ThemeSwitch } from "./ThemeSwitch";
 
 type Theme = "light" | "dark" | "system";
-type Section = "profile" | "language" | "timezone" | "theme" | "about";
+export type SettingsSection =
+  | "profile"
+  | "language"
+  | "timezone"
+  | "theme"
+  | "about";
 
 type Props = {
   open: boolean;
   settings: RelaySettings;
   theme: Theme;
   version: string;
+  offline?: boolean;
   onClose: () => void;
   onPatch: (patch: Partial<RelaySettings>) => Promise<void>;
   onThemeChange: (theme: Theme) => void;
-  initialSection?: Section;
+  initialSection?: SettingsSection;
 };
 
 const LANG_LABEL: Record<LocaleCode, MessageKey> = {
@@ -31,13 +39,15 @@ const LANG_LABEL: Record<LocaleCode, MessageKey> = {
   es: "lang.es",
 };
 
-const SECTION_KEYS: Record<Section, MessageKey> = {
+const SECTION_KEYS: Record<SettingsSection, MessageKey> = {
   profile: "settings.section.profile",
   language: "settings.section.language",
   timezone: "settings.section.timezone",
   theme: "settings.section.theme",
   about: "settings.section.about",
 };
+
+const SECTIONS = Object.keys(SECTION_KEYS) as SettingsSection[];
 
 function browserTimeZone(): string {
   try {
@@ -71,22 +81,30 @@ export function SettingsPanel({
   settings,
   theme,
   version,
+  offline = false,
   onClose,
   onPatch,
   onThemeChange,
   initialSection = "profile",
 }: Props) {
   const { locale, setLocale, t, intlLocale } = useI18n();
-  const [section, setSection] = useState<Section>(initialSection);
+  const [section, setSection] = useState<SettingsSection>(initialSection);
   const [name, setName] = useState(settings.user_display_name);
   const [initial, setInitial] = useState(settings.user_initial);
+  const [initialTouched, setInitialTouched] = useState(false);
   const [nameError, setNameError] = useState<string | null>(null);
   const [tzQuery, setTzQuery] = useState("");
-  const [status, setStatus] = useState<"idle" | "saving" | "saved" | "error">(
-    "idle",
-  );
+  const [status, setStatus] = useState<
+    "idle" | "saving" | "saved" | "error" | "offline"
+  >("idle");
   const [announce, setAnnounce] = useState("");
+  const [pendingPatch, setPendingPatch] = useState<Partial<RelaySettings> | null>(
+    null,
+  );
   const nameRef = useRef<HTMLInputElement>(null);
+  const langRadioRef = useRef<HTMLInputElement>(null);
+  const panelRef = useRef<HTMLDivElement>(null);
+  const debounceRef = useRef<number | null>(null);
   const zones = useMemo(() => listTimeZones(), []);
   const browserZone = useMemo(() => browserTimeZone(), []);
 
@@ -95,11 +113,29 @@ export function SettingsPanel({
     setSection(initialSection);
     setName(settings.user_display_name);
     setInitial(settings.user_initial);
+    setInitialTouched(false);
     setNameError(null);
     setTzQuery("");
     setStatus("idle");
-    window.setTimeout(() => nameRef.current?.focus(), 0);
-  }, [open, initialSection, settings.user_display_name, settings.user_initial]);
+    setPendingPatch(null);
+    window.setTimeout(() => {
+      if (initialSection === "language") {
+        langRadioRef.current?.focus();
+      } else if (initialSection === "profile") {
+        nameRef.current?.focus();
+      } else {
+        panelRef.current
+          ?.querySelector<HTMLElement>(`#settings-${initialSection}`)
+          ?.querySelector<HTMLElement>("input,button,select,[href]")
+          ?.focus();
+      }
+    }, 0);
+  }, [
+    open,
+    initialSection,
+    settings.user_display_name,
+    settings.user_initial,
+  ]);
 
   useEffect(() => {
     if (!open) return;
@@ -112,15 +148,28 @@ export function SettingsPanel({
     return () => window.removeEventListener("keydown", onKey, true);
   }, [open, onClose]);
 
+  useEffect(() => {
+    return () => {
+      if (debounceRef.current !== null) window.clearTimeout(debounceRef.current);
+    };
+  }, []);
+
   async function persist(patch: Partial<RelaySettings>): Promise<boolean> {
+    if (offline) {
+      setPendingPatch(patch);
+      setStatus("offline");
+      return false;
+    }
     setStatus("saving");
     try {
       await onPatch(patch);
       setStatus("saved");
+      setPendingPatch(null);
       window.setTimeout(() => setStatus("idle"), 1000);
       return true;
     } catch {
       setStatus("error");
+      setPendingPatch(patch);
       return false;
     }
   }
@@ -131,18 +180,28 @@ export function SettingsPanel({
       setNameError(t("settings.profile.nameError"));
       return;
     }
-    if (trimmed.length > 40) {
+    if (graphemeCount(trimmed, intlLocale) > MAX_NAME_GRAPHEMES) {
       setNameError(t("settings.profile.nameTooLong"));
       return;
     }
     setNameError(null);
     const nextInitial =
-      initial.trim() || initialFromName(trimmed, intlLocale) || "·";
+      initialTouched && initial.trim()
+        ? initial.trim().slice(0, 4)
+        : initialFromName(trimmed, intlLocale) || "·";
     setInitial(nextInitial);
+    setName(trimmed);
     await persist({
       user_display_name: trimmed,
-      user_initial: nextInitial.slice(0, 4),
+      user_initial: nextInitial,
     });
+  }
+
+  function scheduleNameSave(): void {
+    if (debounceRef.current !== null) window.clearTimeout(debounceRef.current);
+    debounceRef.current = window.setTimeout(() => {
+      void commitName();
+    }, 600);
   }
 
   async function commitInitial(): Promise<void> {
@@ -165,12 +224,27 @@ export function SettingsPanel({
     hour: "numeric",
     minute: "2-digit",
   }).format(new Date());
+  const nameGraphemes = graphemeCount(name, intlLocale);
+  const isTooLong = nameGraphemes > MAX_NAME_GRAPHEMES;
+  const showCounter = nameGraphemes >= 32;
 
   if (!open) return null;
+
+  const statusText =
+    status === "saving"
+      ? t("settings.saving")
+      : status === "saved"
+        ? t("settings.saved")
+        : status === "error"
+          ? t("settings.error")
+          : status === "offline"
+            ? t("settings.offlinePending")
+            : "";
 
   return (
     <div className="modal-scrim" onClick={onClose}>
       <div
+        ref={panelRef}
         className="settings-panel"
         role="dialog"
         aria-modal="true"
@@ -180,13 +254,21 @@ export function SettingsPanel({
         <header className="settings-head">
           <h2 id="settings-title">{t("settings.title")}</h2>
           <span className="settings-status mono" aria-live="polite">
-            {status === "saving"
-              ? t("settings.saving")
-              : status === "saved"
-                ? t("settings.saved")
-                : status === "error"
-                  ? t("settings.error")
-                  : ""}
+            {statusText}
+            {status === "error" && pendingPatch ? (
+              <>
+                {" "}
+                <button
+                  type="button"
+                  className="linkish"
+                  onClick={() => {
+                    if (pendingPatch) void persist(pendingPatch);
+                  }}
+                >
+                  {t("common.retry")}
+                </button>
+              </>
+            ) : null}
           </span>
           <button
             type="button"
@@ -199,7 +281,7 @@ export function SettingsPanel({
         </header>
         <div className="settings-body">
           <nav className="settings-index" aria-label={t("settings.title")}>
-            {(Object.keys(SECTION_KEYS) as Section[]).map((id) => (
+            {SECTIONS.map((id) => (
               <a
                 key={id}
                 href={`#settings-${id}`}
@@ -225,28 +307,59 @@ export function SettingsPanel({
                 <input
                   ref={nameRef}
                   value={name}
-                  maxLength={40}
-                  aria-invalid={nameError ? true : undefined}
+                  aria-invalid={nameError || isTooLong ? true : undefined}
+                  aria-describedby={
+                    showCounter || nameError || isTooLong
+                      ? "settings-name-meta"
+                      : undefined
+                  }
                   onChange={(e) => {
-                    setName(e.target.value);
+                    const next = e.target.value;
+                    setName(next);
                     setNameError(null);
-                    if (!initial.trim() && e.target.value.trim()) {
-                      setInitial(initialFromName(e.target.value, intlLocale));
+                    if (!initialTouched) {
+                      setInitial(
+                        next.trim()
+                          ? initialFromName(next, intlLocale)
+                          : "",
+                      );
                     }
+                    scheduleNameSave();
                   }}
-                  onBlur={() => void commitName()}
+                  onBlur={() => {
+                    if (debounceRef.current !== null) {
+                      window.clearTimeout(debounceRef.current);
+                      debounceRef.current = null;
+                    }
+                    void commitName();
+                  }}
                   onKeyDown={(e) => {
                     if (e.key === "Enter") {
                       e.preventDefault();
+                      if (debounceRef.current !== null) {
+                        window.clearTimeout(debounceRef.current);
+                        debounceRef.current = null;
+                      }
                       void commitName();
                     }
                   }}
                 />
-                {nameError ? (
-                  <span className="settings-error" role="alert">
-                    {nameError || t("settings.profile.nameError")}
-                  </span>
-                ) : null}
+                <span id="settings-name-meta">
+                  {showCounter ? (
+                    <span
+                      className={`onboarding-counter mono${isTooLong ? " is-crit" : ""}`}
+                    >
+                      {t("settings.profile.nameCounter", {
+                        count: nameGraphemes,
+                      })}
+                    </span>
+                  ) : null}
+                  {nameError || isTooLong ? (
+                    <span className="settings-error" role="alert">
+                      {nameError ?? t("settings.profile.nameTooLong")}
+                    </span>
+                  ) : null}
+                </span>
               </label>
               <label className="settings-field settings-initial-row">
                 <span>{t("settings.profile.initial")}</span>
@@ -255,7 +368,10 @@ export function SettingsPanel({
                     className="settings-initial-input"
                     value={initial}
                     maxLength={4}
-                    onChange={(e) => setInitial(e.target.value)}
+                    onChange={(e) => {
+                      setInitialTouched(true);
+                      setInitial(e.target.value);
+                    }}
                     onBlur={() => void commitInitial()}
                     onKeyDown={(e) => {
                       if (e.key === "Enter") {
@@ -290,17 +406,31 @@ export function SettingsPanel({
                 <legend>{t("settings.language.label")}</legend>
                 <div className="settings-segment" role="radiogroup">
                   {SUPPORTED_LOCALES.map((code) => (
-                    <label key={code} lang={code} className={locale === code ? "on" : ""}>
+                    <label
+                      key={code}
+                      lang={code}
+                      className={locale === code ? "on" : ""}
+                    >
                       <input
+                        ref={locale === code ? langRadioRef : undefined}
                         type="radio"
                         name="settings-locale"
                         value={code}
                         checked={locale === code}
                         onChange={() => {
                           setLocale(code);
+                          let language: string = code;
+                          try {
+                            language =
+                              new Intl.DisplayNames([code], {
+                                type: "language",
+                              }).of(code) ?? code;
+                          } catch {
+                            /* keep code */
+                          }
                           setAnnounce(
-                            t("settings.language.announce", {
-                              language: t(LANG_LABEL[code]),
+                            translate(code, "settings.language.announce", {
+                              language,
                             }),
                           );
                         }}
@@ -328,7 +458,7 @@ export function SettingsPanel({
             >
               <h3 id="settings-timezone-h">{t("settings.section.timezone")}</h3>
               <label className="settings-field">
-                <span>{t("settings.timezone")}</span>
+                <span>{t("settings.section.timezone")}</span>
                 <input
                   role="combobox"
                   aria-autocomplete="list"
@@ -358,7 +488,9 @@ export function SettingsPanel({
                   </li>
                 ))}
                 {filteredZones.length === 0 ? (
-                  <li className="settings-hint">{t("settings.timezone.noResults")}</li>
+                  <li className="settings-hint">
+                    {t("settings.timezone.noResults")}
+                  </li>
                 ) : null}
               </ul>
               <p className="settings-hint">
@@ -412,4 +544,12 @@ export function SettingsPanel({
       </div>
     </div>
   );
+}
+
+export function parseSettingsSection(
+  raw: string | null | undefined,
+): SettingsSection | null {
+  if (!raw) return null;
+  if ((SECTIONS as string[]).includes(raw)) return raw as SettingsSection;
+  return null;
 }

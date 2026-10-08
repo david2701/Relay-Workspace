@@ -18,6 +18,7 @@ describe("PR4 display name validation", () => {
     });
     expect(next.user_display_name).toBe("Élodie");
     expect(next.user_initial).toBe("É");
+    expect(next.onboarding_completed_at).toBeNull();
     svc.close();
   });
 
@@ -25,5 +26,19 @@ describe("PR4 display name validation", () => {
     expect(initialFromName("élodie", "fr")).toBe("É");
     expect(initialFromName("Ana", "es")).toBe("A");
     expect(initialFromName("  Alex  ")).toBe("A");
+  });
+
+  it("persists onboarding_completed_at across get/update", () => {
+    const dir = mkdtempSync(join(tmpdir(), "relay-onb-"));
+    const svc = new RelayService({ dbPath: join(dir, "t.db") });
+    expect(svc.getSettings().onboarding_completed_at).toBeNull();
+    const at = "2026-10-08T12:00:00.000Z";
+    const next = svc.updateSettings({ onboarding_completed_at: at });
+    expect(next.onboarding_completed_at).toBe(at);
+    expect(svc.getSettings().onboarding_completed_at).toBe(at);
+    svc.prepareOnboardingProfile();
+    expect(svc.getSettings().onboarding_completed_at).toBeNull();
+    expect(svc.getSettings().user_display_name).toBe("");
+    svc.close();
   });
 });

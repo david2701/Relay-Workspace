@@ -59,6 +59,7 @@ function stripComments(src) {
 function collectTargets() {
   const targets = [];
   for (const rel of [
+    "apps/server/src/seed/demo_seed.ts",
     "apps/server/scripts/seed.ts",
     "apps/server/scripts/seed_large.ts",
     "apps/server/scripts/ac3_demo.ts",

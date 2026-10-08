@@ -192,11 +192,14 @@ export class RelayService {
   }
 
   getSettings(): RelaySettings {
+    const completedRaw = this.readMeta("onboarding_completed_at");
     const raw = {
       timezone: this.readMeta("timezone") ?? DEFAULT_SETTINGS.timezone,
       user_display_name:
         this.readMeta("user_display_name") ?? DEFAULT_SETTINGS.user_display_name,
       user_initial: this.readMeta("user_initial") ?? DEFAULT_SETTINGS.user_initial,
+      onboarding_completed_at:
+        completedRaw && completedRaw.length > 0 ? completedRaw : null,
     };
     return SettingsSchema.parse(raw);
   }
@@ -233,7 +236,31 @@ export class RelayService {
     if (patch.user_initial !== undefined) {
       this.writeMeta("user_initial", merged.user_initial);
     }
-    return merged;
+    if (patch.onboarding_completed_at !== undefined) {
+      this.writeMeta(
+        "onboarding_completed_at",
+        patch.onboarding_completed_at ?? "",
+      );
+    }
+    return this.getSettings();
+  }
+
+  /**
+   * Test / prepare-onboarding helper: empty profile + incomplete onboarding.
+   * Bypasses UpdateSettingsSchema so the display name can be cleared.
+   */
+  prepareOnboardingProfile(): void {
+    this.writeMeta("user_display_name", "");
+    this.writeMeta("user_initial", "");
+    this.writeMeta("onboarding_completed_at", "");
+  }
+
+  /** Count of work items (for empty vs preloaded onboarding variant). */
+  countWorkItems(): number {
+    const row = this.db
+      .prepare(`SELECT COUNT(*) AS n FROM work_items`)
+      .get() as { n: number };
+    return row.n;
   }
 
   /**

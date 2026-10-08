@@ -358,7 +358,10 @@ export function createApi(svc: RelayService): Hono {
 
   app.get("/settings", (c) => {
     try {
-      return c.json({ settings: svc.getSettings() });
+      return c.json({
+        settings: svc.getSettings(),
+        work_item_count: svc.countWorkItems(),
+      });
     } catch (err) {
       return handleError(c, err);
     }
@@ -372,7 +375,80 @@ export function createApi(svc: RelayService): Hono {
           ? (body.settings as Record<string, unknown>)
           : body;
       const settings = svc.updateSettings(patch);
-      return c.json({ settings });
+      return c.json({
+        settings,
+        work_item_count: svc.countWorkItems(),
+      });
+    } catch (err) {
+      return handleError(c, err);
+    }
+  });
+
+  app.patch("/settings", async (c) => {
+    try {
+      const body = (await c.req.json()) as Record<string, unknown>;
+      const patch =
+        body.settings && typeof body.settings === "object"
+          ? (body.settings as Record<string, unknown>)
+          : body;
+      const settings = svc.updateSettings(patch);
+      return c.json({
+        settings,
+        work_item_count: svc.countWorkItems(),
+      });
+    } catch (err) {
+      return handleError(c, err);
+    }
+  });
+
+  const SeedBodySchema = z.object({
+    locale: z.enum(["en", "fr", "es"]).default("en"),
+  });
+
+  /** Load sample data in a locale; preserves profile + onboarding_completed_at. */
+  app.post("/seed", async (c) => {
+    try {
+      const body = SeedBodySchema.parse((await c.req.json().catch(() => ({}))) ?? {});
+      const { seedIntoService } = await import("../seed/demo_seed.js");
+      const seeded = seedIntoService(svc, body.locale, {
+        applyDemoProfile: false,
+      });
+      return c.json({
+        ok: true,
+        locale: seeded.locale,
+        work_item_count: svc.countWorkItems(),
+        settings: svc.getSettings(),
+      });
+    } catch (err) {
+      return handleError(c, err);
+    }
+  });
+
+  const PrepareOnboardingSchema = z.object({
+    variant: z.enum(["empty", "preloaded"]),
+    locale: z.enum(["en", "fr", "es"]).default("en"),
+  });
+
+  /**
+   * E2E / local helper: empty store or EN-preloaded demo with
+   * onboarding_completed_at null and an empty profile (PR1 / AC3-O1).
+   */
+  app.post("/store/prepare-onboarding", async (c) => {
+    try {
+      const body = PrepareOnboardingSchema.parse(await c.req.json());
+      if (body.variant === "empty") {
+        svc.resetData();
+      } else {
+        const { seedIntoService } = await import("../seed/demo_seed.js");
+        seedIntoService(svc, body.locale, { applyDemoProfile: false });
+      }
+      svc.prepareOnboardingProfile();
+      return c.json({
+        ok: true,
+        variant: body.variant,
+        work_item_count: svc.countWorkItems(),
+        settings: svc.getSettings(),
+      });
     } catch (err) {
       return handleError(c, err);
     }

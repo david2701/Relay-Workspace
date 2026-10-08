@@ -12,7 +12,12 @@ import { FilterBar } from "./components/FilterBar";
 import { ItemRow } from "./components/ItemRow";
 import { NoteView } from "./components/NoteView";
 import { focusSearchField } from "./components/SearchField";
-import { SettingsPanel } from "./components/SettingsPanel";
+import { OnboardingCard } from "./components/OnboardingCard";
+import {
+  parseSettingsSection,
+  SettingsPanel,
+  type SettingsSection,
+} from "./components/SettingsPanel";
 import { ThemeSwitch } from "./components/ThemeSwitch";
 import { VirtualItemList } from "./components/VirtualItemList";
 import { useActorLabels } from "./hooks/useActorLabels";
@@ -89,9 +94,17 @@ const DEFAULT_SETTINGS: RelaySettings = {
   timezone: "Europe/Paris",
   user_display_name: "",
   user_initial: "",
+  onboarding_completed_at: null,
 };
 
 const APP_VERSION = "0.3.0-dev";
+
+function readSettingsSectionFromUrl(): SettingsSection | null {
+  if (typeof window === "undefined") return null;
+  return parseSettingsSection(
+    new URLSearchParams(window.location.search).get("settings"),
+  );
+}
 
 export default function App() {
   const t = useT();
@@ -99,7 +112,19 @@ export default function App() {
   const { locale, intlLocale } = useI18n();
   const { theme, setTheme } = useTheme();
   const [settings, setSettings] = useState<RelaySettings>(DEFAULT_SETTINGS);
-  const [settingsOpen, setSettingsOpen] = useState(false);
+  const [workItemCount, setWorkItemCount] = useState(0);
+  const [settingsStatus, setSettingsStatus] = useState<
+    "loading" | "ok" | "error"
+  >("loading");
+  const urlSettingsSection = readSettingsSectionFromUrl();
+  const [settingsOpen, setSettingsOpen] = useState(
+    () => urlSettingsSection !== null,
+  );
+  const [settingsSection, setSettingsSection] = useState<SettingsSection>(
+    () => urlSettingsSection ?? "profile",
+  );
+  const settingsTriggerRef = useRef<HTMLElement | null>(null);
+  const attentionTitleRef = useRef<HTMLHeadingElement | null>(null);
   const [agents, setAgents] = useState<Agent[]>([]);
   const VIEWS = useMemo(
     (): { id: AppView; label: string }[] => [
@@ -216,8 +241,20 @@ export default function App() {
   }, []);
 
   useEffect(() => {
-    void api.getSettings().then((r) => setSettings(r.settings));
+    void api
+      .getSettings()
+      .then((r) => {
+        setSettings(r.settings);
+        setWorkItemCount(r.work_item_count);
+        setSettingsStatus("ok");
+      })
+      .catch(() => {
+        setSettingsStatus("error");
+      });
   }, []);
+
+  const needsOnboarding =
+    settingsStatus === "ok" && settings.onboarding_completed_at === null;
 
   useEffect(() => {
     setDisplayContext({
@@ -795,6 +832,7 @@ export default function App() {
 
   useEffect(() => {
     function onKey(e: KeyboardEvent) {
+      if (needsOnboarding) return;
       const t = e.target as HTMLElement | null;
       const typing =
         t &&
@@ -900,6 +938,13 @@ export default function App() {
       }
       if (gPending) {
         if (e.key.toLowerCase() === "s") {
+          if (needsOnboarding) {
+            setGPending(false);
+            return;
+          }
+          settingsTriggerRef.current =
+            (document.activeElement as HTMLElement) ?? null;
+          setSettingsSection("profile");
           setSettingsOpen(true);
           setGPending(false);
           return;
@@ -990,8 +1035,12 @@ export default function App() {
       : VIEWS.find((v) => v.id === view)?.label ?? "Relay";
 
   return (
-    <div className="app-shell">
-      <nav className="rail" aria-label={t("a11y.views")}>
+    <div className={`app-shell${needsOnboarding ? " is-onboarding" : ""}`}>
+      <nav
+        className="rail"
+        aria-label={t("a11y.views")}
+        inert={needsOnboarding ? true : undefined}
+      >
         <div className="brand">Relay</div>
         <ul>
           {VIEWS.filter((v) => v.id !== "notes").map((v) => (
@@ -1040,20 +1089,45 @@ export default function App() {
           </button>
           <button
             type="button"
-            className="linkish"
-            onClick={() => setSettingsOpen(true)}
+            className="linkish settings-rail-btn"
+            onClick={(e) => {
+              settingsTriggerRef.current = e.currentTarget;
+              setSettingsSection("profile");
+              setSettingsOpen(true);
+            }}
             aria-label={t("nav.settings")}
           >
-            ⚙
+            <span aria-hidden="true">⚙</span> {t("settings.open")}
           </button>
           <ThemeSwitch theme={theme} onChange={setTheme} />
         </div>
       </nav>
 
-      <main className="list-zone">
+      {needsOnboarding ? (
+        <OnboardingCard
+          isPreloaded={workItemCount > 0}
+          onCompleted={(next) => {
+            setSettings(next);
+            void api.getSettings().then((r) => {
+              setSettings(r.settings);
+              setWorkItemCount(r.work_item_count);
+            });
+            void api.agents().then((r) => setAgents(r.agents));
+            reload();
+            selectView("attention");
+            window.setTimeout(() => {
+              attentionTitleRef.current?.focus();
+            }, 50);
+          }}
+        />
+      ) : null}
+
+      <main className="list-zone" hidden={needsOnboarding}>
         <header className="list-head">
           <div className="list-head-title">
-            <h2>{title}</h2>
+            <h2 ref={attentionTitleRef} tabIndex={-1}>
+              {title}
+            </h2>
             {headerCount !== null ? (
               <span className="list-head-count mono" aria-hidden>
                 · {headerCount}
@@ -1422,7 +1496,7 @@ relay web   →  http://127.0.0.1:7421`}</pre>
         />
       ) : null}
 
-      {selectedNoteId ? (
+      {needsOnboarding ? null : selectedNoteId ? (
         <NoteView
           noteId={selectedNoteId}
           offline={offline}
@@ -1476,11 +1550,18 @@ relay web   →  http://127.0.0.1:7421`}</pre>
       ) : null}
 
       <SettingsPanel
-        open={settingsOpen}
+        open={settingsOpen && !needsOnboarding}
         settings={settings}
         theme={theme}
         version={APP_VERSION}
-        onClose={() => setSettingsOpen(false)}
+        offline={offline}
+        initialSection={settingsSection}
+        onClose={() => {
+          setSettingsOpen(false);
+          window.setTimeout(() => {
+            settingsTriggerRef.current?.focus();
+          }, 0);
+        }}
         onPatch={async (patch) => {
           applySettingsPatch(patch);
           await persistSettings(patch);

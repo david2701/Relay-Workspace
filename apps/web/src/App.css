@@ -527,6 +527,11 @@
   color: var(--ink);
 }
 
+.settings-field input[aria-invalid="true"],
+.onboarding-name-field input[aria-invalid="true"] {
+  border-color: var(--crit);
+}
+
 .settings-hint {
   margin: 0 0 8px;
   color: var(--ink-muted);
@@ -649,6 +654,179 @@
   }
 }
 
+/* §3 First-run card */
+.onboarding-shell {
+  --onboarding-w: 520px;
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  justify-content: center;
+  align-items: flex-start;
+  padding: calc(var(--space-8, 32px) + 8vh) var(--space-5, 20px) var(--space-8, 32px);
+}
+
+.onboarding-card {
+  width: min(var(--onboarding-w), 100%);
+  padding: var(--space-8, 32px);
+  background: var(--raised);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-md);
+}
+
+.onboarding-card h1 {
+  margin: 0 0 8px;
+  font-size: var(--step-h1, 1.75rem);
+  font-weight: 650;
+  color: var(--ink);
+}
+
+.onboarding-lede {
+  margin: 0 0 var(--space-6, 24px);
+  color: var(--ink-2);
+  font-size: var(--step-body, 1rem);
+  line-height: 1.45;
+}
+
+.onboarding-label {
+  display: block;
+  margin: 0 0 8px;
+  font-size: var(--step-label, 12px);
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--ink-muted);
+}
+
+.onboarding-lang,
+.onboarding-start,
+.onboarding-tz {
+  margin: 0 0 var(--space-6, 24px);
+  padding: 0;
+  border: 0;
+  min-width: 0;
+}
+
+.onboarding-name-row {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  margin-bottom: var(--space-6, 24px);
+}
+
+.onboarding-name-field {
+  flex: 1;
+  min-width: 0;
+  margin-bottom: 0;
+}
+
+.onboarding-name-row .actor-mark {
+  margin-top: 28px;
+  flex-shrink: 0;
+}
+
+.onboarding-counter {
+  display: block;
+  margin-top: 4px;
+  text-align: right;
+  color: var(--ink-muted);
+  font-size: var(--step-data);
+}
+
+.onboarding-counter.is-crit {
+  color: var(--crit);
+}
+
+.onboarding-tz-line {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 8px 12px;
+  color: var(--ink);
+  font-size: var(--step-body, 1rem);
+}
+
+.onboarding-tz input[role="combobox"] {
+  width: 100%;
+  font: inherit;
+  height: var(--control-h, 36px);
+  padding: 8px 10px;
+  border: 1px solid var(--control, var(--line));
+  border-radius: var(--radius-sm);
+  background: var(--paper);
+  color: var(--ink);
+  margin-top: 8px;
+}
+
+.onboarding-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  margin-bottom: 8px;
+}
+
+.onboarding-actions .btn-primary,
+.onboarding-actions .btn-secondary {
+  height: var(--control-h, 36px);
+  padding: 0 16px;
+  white-space: nowrap;
+}
+
+.onboarding-preloaded-note {
+  margin: 0 0 12px;
+  color: var(--ink-2);
+}
+
+.onboarding-reload {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  margin: 0 0 16px;
+  color: var(--ink-2);
+  font-size: var(--step-body, 1rem);
+}
+
+.onboarding-error-band {
+  margin: 12px 0;
+  padding: 10px 12px;
+  border-radius: var(--radius-sm);
+  background: color-mix(in srgb, var(--crit) 12%, var(--raised));
+  color: var(--crit);
+  font-size: var(--step-data);
+}
+
+.onboarding-later {
+  margin: var(--space-6, 24px) 0 0;
+  color: var(--ink-muted);
+  font-size: var(--step-data);
+}
+
+.settings-rail-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.app-shell.is-onboarding .list-zone,
+.app-shell.is-onboarding .detail-panel,
+.app-shell.is-onboarding .note-view {
+  display: none;
+}
+
+@media (max-width: 520px) {
+  .onboarding-shell {
+    padding: var(--space-5, 20px);
+  }
+  .onboarding-card {
+    padding: var(--space-5, 20px);
+  }
+  .onboarding-actions {
+    flex-direction: column;
+  }
+  .onboarding-actions .btn-primary,
+  .onboarding-actions .btn-secondary {
+    width: 100%;
+  }
+}
+
 .shortcuts ul {
   padding-left: 18px;
   color: var(--ink-2);
@@ -657,4 +835,41 @@
 
 .linkish {
   color: var(--accent-ink);
+  background: none;
+  border: 0;
+  padding: 0;
+  font: inherit;
+  cursor: pointer;
+}
+
+.btn-primary,
+.btn-secondary {
+  height: var(--control-h, 36px);
+  padding: 0 12px;
+  border-radius: var(--radius-sm);
+  font-size: var(--step-meta, 0.875rem);
+  font-weight: 500;
+  cursor: pointer;
+}
+
+.btn-primary {
+  border: 0;
+  background: var(--accent);
+  color: var(--on-accent);
+}
+
+.btn-primary:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
+.btn-secondary {
+  background: transparent;
+  color: var(--ink);
+  border: 1px solid var(--control, var(--line));
+}
+
+.btn-secondary:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
 }

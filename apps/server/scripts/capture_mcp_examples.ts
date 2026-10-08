@@ -9,7 +9,7 @@ import { join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { RelayService, USER_ACTOR_ID } from "@relay/core";
 import { createMcpTools } from "../src/mcp/tools.js";
-import { seedDatabase } from "./seed.js";
+import { seedDatabase } from "../src/seed/demo_seed.js";
 
 const root = resolve(fileURLToPath(new URL("../../..", import.meta.url)));
 const outPath = join(root, "docs/mcp/examples.json");

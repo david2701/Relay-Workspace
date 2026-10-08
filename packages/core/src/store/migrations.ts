@@ -185,4 +185,11 @@ INSERT OR IGNORE INTO relay_meta(key, value) VALUES ('user_display_name', '');
 INSERT OR IGNORE INTO relay_meta(key, value) VALUES ('user_initial', '');
 `,
   },
+  {
+    version: 5,
+    sql: `
+-- First-run card (§3): null/absent means onboarding has not been completed.
+INSERT OR IGNORE INTO relay_meta(key, value) VALUES ('onboarding_completed_at', '');
+`,
+  },
 ];
