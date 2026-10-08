@@ -36,6 +36,16 @@ function boxesOverlap(
   );
 }
 
+/** True when label/value collide on one line (stacked sheet cells are OK). */
+function shortcutLabelOverlapsValue(
+  name: { x: number; y: number; width: number; height: number },
+  when: { x: number; y: number; width: number; height: number },
+): boolean {
+  const stacked = name.y + name.height <= when.y + 1;
+  if (stacked) return false;
+  return boxesOverlap(name, when);
+}
+
 for (const width of [1440, 768, 390] as const) {
   test(`DatePicker layout @ ${width}px — no clip/overlap, in viewport, footer baseline`, async ({
     page,
@@ -63,7 +73,7 @@ for (const width of [1440, 768, 390] as const) {
       const whenBox = await when.boundingBox();
       expect(nameBox).toBeTruthy();
       expect(whenBox).toBeTruthy();
-      expect(boxesOverlap(nameBox!, whenBox!)).toBe(false);
+      expect(shortcutLabelOverlapsValue(nameBox!, whenBox!)).toBe(false);
       // Value fully visible (no mid-glyph clip): right edge inside dialog.
       expect(whenBox!.x + whenBox!.width).toBeLessThanOrEqual(vb.x + vb.width + 1);
       // Label/value stay single-line glyphs (sheet may stack value under label).

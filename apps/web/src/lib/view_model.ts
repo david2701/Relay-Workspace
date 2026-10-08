@@ -172,7 +172,11 @@ export function buildViewSections(args: {
     .map((r) => r.item)
     .filter((i) => {
       if (args.inboxView === "agent_wip") {
-        // Never linger needs_you / inbox / done into Con agentes.
+        // Keep agent WIP rows, and briefly keep done/cancelled so AC3 can
+        // flash the completion before the row leaves Con agentes.
+        // Never linger needs_you / inbox here (those belong in Atención).
+        if (i.status === "needs_you" || i.status === "inbox") return false;
+        if (i.status === "done" || i.status === "cancelled") return true;
         return i.assignee_type === "agent" && isAgentWipStatus(i.status);
       }
       return true;

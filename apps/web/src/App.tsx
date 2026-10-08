@@ -22,8 +22,16 @@ import { api } from "./lib/api";
 import { copy } from "./lib/copy";
 import { groupByDue } from "./lib/date_groups";
 import { itemMatchesFacets } from "./lib/facet_filter";
-import { applyInboxDelta, isInboxDelta } from "./lib/inbox_merge";
-import { appendInboxPage, INBOX_PAGE_SIZE } from "./lib/inbox_page";
+import {
+  applyInboxDelta,
+  ensureAttentionSections,
+  isInboxDelta,
+} from "./lib/inbox_merge";
+import {
+  appendInboxPage,
+  ATTENTION_PAGE_SIZE,
+  INBOX_PAGE_SIZE,
+} from "./lib/inbox_page";
 import { toPlainText } from "./lib/markdown";
 import { matchesQuery } from "./lib/normalize";
 import {
@@ -218,9 +226,13 @@ export default function App() {
           // Fall through to paged snapshot on delta errors.
         }
       }
-      const snap = (await api.inbox(inboxView, {
-        limit: INBOX_PAGE_SIZE,
-      })) as InboxResult;
+      const pageSize =
+        inboxView === "attention" ? ATTENTION_PAGE_SIZE : INBOX_PAGE_SIZE;
+      const snap = ensureAttentionSections(
+        (await api.inbox(inboxView, {
+          limit: pageSize,
+        })) as InboxResult,
+      );
       syncCursorRef.current = snap.sync_cursor ?? null;
       inboxStateRef.current = snap;
       return snap;
@@ -230,18 +242,26 @@ export default function App() {
 
   const loadMoreInbox = useCallback(async () => {
     const cur = inboxStateRef.current;
-    if (!cur || !cur.has_more || !cur.next_cursor || loadingMoreRef.current) {
+    if (!cur?.has_more || !cur.next_cursor || loadingMoreRef.current) {
       return;
     }
     loadingMoreRef.current = true;
+    const cursor = cur.next_cursor;
     try {
       const page = (await api.inbox(inboxView, {
         limit: INBOX_PAGE_SIZE,
-        cursor: cur.next_cursor,
+        cursor,
       })) as InboxResult;
-      const merged = appendInboxPage(cur, page);
-      // Preserve the live sync cursor from the previous state.
-      if (cur.sync_cursor) merged.sync_cursor = cur.sync_cursor;
+      // Merge onto the *latest* ref — a delta poll may have landed while
+      // this page fetch was in flight (AC3 mutations must not be wiped).
+      const latest = inboxStateRef.current ?? cur;
+      const merged = appendInboxPage(latest, page);
+      if (latest.sync_cursor) merged.sync_cursor = latest.sync_cursor;
+      if (latest.counters) merged.counters = latest.counters;
+      if (latest.section_counts) merged.section_counts = latest.section_counts;
+      if (latest.total_count !== undefined) {
+        merged.total_count = latest.total_count;
+      }
       inboxStateRef.current = merged;
       setInboxRaw(merged);
     } catch {
@@ -369,13 +389,15 @@ export default function App() {
 
   function flash(id: string) {
     setFlashIds((prev) => new Set(prev).add(id));
+    // Keep the seek token past one poll tick so virtualized oldest-first
+    // rows at section ends still scroll into view (AC3 ≤2 s).
     window.setTimeout(() => {
       setFlashIds((prev) => {
         const n = new Set(prev);
         n.delete(id);
         return n;
       });
-    }, 800);
+    }, 2500);
   }
 
   const facetsActive = hasActiveFacets(urlState.facets);

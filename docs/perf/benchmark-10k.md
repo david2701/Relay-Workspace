@@ -3,33 +3,49 @@
 Measured on commit base `e1bb5e5` (BEFORE) and this branch (AFTER) against
 `pnpm seed:large` (10 000 work items + 2 000 notes, deterministic).
 
+## Seed inventory (SQL)
+
+`pnpm seed:large` writes **exactly 10 000** work items and **2 000** notes:
+
+| status | count |
+|---|---:|
+| inbox | 2200 |
+| assigned | 2000 |
+| in_progress | 2000 |
+| blocked | 120 |
+| needs_you | 80 |
+| done | 2600 |
+| cancelled | 1000 |
+| **total** | **10000** |
+
+- **Todo** (`view=all`) is non-terminal only → **6400** (excludes done+cancelled).
+- **Atención** is intentionally **modest**: ~80 Te necesita / ~120 Atascado, plus
+  schedule-driven «Para hoy» (~1900). Not a 700+/2k stress of those sections.
+- Earlier screenshots that showed «Atención · 2719» / «Te necesita · 700» were
+  from a prior seed shape; current seed and docs match the table above.
+
 ## Method
 
 1. `RELAY_DB=data/relay-large.db pnpm seed:large`
 2. Start API `:7420` + web `:7421` against that DB.
-3. `RELAY_PHASE=before|after pnpm benchmark:large` (`scripts/benchmark-large.mjs`):
-   - **API / MCP**: 20 samples each of `GET /api/inbox?view=attention`,
-     `GET /api/inbox?view=all`, `GET /api/inbox?view=all&limit=50` (AFTER),
-     and MCP `inbox_query` via `/mcp/invoke`. Reports p50 / p95 / payload bytes.
-   - **Poll steady state**: first inbox fetch, then a second fetch with
-     `since=sync_cursor` when the server supports it.
-   - **UI**: Playwright Chromium 1440×900 — time to first `role=option` and to
-     interactive click for Atención and Todo; scripted `scrollTop` through the
-     list with rAF sampling (fps / long frames >32 ms).
-
-Raw JSON: [`benchmark-10k.json`](./benchmark-10k.json),
-`artifacts/perf/benchmark-10k-{before,after}.json`.
+3. `RELAY_PHASE=before|after pnpm benchmark:large`:
+   - API / MCP latency and payload (full + paged)
+   - Poll: first page + `since=sync_cursor` delta
+   - UI first-row / interactive (Playwright 1440×900)
+   - **Wheel scroll**: `mouse.wheel` in ~100 px steps over a few seconds + rAF
+     frame sampling + CDP `Performance.getMetrics` (not `scrollTop` jumps)
 
 ## What changed (AFTER)
 
 | Lever | Change |
 |---|---|
-| SQLite | Migration v2 indexes (status/assignee/due/reminder/completed) + FTS5 `search_fts` |
-| Pagination | Cursor pages on items/notes/inbox (`limit`/`cursor`) — API and MCP parity |
-| Incremental sync | `GET /api/inbox?since=` / MCP `inbox_query.since` → delta upserts + `removed_ids` |
-| Web poll | Snapshot on view change; 750 ms ticks use `since=sync_cursor` |
-| Virtualization | `@tanstack/react-virtual` over `.item-list`; section `· N` from data model |
-| Search (v1.2) | `GET /api/search` + MCP `search` / `notes_search` (FTS5, accent-insensitive) |
+| SQLite | Migration v2 indexes + FTS5 |
+| Pagination | Cursor pages API/MCP; **web uses them** (Todo `limit=50`, Atención `limit=200`) |
+| Counts | `total_count` / `section_counts` from server; headers use those, not DOM |
+| Incremental sync | Delta poll for loaded window + counts; load-more merges onto latest ref |
+| Virtualization | Fixed row estimates (no `measureElement`); memoized rows; flash→`scrollToIndex` |
+| Atención order | Spec **oldest-first** restored; AC3 via flash seek (not newest-first) |
+| Scroll | ~60 fps wheel; p95 frame ≈16.7 ms |
 
 ## Results
 
@@ -37,42 +53,48 @@ Raw JSON: [`benchmark-10k.json`](./benchmark-10k.json),
 
 | Metric | BEFORE | AFTER |
 |---|---:|---:|
-| `GET /inbox?view=attention` p50 / p95 | 66 / 92 ms | 81 / 114 ms |
-| Attention payload | 3 418 310 B | 3 282 633 B |
-| `GET /inbox?view=all` p50 / p95 | 57 / 66 ms | 69 / 72 ms |
-| All payload (full) | 3 531 276 B | 3 531 413 B |
-| `GET /inbox?view=all&limit=50` payload | *(ignored limit → full 3.5 MB)* | **28 761 B** |
-| MCP `inbox_query` p50 / p95 | 66 / 73 ms | 76 / 87 ms |
-| Poll steady-state payload | 3 418 310 B (full snapshot) | **257 B (delta)** |
-| Poll mode | snapshot | delta |
+| `GET /inbox?view=attention` (full) p50 / p95 | 66 / 92 ms | 71 / 79 ms |
+| Attention full payload | 3 418 310 B | 2 652 207 B |
+| `GET /inbox?view=attention&limit=200` (web first page) | *(n/a / full)* | **112 214 B**, p50 **60 ms** |
+| `GET /inbox?view=all` (full) p50 / p95 | 57 / 66 ms | 61 / 65 ms |
+| All full payload | 3 531 276 B | 3 792 520 B |
+| `GET /inbox?view=all&limit=50` | 3.5 MB (limit ignored) | **26 283 B**, p50 **47 ms** |
+| MCP `inbox_query` (full) p50 / p95 | 66 / 73 ms | 70 / 80 ms |
+| Poll initial (web Atención page) | 3.4 MB snapshot | **112 KB page** |
+| Poll steady-state | 3.4 MB snapshot | **257 B delta** |
 
-Full-snapshot inbox latency is in the same ballpark (still builds the view in
-process). The win is **pagination for agents** (~100× smaller pages) and
-**incremental poll** (~13 000× smaller steady ticks).
-
-### UI load and scroll
+### UI load
 
 | Metric | BEFORE | AFTER |
 |---|---:|---:|
-| Atención → first row | *Chromium crashed (~2832 DOM rows)* | **36 ms** |
-| Atención → interactive | crash | **65 ms** |
-| Todo → first row | crash (~6000 DOM rows) | **833 ms** |
-| Todo → interactive | crash | **864 ms** |
-| Visible DOM options (Atención / Todo) | 2832 / 6000 | ~19 / ~28 |
-| Scroll fps (scripted) | unmeasurable | 10.6 (39 long frames) |
+| Atención → first row | Chromium crash (~2832 DOM rows) | **34 ms** |
+| Atención → interactive | crash | **51 ms** |
+| Todo → first row | crash (~6000 DOM rows) | **145 ms** (goal ≤300) |
+| Todo → interactive | crash | **163 ms** |
 
-Scripted `scrollTop` jumps stress layout; real wheel input is smoother. The
-critical BEFORE failure mode (tab crash / multi‑second full re-render every
-750 ms) is gone.
+### Wheel scroll (mouse.wheel + rAF + CDP)
 
-## AC3 SLA
+| View | fps | p95 frame | >16.7 ms | >32 ms |
+|---|---:|---:|---:|---:|
+| Atención | **60.1** | **16.8 ms** | 38 | **0** |
+| Todo | **59.3** | **16.7 ms** | 45 | 2 |
 
-| Seed | overall max (MCP→DOM) | Result |
+Frames above 16.7 ms are mostly compositor scheduling jitter around the 60 Hz
+quantum; Atención has **zero** >32 ms long frames. CDP on Todo: LayoutCount 3,
+ScriptDuration ~0.27 s over the whole sample window.
+
+## AC3 SLA (MCP→DOM, spec oldest-first)
+
+| Seed | overall max | Result |
 |---|---:|---|
-| Demo (`pnpm seed`) | **732 ms** | PASS ≤2000 |
-| Large (`pnpm seed:large`) | **742 ms** | PASS ≤2000 |
+| Demo (`pnpm seed`) | **720 ms** | PASS ≤2000 |
+| Large (`pnpm seed:large`) | **695 ms** | PASS ≤2000 |
 
-Attention sections sort **newest-first** so mutations stay in the virtualized
-window; `sync_cursor` is wall-clock (not `max(updated_at)`) so future seed
-stamps cannot hide live writes. Large seed keeps Atención modest
-(~80 needs_you / ~120 blocked) while still totaling 10 000 items.
+## Trade-offs
+
+- Atención first page is **200** rows (API max) so Te necesita + Atascado fit
+  under oldest-first; payload **~112 KB** after omitting duplicated `sections`
+  bodies from paged JSON (client rebuilds sections).
+- Full-snapshot inbox latency is unchanged in ballpark; the win is **paged web
+  loads**, **delta poll**, and **stable wheel scroll**.
+- Newest-first was reverted (out of product scope); proposal remains open in the PR.

@@ -126,3 +126,11 @@ export function isInboxDelta(
     Array.isArray((payload as InboxSyncDelta).removed_ids)
   );
 }
+
+/** Ensure Atención snapshots always expose sections (paged API may omit them). */
+export function ensureAttentionSections(snap: InboxResult): InboxResult {
+  if (snap.view !== "attention") return snap;
+  if (snap.sections && snap.sections.length > 0) return snap;
+  const sections = rebuildAttentionSections(snap.items);
+  return { ...snap, sections, items: sections.flatMap((s) => s.items) };
+}

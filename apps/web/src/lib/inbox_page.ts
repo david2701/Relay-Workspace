@@ -1,7 +1,15 @@
+import { rebuildAttentionSections } from "./inbox_merge";
 import type { InboxResult, WorkItem } from "./types";
 
 /** First-page size for web inbox fetches (keeps payload ≪ 200 KB at 10k). */
 export const INBOX_PAGE_SIZE = 50;
+
+/**
+ * Atención first page: cover Te necesita + Atascado entirely (modest seed:
+ * 80 + 120) so oldest-first MCP mutations at section ends are in-window.
+ * Capped at the API max page size (200).
+ */
+export const ATTENTION_PAGE_SIZE = 200;
 
 /** Append a cursor page onto an existing snapshot without duplicating ids. */
 export function appendInboxPage(
@@ -26,7 +34,7 @@ export function appendInboxPage(
   if (page.server_time) next.server_time = page.server_time;
 
   if (prev.view === "attention" || prev.sections || page.sections) {
-    next.sections = mergeAttentionSections(prev.sections, page.sections, items);
+    next.sections = rebuildAttentionSections(items);
   }
   if (prev.groups || page.groups) {
     next.groups = mergeFlatGroups(prev.groups, page.groups, additions);

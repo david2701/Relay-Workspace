@@ -1,5 +1,9 @@
 import { describe, expect, it } from "vitest";
-import { appendInboxPage, INBOX_PAGE_SIZE } from "./inbox_page";
+import {
+  appendInboxPage,
+  ATTENTION_PAGE_SIZE,
+  INBOX_PAGE_SIZE,
+} from "./inbox_page";
 import type { InboxResult, WorkItem } from "./types";
 
 function item(
@@ -30,8 +34,9 @@ function item(
 }
 
 describe("appendInboxPage", () => {
-  it("uses page size 50", () => {
+  it("uses page size 50 (Todo) and 200 (Atención first window)", () => {
     expect(INBOX_PAGE_SIZE).toBe(50);
+    expect(ATTENTION_PAGE_SIZE).toBe(200);
   });
 
   it("appends without duplicating ids and keeps cursors", () => {

@@ -171,11 +171,12 @@ export function VirtualItemList({
     if (!useVirtual) return;
     for (const id of flashIds) {
       if (seenFlash.current.has(id)) continue;
-      seenFlash.current.add(id);
       const index = rows.findIndex((r) => r.type === "item" && r.item.id === id);
-      if (index >= 0) {
-        virtualizer.scrollToIndex(index, { align: "center" });
-      }
+      // Only mark seen once the row exists — otherwise a flash that races the
+      // inbox merge would never scroll (AC3 oldest-first at section end).
+      if (index < 0) continue;
+      seenFlash.current.add(id);
+      virtualizer.scrollToIndex(index, { align: "center" });
     }
     for (const id of [...seenFlash.current]) {
       if (!flashIds.has(id)) seenFlash.current.delete(id);
@@ -183,8 +184,9 @@ export function VirtualItemList({
   }, [flashIds, rows, useVirtual, virtualizer]);
 
   // Infinite scroll: request next page when near the end of loaded rows.
+  // Skip while a flash seek is pending so load-more cannot race AC3 scrolls.
   useEffect(() => {
-    if (!onLoadMore || !hasMore) return;
+    if (!onLoadMore || !hasMore || flashIds.size > 0) return;
     const el = scrollRef.current;
     if (!el) return;
     const onScroll = () => {
@@ -194,7 +196,7 @@ export function VirtualItemList({
     el.addEventListener("scroll", onScroll, { passive: true });
     onScroll();
     return () => el.removeEventListener("scroll", onScroll);
-  }, [onLoadMore, hasMore, scrollRef, rows.length]);
+  }, [onLoadMore, hasMore, scrollRef, rows.length, flashIds.size]);
 
   const itemProps = {
     agents,

@@ -98,8 +98,8 @@ async function measureMcpInbox(samples = 20) {
 }
 
 async function measurePollPayload() {
-  // Web client first page + incremental steady state.
-  const first = await timedFetch(`${API}/api/inbox?view=attention&limit=50`);
+  // Web client first page + incremental steady state (Atención window = 200).
+  const first = await timedFetch(`${API}/api/inbox?view=attention&limit=200`);
   const syncCursor =
     first.json.sync_cursor ??
     first.json.server_time ??
@@ -110,7 +110,7 @@ async function measurePollPayload() {
       `${API}/api/inbox?view=attention&since=${encodeURIComponent(syncCursor)}`,
     );
   } else {
-    second = await timedFetch(`${API}/api/inbox?view=attention&limit=50`);
+    second = await timedFetch(`${API}/api/inbox?view=attention&limit=200`);
   }
   return {
     initial_bytes: first.bytes,
@@ -282,7 +282,7 @@ async function main() {
 
   const apiAttentionFull = await measureApi("/api/inbox?view=attention");
   const apiAttentionPage = await measureApi(
-    "/api/inbox?view=attention&limit=50",
+    "/api/inbox?view=attention&limit=200",
   );
   const apiAllFull = await measureApi("/api/inbox?view=all");
   const apiAllPage = await measureApi("/api/inbox?view=all&limit=50").catch(

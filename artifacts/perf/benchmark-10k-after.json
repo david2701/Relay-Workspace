@@ -1,65 +1,120 @@
 {
   "phase": "after",
-  "measured_at": "2026-10-08T08:19:22.289Z",
-  "item_total_hint": 6000,
+  "measured_at": "2026-10-08T10:14:44.937Z",
+  "item_total_hint": 6508,
   "api": {
     "inbox_attention": {
       "path": "/api/inbox?view=attention",
       "samples": 20,
-      "p50_ms": 80.82,
-      "p95_ms": 113.65,
-      "mean_ms": 86.11,
-      "payload_bytes": 3282633
+      "p50_ms": 70.7,
+      "p95_ms": 79.06,
+      "mean_ms": 72.85,
+      "payload_bytes": 2652207
+    },
+    "inbox_attention_page": {
+      "path": "/api/inbox?view=attention&limit=200",
+      "samples": 20,
+      "p50_ms": 59.7,
+      "p95_ms": 61.3,
+      "mean_ms": 59.6,
+      "payload_bytes": 112214
     },
     "inbox_all": {
       "path": "/api/inbox?view=all",
       "samples": 20,
-      "p50_ms": 68.77,
-      "p95_ms": 71.61,
-      "mean_ms": 68.55,
-      "payload_bytes": 3531413
+      "p50_ms": 60.57,
+      "p95_ms": 65.18,
+      "mean_ms": 61.73,
+      "payload_bytes": 3792520
     },
     "inbox_all_page": {
       "path": "/api/inbox?view=all&limit=50",
       "samples": 20,
-      "p50_ms": 57.56,
-      "p95_ms": 66.66,
-      "mean_ms": 57.28,
-      "payload_bytes": 28761
+      "p50_ms": 46.98,
+      "p95_ms": 49.62,
+      "mean_ms": 47.44,
+      "payload_bytes": 26283
     }
   },
   "mcp": {
     "inbox_query": {
       "tool": "inbox_query",
       "samples": 20,
-      "p50_ms": 75.83,
-      "p95_ms": 87.21,
-      "mean_ms": 77.23,
-      "payload_bytes": 3282644
+      "p50_ms": 70.24,
+      "p95_ms": 80.23,
+      "mean_ms": 72.07,
+      "payload_bytes": 2652218
     }
   },
   "poll": {
-    "initial_bytes": 3282633,
+    "initial_bytes": 112214,
     "steady_bytes": 257,
     "mode": "delta"
   },
   "ui": {
     "attention": {
       "view": "attention",
-      "to_first_row_ms": 35.97,
-      "to_interactive_ms": 64.54
+      "to_first_row_ms": 34.47,
+      "to_interactive_ms": 51.44
     },
     "all": {
       "view": "all",
-      "to_first_row_ms": 833.34,
-      "to_interactive_ms": 863.93
+      "to_first_row_ms": 145.25,
+      "to_interactive_ms": 163.39
+    },
+    "scroll_attention": {
+      "view": "attention",
+      "method": "mouse.wheel",
+      "scroll_distance_px": 4000,
+      "frames": 172,
+      "avg_frame_ms": 16.65,
+      "fps": 60.05,
+      "p95_frame_ms": 16.8,
+      "long_frames_over_16_7ms": 38,
+      "long_frames_over_32ms": 0,
+      "cdp_metrics": {
+        "LayoutCount": 40,
+        "LayoutDuration": 0.010171,
+        "RecalcStyleCount": 169,
+        "RecalcStyleDuration": 0.01304,
+        "ScriptDuration": 0.332593
+      }
+    },
+    "scroll_all": {
+      "view": "all",
+      "method": "mouse.wheel",
+      "scroll_distance_px": 4000,
+      "frames": 181,
+      "avg_frame_ms": 16.85,
+      "fps": 59.34,
+      "p95_frame_ms": 16.7,
+      "long_frames_over_16_7ms": 45,
+      "long_frames_over_32ms": 2,
+      "cdp_metrics": {
+        "LayoutCount": 3,
+        "LayoutDuration": 0.003143,
+        "RecalcStyleCount": 78,
+        "RecalcStyleDuration": 0.016069,
+        "ScriptDuration": 0.271382
+      }
     },
     "scroll": {
-      "frames": 74,
-      "avg_frame_ms": 94.62,
-      "fps": 10.57,
-      "long_frames_over_32ms": 39,
-      "scroll_distance_px": 20000
+      "view": "all",
+      "method": "mouse.wheel",
+      "scroll_distance_px": 4000,
+      "frames": 181,
+      "avg_frame_ms": 16.85,
+      "fps": 59.34,
+      "p95_frame_ms": 16.7,
+      "long_frames_over_16_7ms": 45,
+      "long_frames_over_32ms": 2,
+      "cdp_metrics": {
+        "LayoutCount": 3,
+        "LayoutDuration": 0.003143,
+        "RecalcStyleCount": 78,
+        "RecalcStyleDuration": 0.016069,
+        "ScriptDuration": 0.271382
+      }
     }
   }
 }

@@ -285,10 +285,16 @@ export function queryInbox(args: InboxQueryArgs): InboxQueryResult {
   if (args.limit !== undefined) pageOpts.limit = args.limit;
   if (args.cursor !== undefined) pageOpts.cursor = args.cursor;
   const { page, next_cursor, has_more } = paginateItems(full.items, pageOpts);
-  const pageIds = new Set(page.map((i) => i.id));
+  // List pages omit goal (detail fetch still has it) to keep web first-paint
+  // payloads under ~200 KB at the Atención window of 200 rows.
+  const pageItems =
+    args.limit !== undefined
+      ? page.map((item) => (item.goal ? { ...item, goal: null } : item))
+      : page;
+  const pageIds = new Set(pageItems.map((i) => i.id));
   const result: InboxQueryResult = {
     view: args.view,
-    items: page,
+    items: pageItems,
     counters,
     total_count: full.items.length,
     next_cursor,
@@ -300,7 +306,11 @@ export function queryInbox(args: InboxQueryArgs): InboxQueryResult {
   };
   if (full.section_counts) result.section_counts = full.section_counts;
   if (full.group_counts) result.group_counts = full.group_counts;
-  if (full.sections) result.sections = sliceSections(full.sections, pageIds);
+  // Paged responses: send flat `items` only (client rebuilds sections) so the
+  // JSON is not doubled by sections[].items — keeps Atención ≤200 KB.
+  if (full.sections && args.limit === undefined) {
+    result.sections = sliceSections(full.sections, pageIds);
+  }
   if (full.groups) result.groups = sliceGroups(full.groups, pageIds);
   return result;
 }

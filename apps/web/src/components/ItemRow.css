@@ -103,11 +103,17 @@
   display: flex;
   align-items: center;
   gap: 8px;
-  flex-shrink: 1;
+  flex-shrink: 0;
   min-width: 0;
-  max-width: min(46%, 420px);
+  max-width: min(42%, 380px);
   margin-left: 12px;
   justify-content: flex-end;
+}
+
+/* Prefer truncating the soft intent, never mid-glyph on the due chip. */
+.item-meta .reminder-chip .intent {
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 .due-chip {
