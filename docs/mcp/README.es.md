@@ -73,6 +73,13 @@ FTS5 se mantiene al día con disparadores SQL en `work_items` / `notes`.
 **Limitación:** un `UPDATE` SQL que cambie una fila sin tocar `updated_at` sí se
 verá en search/list tras refrescar la caché, pero no entrará en un poll delta
 hasta que `updated_at` avance (o el cliente pida un snapshot nuevo).
+**Limitación:** un `DELETE` SQL directo borra la fila de la base de datos. Tras
+refrescar la caché, deja de aparecer en search y en las listas, pero el poll
+delta no la envía en `removed_ids`: esos ids solo salen de filas que siguen
+existiendo, con `updated_at` más reciente que `since`, y que han salido de la
+vista (por ejemplo un complete por API o MCP). Los disparadores del watermark
+`relay_meta` son solo INSERT/UPDATE. Solución: bórrala por la API o por MCP, o
+recarga / pide un snapshot nuevo del inbox.
 
 ### Cursor — `.cursor/mcp.json`
 

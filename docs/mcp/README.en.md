@@ -64,7 +64,13 @@ its in-memory item cache, so creates/updates from stdio (or raw SQL that bumps
 SQL triggers on `work_items` / `notes`. **Limitation:** a raw SQL edit that
 changes a row without updating `updated_at` is visible in search/list after the
 cache refresh, but will not appear in a delta poll until `updated_at` moves (or
-the client takes a fresh snapshot).
+the client takes a fresh snapshot). **Limitation:** a raw SQL `DELETE` removes
+the row from the database. After the cache refresh, it disappears from search
+and lists, but delta poll never emits it in `removed_ids` — those ids come only
+from rows that still exist with `updated_at` newer than `since` and have left
+the view (for example an API/MCP complete). The `relay_meta` sync watermark
+triggers are INSERT/UPDATE only. Workaround: delete through the API or MCP, or
+reload / take a fresh inbox snapshot.
 
 ### Cursor — `.cursor/mcp.json`
 
