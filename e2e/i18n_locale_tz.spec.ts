@@ -38,19 +38,35 @@ async function selectSettingsSection(
   await page.getByRole("dialog").locator(".settings-index a").filter({ hasText: name }).click();
 }
 
+async function chooseLanguage(page: Page, endonym: string): Promise<void> {
+  await selectSettingsSection(page, /Language|Idioma|Langue/i);
+  await page
+    .getByRole("dialog")
+    .locator("label")
+    .filter({ hasText: endonym })
+    .click();
+}
+
 async function saveTimezone(page: Page, tz: string): Promise<void> {
   await openSettings(page);
   await selectSettingsSection(page, /Timezone|Zona horaria|Fuseau/i);
   const combo = page.getByRole("dialog").getByRole("combobox");
+  await combo.click();
   await combo.fill(tz);
-  const wait = page.waitForResponse(
-    (r) =>
-      r.url().includes("/api/settings") &&
-      r.request().method() === "PUT" &&
-      r.ok(),
-  );
-  await page.getByRole("dialog").getByRole("option", { name: tz, exact: true }).click();
-  await wait;
+  const option = page
+    .getByRole("dialog")
+    .locator(".settings-tz-list button")
+    .filter({ hasText: new RegExp(`^${tz}$`) });
+  await expect(option.first()).toBeVisible();
+  await Promise.all([
+    page.waitForResponse(
+      (r) =>
+        r.url().includes("/api/settings") &&
+        r.request().method() === "PUT" &&
+        r.ok(),
+    ),
+    option.first().click(),
+  ]);
   await closeSettings(page);
 }
 
@@ -161,8 +177,7 @@ test.describe("AC3-L4/L5 locale", () => {
     await expect(page.locator("html")).toHaveAttribute("lang", "en");
 
     await openSettings(page);
-    await selectSettingsSection(page, /Language|Idioma|Langue/i);
-    await page.getByRole("dialog").getByRole("radio", { name: "Français" }).check();
+    await chooseLanguage(page, "Français");
     await expect(page.locator("html")).toHaveAttribute("lang", "fr");
     const storedBefore = await page.evaluate(() =>
       localStorage.getItem("relay.locale"),
@@ -192,8 +207,7 @@ test.describe("AC3-L4/L5 locale", () => {
     await expect(page.locator(".detail-zone")).toBeVisible();
 
     await openSettings(page);
-    await selectSettingsSection(page, /Language|Idioma|Langue/i);
-    await page.getByRole("dialog").getByRole("radio", { name: "English" }).check();
+    await chooseLanguage(page, "English");
     await closeSettings(page);
 
     await expect(page.locator("html")).toHaveAttribute("lang", "en");
