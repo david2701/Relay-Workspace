@@ -180,15 +180,20 @@ describe("API–MCP pagination, search, sync parity", () => {
       `http://127.0.0.1/api/inbox?view=attention&since=${encodeURIComponent(since ?? "")}`,
     );
     expect(httpDeltaRes.status).toBe(200);
-    const httpDelta = await httpDeltaRes.json();
-    const mcpDelta = await invokeMcpTool(svc, "inbox_query", {
+    const httpDelta = (await httpDeltaRes.json()) as Record<string, unknown>;
+    const mcpDelta = (await invokeMcpTool(svc, "inbox_query", {
       view: "attention",
       since,
-    });
-    expect(mcpDelta).toEqual(httpDelta);
-    expect((httpDelta as { mode: string }).mode).toBe("delta");
+    })) as Record<string, unknown>;
+    // server_time is stamped per call; compare stable payload fields.
+    const { server_time: httpTime, ...httpRest } = httpDelta;
+    const { server_time: mcpTime, ...mcpRest } = mcpDelta;
+    expect(httpTime).toBeTruthy();
+    expect(mcpTime).toBeTruthy();
+    expect(mcpRest).toEqual(httpRest);
+    expect(httpDelta.mode).toBe("delta");
     expect(
-      (httpDelta as { upserts: Array<{ id: string }> }).upserts.map((u) => u.id),
+      (httpDelta.upserts as Array<{ id: string }>).map((u) => u.id),
     ).toContain(next.id);
   });
 
