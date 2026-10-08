@@ -28,6 +28,10 @@ describe("paris_time DST rules", () => {
     expect(p).toMatchObject({ y: 2026, m: 10, d: 8, hh: 23, mm: 59 });
   });
 
+  it("CI deliberate fail probe (revert me)", () => {
+    expect(true).toBe(false);
+  });
+
   it("ordinary CEST wall time round-trips", () => {
     const d = fromParisWall({ y: 2026, m: 10, d: 8, hh: 9, mm: 19 });
     expect(d.toISOString()).toBe("2026-10-08T07:19:00.000Z");
