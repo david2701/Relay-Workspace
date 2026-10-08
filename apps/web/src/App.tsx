@@ -28,8 +28,8 @@ import {
   isInboxDelta,
 } from "./lib/inbox_merge";
 import {
-  appendInboxPage,
   ATTENTION_PAGE_SIZE,
+  appendInboxPage,
   INBOX_PAGE_SIZE,
 } from "./lib/inbox_page";
 import { toPlainText } from "./lib/markdown";

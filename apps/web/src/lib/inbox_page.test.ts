@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
-  appendInboxPage,
   ATTENTION_PAGE_SIZE,
+  appendInboxPage,
   INBOX_PAGE_SIZE,
 } from "./inbox_page";
 import type { InboxResult, WorkItem } from "./types";

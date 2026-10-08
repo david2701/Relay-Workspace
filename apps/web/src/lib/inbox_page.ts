@@ -42,49 +42,6 @@ export function appendInboxPage(
   return next;
 }
 
-function mergeAttentionSections(
-  prev: InboxResult["sections"],
-  page: InboxResult["sections"],
-  allItems: WorkItem[],
-): NonNullable<InboxResult["sections"]> {
-  const keys: Array<"needs_you" | "blocked" | "today"> = [
-    "needs_you",
-    "blocked",
-    "today",
-  ];
-  return keys.map((key) => {
-    const prevItems = prev?.find((s) => s.key === key)?.items ?? [];
-    const pageItems = page?.find((s) => s.key === key)?.items ?? [];
-    const seen = new Set(prevItems.map((i) => i.id));
-    const merged = [...prevItems];
-    for (const item of pageItems) {
-      if (seen.has(item.id)) continue;
-      merged.push(item);
-      seen.add(item.id);
-    }
-    // Prefer membership from the flat merged list when available.
-    if (allItems.length > 0 && key !== "today") {
-      const fromFlat = allItems.filter((i) =>
-        key === "needs_you"
-          ? i.status === "needs_you"
-          : i.status === "blocked",
-      );
-      if (fromFlat.length >= merged.length) {
-        return { key, items: fromFlat };
-      }
-    }
-    if (key === "today" && allItems.length > 0) {
-      const fromFlat = allItems.filter(
-        (i) => i.status !== "needs_you" && i.status !== "blocked",
-      );
-      if (fromFlat.length >= merged.length) {
-        return { key, items: fromFlat };
-      }
-    }
-    return { key, items: merged };
-  });
-}
-
 function mergeFlatGroups(
   prev: InboxResult["groups"],
   page: InboxResult["groups"],
