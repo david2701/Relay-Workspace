@@ -1,7 +1,24 @@
+import { readFileSync } from "node:fs";
+import { dirname, join } from "node:path";
+import { fileURLToPath } from "node:url";
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import type { RelayService } from "@relay/core";
 import { z } from "zod";
 import { createMcpTools } from "./tools.js";
+
+function readServerPackageVersion(): string {
+  const packagePath = join(
+    dirname(fileURLToPath(import.meta.url)),
+    "../../package.json",
+  );
+  const pkg = JSON.parse(readFileSync(packagePath, "utf8")) as {
+    version: string;
+  };
+  return pkg.version;
+}
+
+/** Same string as apps/server/package.json — used in MCP initialize. */
+export const MCP_SERVER_VERSION: string = readServerPackageVersion();
 
 /** Zod → JSON Schema-ish shape for MCP SDK registerTool. */
 function zodToShape(schema: z.ZodType): Record<string, z.ZodType> {
@@ -19,7 +36,7 @@ function zodToShape(schema: z.ZodType): Record<string, z.ZodType> {
 export function createMcpServer(svc: RelayService): McpServer {
   const server = new McpServer({
     name: "relay",
-    version: "0.1.0",
+    version: MCP_SERVER_VERSION,
   });
   const tools = createMcpTools(svc);
   for (const tool of tools) {

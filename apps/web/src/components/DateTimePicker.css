@@ -309,6 +309,7 @@
   min-width: 0;
   flex: 1 1 auto;
   max-width: 100%;
+  line-height: 1.25;
 }
 
 .dtp-shortcut:hover,
@@ -320,16 +321,19 @@
   color: var(--ink-muted);
   font-size: var(--step-data);
   white-space: nowrap;
-  flex: 0 0 auto;
-  max-width: 100%;
+  flex: 0 1 auto;
+  min-width: 0;
+  max-width: 55%;
   overflow: hidden;
   text-overflow: ellipsis;
+  line-height: 1.25;
 }
 
 .dtp-popover.sheet .dtp-shortcut-name,
 .dtp-popover.sheet .dtp-shortcut-when {
   flex: 0 1 auto;
   width: 100%;
+  max-width: 100%;
 }
 
 .dtp-cal {

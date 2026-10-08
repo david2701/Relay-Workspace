@@ -1,0 +1,65 @@
+# Depot CI for Origin-hosted repos.
+# Docs: https://depot.dev/docs/ci/integrations/origin
+# Origin Apps: https://cursor.com/docs/origin/apps
+#
+# Requires the Depot app installed on the Origin codebase (Settings → Apps).
+# Origin has no native workflow runner; Depot (or Buildkite) posts checks to the PR.
+# Local mirror: `pnpm verify` → scripts/ci.sh (same step order).
+
+name: ci
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+jobs:
+  gates:
+    name: gates
+    runs-on: depot-ubuntu-24.04
+    timeout-minutes: 30
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 10.17.1
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 24.21
+          cache: pnpm
+
+      - name: pnpm install --frozen-lockfile
+        run: pnpm install --frozen-lockfile
+
+      - name: build
+        run: pnpm build
+
+      - name: typecheck
+        run: pnpm typecheck
+
+      - name: lint
+        run: pnpm lint
+
+      - name: test
+        run: pnpm test
+
+      - name: contrast
+        run: pnpm contrast
+
+      - name: Install Playwright Chromium
+        run: pnpm exec playwright install --with-deps chromium
+
+      - name: test:e2e
+        run: pnpm test:e2e
+
+      - name: check:mcp-docs
+        run: pnpm check:mcp-docs
+
+      # Block 2 (i18n) will replace this no-op with a real missing-keys gate.
+      - name: check:i18n-missing-keys (placeholder — block 2)
+        run: pnpm run check:i18n-missing-keys

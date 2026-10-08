@@ -22,12 +22,19 @@ MCP (EN): [`docs/mcp/README.en.md`](docs/mcp/README.en.md) · MCP (ES): [`docs/m
 nvm use   # or install Node 24.21+
 corepack enable
 pnpm install
-pnpm seed
+pnpm seed   # builds @relay/core first, then seeds data/relay.db
 ```
+
+`@relay/core` publishes through `dist/` (gitignored). After a clean install,
+`pnpm build:core` emits that package. Root `pnpm typecheck`, `pnpm test`,
+`pnpm test:e2e`, `pnpm seed`, `pnpm seed:large`, and `pnpm demo:ac3` run
+`build:core` automatically. For `pnpm dev` on a fresh clone, run
+`pnpm build:core` once (or any of those scripts) before starting.
 
 ## Run (one command)
 
 ```bash
+pnpm build:core   # once after a clean install, if you have not seeded yet
 pnpm dev
 ```
 
@@ -107,12 +114,35 @@ RELAY_API=http://127.0.0.1:7420 pnpm demo:ac3 -- --variant=needs_you
 ## Verify
 
 ```bash
-pnpm typecheck
+pnpm typecheck   # builds @relay/core, then typechecks all packages
 pnpm lint
-pnpm test
+pnpm test        # builds @relay/core, then unit tests
 pnpm contrast
-pnpm test:e2e
+pnpm test:e2e    # builds @relay/core, then Playwright
+pnpm verify      # full gate pipeline (install → build → … → i18n placeholder)
 ```
+
+## CI (Origin)
+
+Origin does **not** ship a native workflow runner. For Origin-hosted repos, CI runs
+through the **Depot** or **Buildkite** app
+([Origin Apps](https://cursor.com/docs/origin/apps);
+[Depot × Origin](https://depot.dev/docs/ci/integrations/origin)).
+Check results appear on the pull request **Checks** tab
+(`origin pr checks` / `origin pr view --checks`).
+
+This repo defines the gate pipeline as:
+
+- [`.depot/workflows/ci.yml`](.depot/workflows/ci.yml) — Depot CI (active once Depot is installed on the codebase)
+- [`.github/workflows/ci.yml`](.github/workflows/ci.yml) — same steps in GitHub Actions form (Depot migrate source / twin)
+- `pnpm verify` / `scripts/ci.sh` — local mirror of the same gates
+
+Pipeline (clean checkout): `pnpm install --frozen-lockfile` → `build` → `typecheck` →
+`lint` → `test` → `contrast` → Playwright browsers (`--with-deps`) → `test:e2e` →
+`check:mcp-docs` → `check:i18n-missing-keys` (placeholder until v0.3 block 2).
+
+Version while Enseñable is open: **`0.3.0-dev`** (see [`CHANGELOG.md`](CHANGELOG.md)).
+No `v0.3.0` tag until the round closes.
 
 ## Fonts
 

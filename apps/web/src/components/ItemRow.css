@@ -55,9 +55,11 @@
 }
 
 .item-main {
-  flex: 1;
-  min-width: 0;
+  flex: 1 1 0;
+  min-width: 5rem;
   padding-top: 1px;
+  /* Keep ellipsized title from painting over DueChip / meta. */
+  overflow: hidden;
 }
 
 .item-title-line {
@@ -65,6 +67,7 @@
   align-items: center;
   gap: 8px;
   min-width: 0;
+  max-width: 100%;
 }
 
 .item-title {
@@ -73,6 +76,9 @@
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
+  /* Flex default min-width:auto blocks truncation against long titles. */
+  min-width: 0;
+  flex: 1 1 auto;
 }
 
 .item-row.terminal .item-title {
@@ -103,11 +109,13 @@
   display: flex;
   align-items: center;
   gap: 8px;
-  flex-shrink: 1;
+  /* Title yields (ellipsis); meta keeps whole DueChip glyphs (spec §6.8–6.9). */
+  flex: 0 0 auto;
   min-width: 0;
-  max-width: min(36%, 320px);
   margin-left: 12px;
   justify-content: flex-end;
+  /* Clip any leftover leftward overflow so DueChip cannot paint under the title. */
+  overflow: hidden;
 }
 
 /* Prefer dropping/soft-truncating intent; due chip stays whole glyphs. */
@@ -160,9 +168,10 @@
 }
 
 .rel {
-  flex: 0 0 5.75rem;
-  width: 5.75rem;
-  min-width: 5.75rem;
+  /* Spec §6.8: fixed 48px relative-time column (was 5.75rem and starved the title). */
+  flex: 0 0 48px;
+  width: 48px;
+  min-width: 48px;
   text-align: right;
   font-size: var(--step-data);
   font-family: var(--font-data);
@@ -170,6 +179,7 @@
   color: var(--ink-muted);
   white-space: nowrap;
   overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 .chat-badge {
