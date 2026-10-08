@@ -5,10 +5,20 @@ async function openDuePicker(page: Page) {
   await page.locator('[data-inbox-view="all"]').waitFor({ timeout: 30_000 });
   const option = page.getByRole("option").first();
   await option.waitFor({ state: "visible", timeout: 30_000 });
-  await option.click();
-  const trigger = page.getByRole("combobox", { name: /Para cuándo|Recordatorio/i }).first();
+  const id = await option.getAttribute("id");
+  const itemId = id?.replace(/^row-/, "");
+  expect(itemId).toBeTruthy();
+  // Deep-link selection (reliable at narrow widths where the detail sheet covers the list).
+  await page.goto(`/all?item=${itemId}`);
+  await page.locator('[data-inbox-view="all"]').waitFor({ timeout: 30_000 });
+  await expect(page.locator(`#row-${itemId}`)).toHaveAttribute(
+    "aria-selected",
+    "true",
+    { timeout: 15_000 },
+  );
+  const trigger = page.locator(".detail-zone .dtp-trigger").first();
   await trigger.waitFor({ state: "visible", timeout: 15_000 });
-  await trigger.click();
+  await trigger.click({ force: true });
   const dialog = page.getByRole("dialog");
   await expect(dialog).toBeVisible({ timeout: 10_000 });
   return dialog;
@@ -56,9 +66,22 @@ for (const width of [1440, 768, 390] as const) {
       expect(boxesOverlap(nameBox!, whenBox!)).toBe(false);
       // Value fully visible (no mid-glyph clip): right edge inside dialog.
       expect(whenBox!.x + whenBox!.width).toBeLessThanOrEqual(vb.x + vb.width + 1);
-      // Single-line controls (no multi-line wrap stack).
+      // Label/value stay single-line glyphs (sheet may stack value under label).
       expect(nameBox!.height).toBeLessThanOrEqual(28);
       expect(whenBox!.height).toBeLessThanOrEqual(28);
+      // No mid-glyph clip without ellipsis: scrollWidth fits or ellipsis applies.
+      const clip = await row.evaluate((el) => {
+        const n = el.querySelector(".dtp-shortcut-name") as HTMLElement | null;
+        const w = el.querySelector(".dtp-shortcut-when") as HTMLElement | null;
+        const check = (node: HTMLElement | null) => {
+          if (!node) return true;
+          if (node.scrollWidth <= node.clientWidth + 1) return true;
+          const s = getComputedStyle(node);
+          return s.textOverflow === "ellipsis" && s.overflow !== "visible";
+        };
+        return check(n) && check(w);
+      });
+      expect(clip).toBe(true);
     }
 
     const foot = dialog.locator(".dtp-foot");

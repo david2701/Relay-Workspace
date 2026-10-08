@@ -198,9 +198,9 @@ export function DateTimePicker({
       const r = trig.getBoundingClientRect();
       const vw = window.innerWidth;
       const vh = window.innerHeight;
-      const pickerW = Math.min(520, vw - 32);
+      const pickerW = Math.min(580, vw - 32);
       const spaceBelow = vh - r.bottom;
-      // Spec §1.4: sheet when viewport < 768 or not enough free width for the popover.
+      // Spec §1.3.7: sheet when viewport < 768 or free width < picker + 2×space-4.
       const isNarrow = vw < 768 || vw - 32 < pickerW + 32;
       setNarrow(isNarrow);
       if (isNarrow) {

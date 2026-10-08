@@ -26,7 +26,7 @@
   --rail-w: 208px; --rail-w-collapsed: 56px; --detail-w: 440px; --list-min-w: 480px;
   --row-h: 36px; --row-h-reason: 52px; --row-h-snippet: 68px; --capture-h: 40px;
   --control-h: 32px; --chip-h: 24px; --section-h: 28px;
-  --picker-w: 520px; --menu-w: 280px;
+  --picker-w: 580px; --menu-w: 280px;
   --step-h3: 0.9375rem;
   --mark-bg: var(--line-strong);
   --scrim: rgb(20 19 16 / .24);
