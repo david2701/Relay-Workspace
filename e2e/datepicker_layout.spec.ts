@@ -46,6 +46,103 @@ function shortcutLabelOverlapsValue(
   return boxesOverlap(name, when);
 }
 
+test.describe("DatePicker sheet focus trap @ 390px (V12-D16)", () => {
+  test.use({ viewport: { width: 390, height: 900 } });
+
+  async function openSheet(page: Page) {
+    const dialog = await openDuePicker(page);
+    await expect(dialog).toHaveClass(/sheet/);
+    await expect(dialog).toHaveAttribute("aria-modal", "true");
+    // Wait until focus has moved into the sheet and #root is inert.
+    await expect
+      .poll(async () =>
+        page.evaluate(() => {
+          const root = document.getElementById("root");
+          const dialog = document.querySelector(".dtp-popover.sheet");
+          const active = document.activeElement;
+          return {
+            inert: !!((root as (HTMLElement & { inert?: boolean }) | null)?.inert),
+            inside: !!(dialog && active && dialog.contains(active)),
+          };
+        }),
+      )
+      .toEqual({ inert: true, inside: true });
+    return dialog;
+  }
+
+  test("Tab ×30 and Shift+Tab ×30 stay inside the sheet", async ({ page }) => {
+    const dialog = await openSheet(page);
+    for (let i = 0; i < 30; i += 1) {
+      await page.keyboard.press("Tab");
+      const inside = await page.evaluate(() => {
+        const d = document.querySelector(".dtp-popover.sheet");
+        const a = document.activeElement;
+        return !!(d && a && d.contains(a));
+      });
+      expect(inside, `Tab #${i + 1} left the sheet`).toBe(true);
+    }
+    for (let i = 0; i < 30; i += 1) {
+      await page.keyboard.press("Shift+Tab");
+      const inside = await page.evaluate(() => {
+        const d = document.querySelector(".dtp-popover.sheet");
+        const a = document.activeElement;
+        return !!(d && a && d.contains(a));
+      });
+      expect(inside, `Shift+Tab #${i + 1} left the sheet`).toBe(true);
+    }
+    await expect(dialog).toBeVisible();
+  });
+
+  test("background is inert — nothing behind the sheet is focusable", async ({
+    page,
+  }) => {
+    await openSheet(page);
+    const probe = await page.evaluate(() => {
+      const root = document.getElementById("root") as
+        | (HTMLElement & { inert?: boolean })
+        | null;
+      const dialog = document.querySelector(".dtp-popover.sheet");
+      if (!root || !dialog) return { ok: false, reason: "missing nodes" };
+      if (!root.inert) return { ok: false, reason: "root not inert" };
+      const selector = [
+        "a[href]",
+        "button:not([disabled])",
+        "input:not([disabled]):not([type='hidden'])",
+        "select:not([disabled])",
+        "textarea:not([disabled])",
+        '[tabindex]:not([tabindex="-1"])',
+      ].join(",");
+      const behind: string[] = [];
+      for (const el of root.querySelectorAll<HTMLElement>(selector)) {
+        if (dialog.contains(el)) continue;
+        // inert subtree: focus() must be a no-op
+        el.focus();
+        if (document.activeElement === el) {
+          behind.push(el.className || el.tagName);
+        }
+      }
+      return { ok: behind.length === 0, behind, inert: root.inert };
+    });
+    expect(probe.ok, JSON.stringify(probe)).toBe(true);
+  });
+
+  test("Esc returns focus to .dtp-trigger", async ({ page }) => {
+    await openSheet(page);
+    const trigger = page.locator(".detail-zone .dtp-trigger").first();
+    await page.keyboard.press("Escape");
+    await expect(page.getByRole("dialog")).toHaveCount(0);
+    await expect(trigger).toBeFocused();
+  });
+
+  test("Listo returns focus to .dtp-trigger", async ({ page }) => {
+    await openSheet(page);
+    const trigger = page.locator(".detail-zone .dtp-trigger").first();
+    await page.getByRole("button", { name: /^Listo$/ }).click();
+    await expect(page.getByRole("dialog")).toHaveCount(0, { timeout: 10_000 });
+    await expect(trigger).toBeFocused();
+  });
+});
+
 for (const width of [1440, 768, 390] as const) {
   test(`DatePicker layout @ ${width}px — no clip/overlap, in viewport, footer baseline`, async ({
     page,

@@ -5,6 +5,11 @@
  * Measures API/MCP latency, poll payload size, Atención/Todo initial load,
  * and scripted scroll FPS via Playwright + rAF sampling.
  *
+ * UI Todo/Atención timings use a **cold browser cache** (CDP Network cache
+ * disabled + fresh context) and the same timing points as QA ronda 2:
+ *   t0 = click on rail nav → to_first_row = first option visible
+ *   to_interactive = list focused + first row clicked
+ *
  * Usage:
  *   RELAY_PHASE=before|after node scripts/benchmark-large.mjs
  *
@@ -124,23 +129,47 @@ function navButton(page, label) {
   return page.locator(".rail button").filter({ hasText: new RegExp(`^${label}`) });
 }
 
-async function measureUi(page, viewLabel, viewKey) {
+/**
+ * Cold-cache UI timing (QA ronda-2 aligned).
+ * Fresh context, HTTP cache disabled, no prior view warm-up of the target.
+ * Timer starts at the rail click (same as QA `measureUi`).
+ */
+async function measureUiCold(browser, viewLabel, viewKey) {
+  const context = await browser.newContext({
+    viewport: { width: 1440, height: 900 },
+  });
+  const page = await context.newPage();
   page.setDefaultTimeout(180_000);
-  await page.goto(WEB, { waitUntil: "domcontentloaded", timeout: 120_000 });
-  await navButton(page, "Atención").waitFor({ state: "visible", timeout: 120_000 });
-  // Wait until the first inbox payload paints at least one row (or empty state).
+  const client = await context.newCDPSession(page);
+  await client.send("Network.enable");
+  await client.send("Network.setCacheDisabled", { cacheDisabled: true });
+
+  // Land on a different view first so the measured click always fetches fresh.
+  const landView = viewKey === "attention" ? "all" : "attention";
+  const landLabel = viewKey === "attention" ? "Todo" : "Atención";
+  const landPath = landView === "all" ? "/all" : "/attention";
+  await page.goto(`${WEB}${landPath}`, {
+    waitUntil: "domcontentloaded",
+    timeout: 120_000,
+  });
+  await navButton(page, landLabel).waitFor({ state: "visible", timeout: 120_000 });
   await page
     .locator('.item-list [role="option"], .item-list .empty')
     .first()
     .waitFor({ state: "visible", timeout: 180_000 });
-  // Switch away and back to force a clean load measurement when needed.
-  if (viewKey !== "attention") {
-    await navButton(page, "Atención").click({ timeout: 120_000 });
-    await page.locator('[data-inbox-view="attention"]').waitFor({
-      state: "visible",
-      timeout: 120_000,
-    });
-  }
+  await page.locator(`[data-inbox-view="${landView}"]`).waitFor({
+    state: "visible",
+    timeout: 180_000,
+  });
+
+  // Hard reload landing view + clear HTTP cache so the target inbox XHR is cold.
+  await page.reload({ waitUntil: "domcontentloaded", timeout: 120_000 });
+  await page
+    .locator('.item-list [role="option"], .item-list .empty')
+    .first()
+    .waitFor({ state: "visible", timeout: 180_000 });
+  await client.send("Network.clearBrowserCache").catch(() => {});
+
   const t0 = performance.now();
   await navButton(page, viewLabel).click({ timeout: 120_000 });
   await page.locator(`[data-inbox-view="${viewKey}"]`).waitFor({
@@ -150,19 +179,21 @@ async function measureUi(page, viewLabel, viewKey) {
   const firstRow = page.getByRole("option").first();
   await firstRow.waitFor({ state: "visible", timeout: 180_000 });
   const toFirstRowMs = performance.now() - t0;
-  // Interactive: list accepts focus / click without relying on Playwright focus timeout
-  // (huge DOMs on the baseline can stall actionability checks).
   await page.evaluate(() => {
     const el = document.querySelector(".item-list");
     if (el instanceof HTMLElement) el.focus();
   });
   await firstRow.click({ timeout: 120_000, force: true });
   const toInteractiveMs = performance.now() - t0;
-  return {
+
+  const result = {
     view: viewKey,
+    method: "cold_cache",
     to_first_row_ms: Number(toFirstRowMs.toFixed(2)),
     to_interactive_ms: Number(toInteractiveMs.toFixed(2)),
   };
+  await context.close();
+  return result;
 }
 
 function summarizeFrames(frameTimes) {
@@ -280,6 +311,40 @@ async function main() {
 
   console.info(`Phase=${PHASE} API=${API} WEB=${WEB} items≈${itemTotal ?? "?"}`);
 
+  // UI cold timings first (before API sample loops warm SQLite / process caches).
+  let uiAttention = null;
+  let uiAll = null;
+  let scrollAttention = null;
+  let scrollAll = null;
+  const browser = await chromium.launch({ headless: true });
+  try {
+    uiAttention = await measureUiCold(browser, "Atención", "attention");
+    uiAll = await measureUiCold(browser, "Todo", "all");
+
+    const pageScroll = await browser.newPage({
+      viewport: { width: 1440, height: 900 },
+    });
+    await pageScroll.goto(WEB, { waitUntil: "domcontentloaded", timeout: 120_000 });
+    await navButton(pageScroll, "Atención").waitFor({
+      state: "visible",
+      timeout: 120_000,
+    });
+    await pageScroll
+      .locator('.item-list [role="option"], .item-list .empty')
+      .first()
+      .waitFor({ state: "visible", timeout: 180_000 });
+    scrollAttention = await measureWheelScroll(pageScroll, "Atención", "attention");
+    scrollAll = await measureWheelScroll(pageScroll, "Todo", "all");
+    await pageScroll.close();
+  } catch (err) {
+    console.warn(
+      "UI measurement failed (baseline may be too heavy):",
+      err.message ?? err,
+    );
+  } finally {
+    await browser.close();
+  }
+
   const apiAttentionFull = await measureApi("/api/inbox?view=attention");
   const apiAttentionPage = await measureApi(
     "/api/inbox?view=attention&limit=200",
@@ -291,37 +356,11 @@ async function main() {
   const mcpInbox = await measureMcpInbox();
   const poll = await measurePollPayload();
 
-  let uiAttention = null;
-  let uiAll = null;
-  let scrollAttention = null;
-  let scrollAll = null;
-  const browser = await chromium.launch({ headless: true });
-  try {
-    const pageAtt = await browser.newPage({
-      viewport: { width: 1440, height: 900 },
-    });
-    uiAttention = await measureUi(pageAtt, "Atención", "attention");
-    scrollAttention = await measureWheelScroll(pageAtt, "Atención", "attention");
-    await pageAtt.close();
-    const pageAll = await browser.newPage({
-      viewport: { width: 1440, height: 900 },
-    });
-    uiAll = await measureUi(pageAll, "Todo", "all");
-    scrollAll = await measureWheelScroll(pageAll, "Todo", "all");
-    await pageAll.close();
-  } catch (err) {
-    console.warn(
-      "UI measurement failed (baseline may be too heavy):",
-      err.message ?? err,
-    );
-  } finally {
-    await browser.close();
-  }
-
   const result = {
     phase: PHASE,
     measured_at: new Date().toISOString(),
     item_total_hint: itemTotal,
+    ui_method: "cold_cache",
     api: {
       inbox_attention: apiAttentionFull,
       inbox_attention_page: apiAttentionPage,

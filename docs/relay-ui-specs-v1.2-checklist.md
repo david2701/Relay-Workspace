@@ -23,7 +23,7 @@ Assumptions locked by §6 (Producto 8 oct 2026): 23:59 = sin hora; no note autho
 | V12-D13 | gap | Motion CSS + reduced-motion; not timed in e2e |
 | V12-D14 | PASS | `date_groups.test.ts` order |
 | V12-D15 | gap | Collapsed keys in `localStorage`; J-skip logic; no reload e2e |
-| V12-D16 | gap | Narrow sheet + scrim; focus-trap incomplete |
+| V12-D16 | PASS | Sheet traps Tab/Shift+Tab; `#root` inert; Esc/Listo restore trigger |
 | §6 P1 AC | PASS | `product_decisions_v12.test.ts` + API `items_get` same `due_at` |
 | §6 P5 AC | PASS | `readTodoGroupBy` empty → `due`; `none` persists (`todo_group_pref`) |
 

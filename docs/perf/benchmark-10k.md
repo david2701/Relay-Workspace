@@ -29,11 +29,36 @@ Measured on commit base `e1bb5e5` (BEFORE) and this branch (AFTER) against
 1. `RELAY_DB=data/relay-large.db pnpm seed:large`
 2. Start API `:7420` + web `:7421` against that DB.
 3. `RELAY_PHASE=before|after pnpm benchmark:large`:
-   - API / MCP latency and payload (full + paged)
+   - **UI first** (cold browser cache via CDP `Network.setCacheDisabled` +
+     `clearBrowserCache`, fresh context per view) so Todo/Atención timings are
+     not inflated or deflated by prior API warm-up order
+   - Timing points (unchanged from QA ronda 2): `t0` = rail nav click →
+     `to_first_row_ms` = first `[role=option]` visible → `to_interactive_ms` =
+     list focused + first row clicked
+   - API / MCP latency and payload (full + paged) after UI
    - Poll: first page + `since=sync_cursor` delta
-   - UI first-row / interactive (Playwright 1440×900)
    - **Wheel scroll**: `mouse.wheel` in ~100 px steps over a few seconds + rAF
      frame sampling + CDP `Performance.getMetrics` (not `scrollTop` jumps)
+
+## Measurement discrepancy (QA ronda 2)
+
+QA at `9e3adad` measured Todo **first row 324 ms / interactive 342 ms** against
+a claimed **145 / 163 ms**. Root cause (not timer-point drift):
+
+1. **Server `group_counts` cost** — after Todo date-group headers moved to
+   server totals, paged `GET /inbox?view=all&limit=50` still scanned every open
+   item with per-item `Intl` (`classifyDue` / `parisDayDiff`). That alone added
+   ~130 ms on the large seed; API p50 rose from the documented ~47 ms to
+   **~200 ms**, so UI click→row could not stay ≤300 ms.
+2. **Claimed 145 ms was a warm / pre-`group_counts` figure** — taken when the
+   paged Todo path was still cheap (or after heavy API warm-up), while QA’s
+   `benchmark:large` run reflected the post-`group_counts` cost on the same
+   timing points (`t0` = rail click).
+3. **Fix** — precomputed Paris day bounds in `countDueGroups` (no per-item
+   Intl), in-process item cache, and Todo snapshots reading **open rows only**
+   (`listOpen`). Benchmark now forces **cold browser cache** and measures UI
+   before the API sample loops so the script cannot silently report warm
+   numbers again.
 
 ## What changed (AFTER)
 

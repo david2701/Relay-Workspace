@@ -100,7 +100,10 @@ export function DateTimePicker({
   const [parseError, setParseError] = useState<string | null>(null);
   const [alertError, setAlertError] = useState<string | null>(null);
   const [shortcutIdx, setShortcutIdx] = useState(0);
-  const [narrow, setNarrow] = useState(false);
+  // Seed from viewport so sheet mode does not briefly take the desktop (focus-trigger) path.
+  const [narrow, setNarrow] = useState(
+    () => typeof window !== "undefined" && window.innerWidth < 768,
+  );
   const [pos, setPos] = useState<{ top: number; left: number } | null>(null);
 
   const now = useMemo(() => new Date(), [open]);
@@ -242,36 +245,76 @@ export function DateTimePicker({
     return () => document.removeEventListener("mousedown", onDoc);
   }, [open, draft, noTime, inputText]);
 
-  // Bottom sheet: trap Tab within the dialog (V12-D16).
+  // Bottom sheet (V12-D16): inert background + document-level Tab trap.
+  useEffect(() => {
+    if (!open || !narrow) return;
+    const appRoot = document.getElementById("root");
+    if (appRoot) appRoot.inert = true;
+    return () => {
+      if (appRoot) appRoot.inert = false;
+    };
+  }, [open, narrow]);
+
   useEffect(() => {
     if (!open || !narrow) return;
     const root = popoverRef.current;
     if (!root) return;
+
+    const focusableSelector = [
+      "a[href]",
+      "button:not([disabled])",
+      "input:not([disabled]):not([type='hidden'])",
+      "select:not([disabled])",
+      "textarea:not([disabled])",
+      '[tabindex]:not([tabindex="-1"])',
+    ].join(",");
+
     const focusable = () =>
-      [
-        ...root.querySelectorAll<HTMLElement>(
-          'button:not([disabled]), input:not([disabled]), [tabindex]:not([tabindex="-1"])',
-        ),
-      ].filter((el) => el.offsetParent !== null || el === document.activeElement);
-    const first = focusable()[0];
-    first?.focus();
+      [...root.querySelectorAll<HTMLElement>(focusableSelector)].filter(
+        (el) => {
+          if (el.closest("[inert]")) return false;
+          if (el.getAttribute("aria-hidden") === "true") return false;
+          // offsetParent is null for fixed/positioned nodes in some engines —
+          // fall back to client rects.
+          const r = el.getBoundingClientRect();
+          return r.width > 0 && r.height > 0;
+        },
+      );
+
+    // Move focus into the sheet (never leave it on the trigger behind).
+    requestAnimationFrame(() => {
+      const nodes = focusable();
+      (nodes[0] ?? root).focus?.();
+    });
+
     function onKey(e: KeyboardEvent) {
+      if (e.key === "Escape") {
+        e.preventDefault();
+        e.stopPropagation();
+        cancelClose();
+        return;
+      }
       if (e.key !== "Tab") return;
       const nodes = focusable();
-      if (nodes.length === 0) return;
-      const i = nodes.indexOf(document.activeElement as HTMLElement);
-      if (e.shiftKey) {
-        if (i <= 0) {
-          e.preventDefault();
-          nodes[nodes.length - 1]?.focus();
-        }
-      } else if (i === nodes.length - 1 || i < 0) {
+      if (nodes.length === 0) {
         e.preventDefault();
-        nodes[0]?.focus();
+        return;
+      }
+      const active = document.activeElement as HTMLElement | null;
+      const i = active ? nodes.indexOf(active) : -1;
+      if (e.shiftKey) {
+        e.preventDefault();
+        const prev = i <= 0 ? nodes[nodes.length - 1] : nodes[i - 1];
+        prev?.focus();
+      } else {
+        e.preventDefault();
+        const next = i === -1 || i >= nodes.length - 1 ? nodes[0] : nodes[i + 1];
+        next?.focus();
       }
     }
-    root.addEventListener("keydown", onKey);
-    return () => root.removeEventListener("keydown", onKey);
+    // Capture on document so Tab cannot escape to inert/non-inert siblings.
+    document.addEventListener("keydown", onKey, true);
+    return () => document.removeEventListener("keydown", onKey, true);
   }, [open, narrow]);
 
   function openPicker() {
@@ -283,11 +326,17 @@ export function DateTimePicker({
     setNoTime(value ? isDateOnly(value) : allowDateOnly);
     setParseError(null);
     setAlertError(null);
+  }
+
+  // Desktop popover is non-modal: the combobox trigger stays the active input.
+  // Sheet focus is owned by the trap effect (never the trigger behind the scrim).
+  useEffect(() => {
+    if (!open || narrow) return;
     requestAnimationFrame(() => {
       triggerRef.current?.focus();
       triggerRef.current?.select();
     });
-  }
+  }, [open, narrow]);
 
   function cancelClose() {
     setDraft(value);
@@ -295,7 +344,7 @@ export function DateTimePicker({
     setOpen(false);
     setParseError(null);
     setAlertError(null);
-    triggerRef.current?.focus();
+    // Focus returns via effect after `inert` is cleared.
   }
 
   async function commit(next: string | null) {
@@ -315,9 +364,20 @@ export function DateTimePicker({
       setInputText(value ? formatDateTimeField(value) : "");
     } finally {
       setBusy(false);
-      triggerRef.current?.focus();
     }
   }
+
+  // Restore focus to the trigger after close (Esc / Listo / click-outside),
+  // after sheet `inert` cleanup so the trigger is focusable again.
+  const wasOpenRef = useRef(false);
+  useEffect(() => {
+    if (wasOpenRef.current && !open) {
+      requestAnimationFrame(() => {
+        triggerRef.current?.focus();
+      });
+    }
+    wasOpenRef.current = open;
+  }, [open]);
 
   async function confirmDraft() {
     if (!inputText.trim()) {
@@ -460,6 +520,7 @@ export function DateTimePicker({
       role="dialog"
       aria-modal={narrow ? true : undefined}
       aria-label={`Elegir fecha: ${label}`}
+      tabIndex={-1}
       className={`dtp-popover${narrow ? " sheet" : ""}`}
       style={
         narrow

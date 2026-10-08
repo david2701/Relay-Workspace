@@ -80,6 +80,18 @@ export class WorkItemRepository {
     return rows.map(rowToItem);
   }
 
+  /** Open (non-terminal) items only — Todo first paint avoids loading done/cancelled. */
+  listOpen(): WorkItem[] {
+    const rows = this.db
+      .prepare(
+        `SELECT * FROM work_items
+         WHERE status NOT IN ('done', 'cancelled')
+         ORDER BY updated_at DESC, id DESC`,
+      )
+      .all() as ItemRow[];
+    return rows.map(rowToItem);
+  }
+
   listPage(params: PageParams = {}): ListPageResult<WorkItem> {
     const totalRow = this.db
       .prepare("SELECT COUNT(*) AS n FROM work_items")

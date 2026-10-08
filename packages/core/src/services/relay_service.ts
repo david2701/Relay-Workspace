@@ -72,6 +72,10 @@ export class RelayService {
   private readonly notes: NoteRepository;
   private readonly links: LinkRepository;
   private readonly agents: AgentRepository;
+  /** Avoid re-reading 10k SQLite rows on every inbox/search poll. */
+  private itemsCache: WorkItem[] | null = null;
+  /** Open rows only — Todo snapshot path skips done/cancelled. */
+  private openItemsCache: WorkItem[] | null = null;
 
   constructor(options: RelayServiceOptions) {
     this.db = openDatabase(options.dbPath);
@@ -86,7 +90,28 @@ export class RelayService {
   }
 
   close(): void {
+    this.itemsCache = null;
+    this.openItemsCache = null;
     this.db.close();
+  }
+
+  private listAllItems(): WorkItem[] {
+    if (!this.itemsCache) {
+      this.itemsCache = this.items.listAll();
+    }
+    return this.itemsCache;
+  }
+
+  private listOpenItems(): WorkItem[] {
+    if (!this.openItemsCache) {
+      this.openItemsCache = this.items.listOpen();
+    }
+    return this.openItemsCache;
+  }
+
+  private invalidateItemsCache(): void {
+    this.itemsCache = null;
+    this.openItemsCache = null;
   }
 
   listAgents(): Agent[] {
@@ -123,7 +148,7 @@ export class RelayService {
   listItems(params: PageParams): ListPageResult<WorkItem>;
   listItems(params?: PageParams): WorkItem[] | ListPageResult<WorkItem> {
     if (!params || (params.limit === undefined && params.cursor === undefined)) {
-      return this.items.listAll();
+      return this.listAllItems();
     }
     return this.items.listPage(params);
   }
@@ -184,6 +209,7 @@ export class RelayService {
       last_actor_id: actor.id,
       list_id: null,
     };
+    this.invalidateItemsCache();
     this.items.upsert(item);
     return item;
   }
@@ -237,6 +263,7 @@ export class RelayService {
       },
       actor,
     );
+    this.invalidateItemsCache();
     this.items.upsert(next);
     return next;
   }
@@ -244,18 +271,21 @@ export class RelayService {
   setStatus(id: string, input: SetStatusInput, actor: Actor, source: Source): WorkItem {
     const current = this.getItem(id);
     const next = applyStatusChange({ item: current, input, actor, source });
+    this.invalidateItemsCache();
     this.items.upsert(next);
     return next;
   }
 
   complete(id: string, actor: Actor, source: Source): WorkItem {
     const next = completeItem({ item: this.getItem(id), actor, source });
+    this.invalidateItemsCache();
     this.items.upsert(next);
     return next;
   }
 
   reopen(id: string, actor: Actor): WorkItem {
     const next = reopenItem({ item: this.getItem(id), actor });
+    this.invalidateItemsCache();
     this.items.upsert(next);
     return next;
   }
@@ -270,6 +300,7 @@ export class RelayService {
       actor,
       source,
     });
+    this.invalidateItemsCache();
     this.items.upsert(next);
     return next;
   }
@@ -281,6 +312,7 @@ export class RelayService {
       actor,
       source,
     });
+    this.invalidateItemsCache();
     this.items.upsert(next);
     return next;
   }
@@ -382,17 +414,19 @@ export class RelayService {
     view: InboxView,
     opts?: InboxQueryOptions,
   ): InboxQueryResult | InboxSyncResult {
-    const items = this.items.listAll();
     const now = opts?.now;
     if (opts?.since !== undefined) {
+      // Delta sync needs the full table so completions leave the view via removed_ids.
       const syncArgs: Parameters<typeof buildInboxSync>[0] = {
-        items,
+        items: this.listAllItems(),
         view,
         since: opts.since,
       };
       if (now) syncArgs.now = now;
       return buildInboxSync(syncArgs);
     }
+    // Todo snapshot: open rows only (skip ~36% done/cancelled) + fast group_counts.
+    const items = view === "all" ? this.listOpenItems() : this.listAllItems();
     const args: Parameters<typeof queryInbox>[0] = { items, view };
     if (now) args.now = now;
     if (opts?.limit !== undefined) args.limit = opts.limit;
@@ -402,7 +436,7 @@ export class RelayService {
 
   inboxRecommend(limit = 3, now?: Date): Recommendation[] {
     const args: Parameters<typeof recommendInbox>[0] = {
-      items: this.items.listAll(),
+      items: this.listAllItems(),
       agents: this.agents.list(),
       limit,
     };
@@ -411,7 +445,7 @@ export class RelayService {
   }
 
   private searchDeps(now?: Date): SearchDeps {
-    const items = this.items.listAll();
+    const items = this.listAllItems();
     const notes = this.notes.listAll();
     const notesById = new Map(notes.map((n) => [n.id, n]));
     const allLinks = this.links.listAll();

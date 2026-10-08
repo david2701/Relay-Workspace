@@ -63,7 +63,10 @@ export type DueGroupCount = {
   count: number;
 };
 
-/** Server totals for Todo date groups (all open items, not just the page). */
+/**
+ * Server totals for Todo date groups (all open items, not just the page).
+ * Precomputes Paris day bounds once — avoids per-item Intl work at 10k.
+ */
 export function countDueGroups(
   items: readonly WorkItem[],
   now = new Date(),
@@ -71,13 +74,37 @@ export function countDueGroups(
   const counts = new Map<DueGroupKey, number>();
   for (const key of DUE_GROUP_ORDER) counts.set(key, 0);
 
+  const nowMs = now.getTime();
+  const todayStart = startOfParisDay(now);
+  const tomorrowStart = addParisDays(todayStart, 1);
+  const dayAfterTomorrow = addParisDays(todayStart, 2);
+  const tomorrowIsMonday = parisWeekday(tomorrowStart) === 1;
+  const weekEndMs = endOfParisWeek(now).getTime();
+  const tomorrowStartMs = tomorrowStart.getTime();
+  const dayAfterMs = dayAfterTomorrow.getTime();
+
   for (const item of items) {
     if (item.status === "done" || item.status === "cancelled") continue;
-    let key = classifyDue(item.due_at, item.status, now);
-    // Fold "week" into "later" when tomorrow is Monday (same as web groupByDue).
-    if (key === "week") {
-      const tomorrow = addParisDays(startOfParisDay(now), 1);
-      if (parisWeekday(tomorrow) === 1) key = "later";
+    if (!item.due_at) {
+      counts.set("none", (counts.get("none") ?? 0) + 1);
+      continue;
+    }
+    const dueMs = Date.parse(item.due_at);
+    if (Number.isNaN(dueMs)) {
+      counts.set("none", (counts.get("none") ?? 0) + 1);
+      continue;
+    }
+    let key: DueGroupKey;
+    if (dueMs < nowMs) {
+      key = "overdue";
+    } else if (dueMs < tomorrowStartMs) {
+      key = "today";
+    } else if (dueMs < dayAfterMs) {
+      key = "tomorrow";
+    } else if (!tomorrowIsMonday && dueMs <= weekEndMs) {
+      key = "week";
+    } else {
+      key = "later";
     }
     counts.set(key, (counts.get(key) ?? 0) + 1);
   }
