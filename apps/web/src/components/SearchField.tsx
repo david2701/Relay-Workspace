@@ -62,7 +62,7 @@ export function SearchField({
         value={value}
         disabled={disabled}
         title={disabled ? t("offline.disabled") : undefined}
-        aria-label={t("search.defaultAria")}
+        aria-label="HARDCODED SEARCH PROBE"
         aria-keyshortcuts="/"
         aria-describedby={countText ? countId : undefined}
         aria-invalid={error ? true : undefined}
