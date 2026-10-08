@@ -227,7 +227,9 @@ export function VirtualItemList({
           const collapsed = !!collapsedKeys?.has(section.key);
           const items = collapsed ? [] : section.items;
           const count = sectionCount(section);
-          if (!section.label) {
+          // Attention sections carry labelKey + empty label; resolve like flattenSections.
+          const label = section.labelKey ? t(section.labelKey) : section.label;
+          if (!label) {
             return (
               <div key={section.key || "all"}>
                 {items.map((item) => (
@@ -246,7 +248,7 @@ export function VirtualItemList({
               <div key={section.key}>
                 <DateGroupHeader
                   groupKey={section.key as DateGroupKey}
-                  label={section.label}
+                  label={label}
                   count={count}
                   collapsed={collapsed}
                   onToggle={() => onToggleGroup(section.key)}
@@ -263,11 +265,7 @@ export function VirtualItemList({
             );
           }
           return (
-            <Section
-              key={section.key}
-              label={section.label}
-              count={count}
-            >
+            <Section key={section.key} label={label} count={count}>
               {items.map((item) =>
                 renderItemRow(item, {
                   ...itemProps,
