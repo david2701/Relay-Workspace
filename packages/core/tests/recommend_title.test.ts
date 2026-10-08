@@ -4,7 +4,7 @@ import type { Agent } from "../src/schemas/agent.js";
 import type { WorkItem } from "../src/schemas/work_item.js";
 
 const agents: Agent[] = [
-  { id: "grok-bot", display_name: "Grok Bot", monogram: "GB" },
+  { id: "agent-code", display_name: "Code agent", monogram: "GB" },
 ];
 
 function item(partial: Partial<WorkItem> & { id: string; title: string }): WorkItem {
@@ -12,7 +12,7 @@ function item(partial: Partial<WorkItem> & { id: string; title: string }): WorkI
     goal: null,
     status: "in_progress",
     assignee_type: "agent",
-    assignee_id: "grok-bot",
+    assignee_id: "agent-code",
     due_at: null,
     reminder_at: null,
     reminder_intent: null,
@@ -27,7 +27,7 @@ function item(partial: Partial<WorkItem> & { id: string; title: string }): WorkI
     completed_by_type: null,
     completed_by_id: null,
     last_actor_type: "agent",
-    last_actor_id: "grok-bot",
+    last_actor_id: "agent-code",
     list_id: null,
     ...partial,
   };

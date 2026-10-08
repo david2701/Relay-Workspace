@@ -1,9 +1,14 @@
+import { getDisplayContext } from "./display_context";
 import type { Status, WorkItem } from "./types";
 import type { DueFacet, UrlFacets } from "./url_state";
+import { USER_ACTOR_ID } from "./url_state";
+import {
+  addZoneDays,
+  startOfZoneDay,
+  zoneDayDiff,
+} from "./zone_time";
 
-const USER_ACTOR_ID = "david";
-
-/** Ball-holder (P3): needs_you counts as david. */
+/** Ball-holder (P3): needs_you counts as user. */
 export function ballHolderId(item: WorkItem): string | null {
   if (item.status === "needs_you") return USER_ACTOR_ID;
   if (item.assignee_type === "user") return USER_ACTOR_ID;
@@ -11,9 +16,9 @@ export function ballHolderId(item: WorkItem): string | null {
   return null;
 }
 
-function parisDayKey(d: Date): string {
+function zoneDayKey(d: Date, timeZone: string): string {
   return new Intl.DateTimeFormat("en-CA", {
-    timeZone: "Europe/Paris",
+    timeZone,
     year: "numeric",
     month: "2-digit",
     day: "2-digit",
@@ -26,18 +31,18 @@ function matchesDue(
   from: string | null,
   to: string | null,
   now: Date,
+  timeZone: string,
 ): boolean {
   const dueAt = item.due_at ? new Date(item.due_at) : null;
   if (due === "none") return dueAt === null;
   if (!dueAt) return false;
-  const today = parisDayKey(now);
-  const dueDay = parisDayKey(dueAt);
+  const today = zoneDayKey(now, timeZone);
+  const dueDay = zoneDayKey(dueAt, timeZone);
   if (due === "today") return dueDay === today;
   if (due === "overdue") return dueAt.getTime() < now.getTime() && dueDay < today;
   if (due === "week") {
-    // Rough: due within next 7 Paris calendar days from start of today
-    const start = new Date(`${today}T00:00:00+02:00`);
-    const end = new Date(start.getTime() + 7 * 86400000);
+    const start = startOfZoneDay(now, timeZone);
+    const end = addZoneDays(start, 7, timeZone);
     return dueAt.getTime() >= start.getTime() && dueAt.getTime() <= end.getTime();
   }
   if (due === "range") {
@@ -54,6 +59,7 @@ export function itemMatchesFacets(
   facets: UrlFacets,
   now: Date = new Date(),
 ): boolean {
+  const timeZone = getDisplayContext().timezone;
   if (facets.status.length > 0) {
     if (!facets.status.includes(item.status as Status)) return false;
   }
@@ -62,9 +68,11 @@ export function itemMatchesFacets(
     if (!holder || !facets.actor.includes(holder)) return false;
   }
   if (facets.due) {
-    if (!matchesDue(item, facets.due, facets.from, facets.to, now)) {
+    if (!matchesDue(item, facets.due, facets.from, facets.to, now, timeZone)) {
       return false;
     }
   }
   return true;
 }
+
+export { zoneDayDiff };

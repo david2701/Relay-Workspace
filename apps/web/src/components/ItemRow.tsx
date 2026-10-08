@@ -1,13 +1,18 @@
+import { Bell } from "@phosphor-icons/react";
 import { memo } from "react";
+import { useActorLabels } from "../hooks/useActorLabels";
+import { useT } from "../i18n/I18nProvider";
 import { markForCompleter, markForWitness } from "../lib/actor_mark";
-import { copy } from "../lib/copy";
+import { statusLabel } from "../lib/copy";
 import {
+  formatAbsolute,
   formatDue,
   formatDueForGroup,
   formatRelative,
   formatReminder,
+  formatRowAccessibleDate,
 } from "../lib/format";
-import type { Agent, SearchMatch, WorkItem } from "../lib/types";
+import type { Agent, SearchMatch, Status, WorkItem } from "../lib/types";
 import { ActorMark, isStaleWorking, isWorking } from "./ActorMark";
 import { MatchSnippet } from "./MatchSnippet";
 import { StatusGlyph } from "./StatusGlyph";
@@ -15,11 +20,10 @@ import "./ItemRow.css";
 
 function truncateIntent(intent: string | null | undefined): string | null {
   if (!intent) return null;
-  const t = intent.trim();
-  if (t.length <= 24) return t;
-  const slice = t.slice(0, 24);
+  const text = intent.trim();
+  if (text.length <= 24) return text;
+  const slice = text.slice(0, 24);
   const sp = slice.lastIndexOf(" ");
-  // Prefer a word boundary whenever one exists in the window.
   const cut = sp >= 4 ? slice.slice(0, sp) : slice;
   return `${cut}…`;
 }
@@ -31,7 +35,6 @@ type Props = {
   flash?: boolean;
   showChatBadge?: boolean;
   showCompletedBy?: boolean;
-  /** When grouped by due date, compact the due chip (§1.8). */
   dueGroupKey?: string | undefined;
   match?: SearchMatch | undefined;
   onSelect: (id: string) => void;
@@ -48,52 +51,83 @@ export const ItemRow = memo(function ItemRow({
   match,
   onSelect,
 }: Props) {
-  const witness = markForWitness(item, agents);
+  const t = useT();
+  const actorLabels = useActorLabels();
+  const witness = markForWitness(item, agents, actorLabels);
   const working = isWorking(item.status, item.assignee_type, item.updated_at);
   const stale = isStaleWorking(item.status, item.assignee_type, item.updated_at);
+  const sl = (s: Status) => statusLabel(t, s);
   const reasonLine =
     item.status === "needs_you" && item.needs_you_reason
-      ? `${agents.find((a) => a.id === item.last_actor_id)?.display_name ?? "Agente"}: ${item.needs_you_reason}`
+      ? `${agents.find((a) => a.id === item.last_actor_id)?.display_name ?? actorLabels.agentFallback}: ${item.needs_you_reason}`
       : item.status === "blocked" && item.blocked_reason
-        ? `Atascado: ${item.blocked_reason}`
+        ? `${t("item.blockedPrefix")}${item.blocked_reason}`
         : null;
   const reminderRaw =
     item.reminder_at && item.status !== "done" && item.status !== "cancelled"
       ? {
+          iso: item.reminder_at,
           time: formatReminder(item.reminder_at).text,
           intent: item.reminder_intent,
+          past: new Date(item.reminder_at).getTime() < Date.now(),
         }
       : null;
-  // Fecha groups: header owns the day. Show at most one schedule chip
-  // (reminder preferred) so meta never mid-word-squeezes due+reminder.
-  let due: { text: string; tone: "muted" | "warn" | "crit" } | null = null;
+  let due: { text: string; tone: "muted" | "warn" | "crit"; iso: string } | null =
+    null;
   if (item.due_at && item.status !== "done" && item.status !== "cancelled") {
     if (!dueGroupKey) {
-      due = formatDue(item.due_at);
+      const f = formatDue(item.due_at);
+      due = { ...f, iso: item.due_at };
     } else if (!reminderRaw && dueGroupKey !== "none") {
-      due = formatDueForGroup(item.due_at, dueGroupKey);
+      const f = formatDueForGroup(item.due_at, dueGroupKey);
+      due = { ...f, iso: item.due_at };
     }
   }
   const reminder = reminderRaw
     ? {
-        time: reminderRaw.time,
-        intent: due?.text
-          ? null
-          : truncateIntent(reminderRaw.intent),
+        ...reminderRaw,
+        intent: due?.text ? null : truncateIntent(reminderRaw.intent),
       }
     : null;
 
+  const dueAria = due
+    ? due.tone === "crit"
+      ? due.text
+      : t("row.due.label", {
+          date: formatRowAccessibleDate(due.iso),
+        })
+    : null;
+  const reminderAria = reminder
+    ? reminder.past
+      ? reminder.time
+      : t("row.reminder.label", {
+          date: formatRowAccessibleDate(reminder.iso),
+        })
+    : null;
+
   const showSnippet = match && match.field !== "title";
+  // §1.15 order: title · status · reason · actor · due · reminder
   const aria = [
     item.title,
-    copy.statusLabel[item.status],
+    sl(item.status),
     reasonLine,
     showSnippet ? match.snippet : null,
     witness.name,
-    due?.text,
+    dueAria,
+    reminderAria,
   ]
     .filter(Boolean)
     .join(". ");
+
+  const reminderTitle = reminder
+    ? [
+        formatAbsolute(reminder.iso),
+        reminder.intent ??
+          (reminderRaw?.intent ? reminderRaw.intent.trim() : null),
+      ]
+        .filter(Boolean)
+        .join(" · ")
+    : "";
 
   return (
     <div
@@ -101,6 +135,7 @@ export const ItemRow = memo(function ItemRow({
       id={`row-${item.id}`}
       aria-selected={selected}
       aria-label={aria}
+      title={item.title}
       className={[
         "item-row",
         selected ? "selected" : "",
@@ -110,6 +145,7 @@ export const ItemRow = memo(function ItemRow({
         item.status === "cancelled" ? "cancelled" : "",
         reasonLine ? "with-reason" : "",
         showSnippet ? "with-snippet" : "",
+        due || reminder ? "with-times" : "",
       ]
         .filter(Boolean)
         .join(" ")}
@@ -117,12 +153,12 @@ export const ItemRow = memo(function ItemRow({
       tabIndex={-1}
     >
       <span className="testigo-rule" aria-hidden />
-      <StatusGlyph status={item.status} label={copy.statusLabel[item.status]} />
+      <StatusGlyph status={item.status} label={sl(item.status)} />
       <div className="item-main">
         <div className="item-title-line">
           <span className="item-title">{item.title}</span>
           {showChatBadge && item.source === "mcp" ? (
-            <span className="chat-badge mono" title="Creado desde el chat">
+            <span className="chat-badge mono" title={t("item.chatBadge")}>
               chat
             </span>
           ) : null}
@@ -133,8 +169,11 @@ export const ItemRow = memo(function ItemRow({
         (item.status === "done" || item.status === "cancelled") ? (
           <div className="item-reason completed-by-line">
             {(() => {
-              const completer = markForCompleter(item, agents);
+              const completer = markForCompleter(item, agents, actorLabels);
               if (!completer) return null;
+              const rel = formatRelative(
+                item.completed_at ?? item.updated_at,
+              );
               return (
                 <>
                   <ActorMark
@@ -145,8 +184,11 @@ export const ItemRow = memo(function ItemRow({
                   />
                   <span>
                     {completer.kind === "user"
-                      ? `Completado por ti · ${formatRelative(item.completed_at ?? item.updated_at)}`
-                      : `Completado por ${completer.name} · ${formatRelative(item.completed_at ?? item.updated_at)}`}
+                      ? t("item.completedByYou", { time: rel })
+                      : t("item.completedBy", {
+                          name: completer.name,
+                          time: rel,
+                        })}
                   </span>
                 </>
               );
@@ -158,40 +200,50 @@ export const ItemRow = memo(function ItemRow({
         {due?.text &&
         item.status !== "done" &&
         item.status !== "cancelled" ? (
-          <span className={`due-chip mono tone-${due.tone}`}>{due.text}</span>
+          <span
+            className={`due-chip mono tone-${due.tone}`}
+            title={formatAbsolute(due.iso)}
+          >
+            {due.text}
+          </span>
         ) : null}
         {reminder ? (
           <span
             className="reminder-chip"
-            title={
-              reminder.intent
-                ? `${reminder.time} · ${reminder.intent}`
-                : reminder.time
-            }
+            title={reminderTitle || reminder.time}
+            aria-label={reminderAria ?? undefined}
           >
-            <span className="mono">{reminder.time}</span>
+            <Bell
+              className="reminder-bell"
+              size={12}
+              weight="regular"
+              aria-hidden="true"
+            />
+            <span className="reminder-text mono">{reminder.time}</span>
             {reminder.intent ? (
               <span className="intent"> · {reminder.intent}</span>
             ) : null}
           </span>
         ) : null}
         {item.priority === "high" ? (
-          <span className="prio" aria-label="Prioridad alta">
+          <span className="prio" aria-label={t("item.priorityHigh")}>
             ▲
           </span>
         ) : item.priority === "medium" ? (
-          <span className="prio hollow" aria-label="Prioridad media">
+          <span className="prio hollow" aria-label={t("item.priorityMedium")}>
             △
           </span>
         ) : null}
-        <ActorMark
-          kind={witness.kind}
-          name={witness.name}
-          monogram={witness.monogram}
-          size={20}
-          working={working || stale}
-          stale={stale}
-        />
+        <span className="item-mark">
+          <ActorMark
+            kind={witness.kind}
+            name={witness.name}
+            monogram={witness.monogram}
+            size={20}
+            working={working || stale}
+            stale={stale}
+          />
+        </span>
         <span className="rel mono">{formatRelative(item.updated_at)}</span>
       </div>
     </div>

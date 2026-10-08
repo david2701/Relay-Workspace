@@ -1,3 +1,9 @@
+export type RelaySettings = {
+  timezone: string;
+  user_display_name: string;
+  user_initial: string;
+};
+
 import type {
   Agent,
   ContextPack,
@@ -123,8 +129,14 @@ export const api = {
       method: "PATCH",
       body: JSON.stringify({
         assignee_type: "user",
-        assignee_id: "david",
+        assignee_id: "user",
       }),
+    }),
+  getSettings: () => request<{ settings: RelaySettings }>("/api/settings"),
+  updateSettings: (patch: Partial<RelaySettings>) =>
+    request<{ settings: RelaySettings }>("/api/settings", {
+      method: "PUT",
+      body: JSON.stringify(patch),
     }),
   notes: () => request<{ notes: Note[] }>("/api/notes"),
   getNote: (id: string) =>

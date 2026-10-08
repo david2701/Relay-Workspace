@@ -41,11 +41,11 @@ describe("FTS5 search", () => {
       actor,
       "ui",
     );
-    svc.delegate(need.id, "grok-bot", actor, "ui");
+    svc.delegate(need.id, "agent-code", actor, "ui");
     svc.askUser(
       need.id,
       "Elegir titular del café",
-      { type: "agent", id: "grok-bot" },
+      { type: "agent", id: "agent-code" },
       "mcp",
     );
     const blocked = svc.createItem(
@@ -53,11 +53,11 @@ describe("FTS5 search", () => {
       actor,
       "ui",
     );
-    svc.delegate(blocked.id, "dev-senior", actor, "ui");
+    svc.delegate(blocked.id, "agent-research", actor, "ui");
     svc.setStatus(
       blocked.id,
       { status: "blocked", blocked_reason: "falta acceso café" },
-      { type: "agent", id: "dev-senior" },
+      { type: "agent", id: "agent-research" },
       "mcp",
     );
     svc.createItem({ title: "Café inbox only" }, actor, "ui");
@@ -78,12 +78,13 @@ describe("FTS5 search", () => {
     expect(davidHits.items.map((h) => h.item.id)).toContain(need.id);
     expect(davidHits.items.every((h) => h.item.id !== blocked.id)).toBe(true);
 
-    const grokHits = svc.search({ q: "cafe", actor: ["grok-bot"] });
+    const grokHits = svc.search({ q: "cafe", actor: ["agent-code"] });
     expect(grokHits.items.every((h) => h.item.id !== need.id)).toBe(true);
   });
 
   it("due facet uses Paris day bounds", () => {
     const actor = { type: "user" as const, id: USER_ACTOR_ID };
+    svc.updateSettings({ timezone: "Europe/Paris" });
     const now = new Date("2026-10-08T07:19:00.000Z");
     const today = svc.createItem(
       { title: "Due today", due_at: dateOnlyParisIso(2026, 10, 8) },

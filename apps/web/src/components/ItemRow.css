@@ -56,9 +56,8 @@
 
 .item-main {
   flex: 1 1 0;
-  min-width: 5rem;
+  min-width: 16rem;
   padding-top: 1px;
-  /* Keep ellipsized title from painting over DueChip / meta. */
   overflow: hidden;
 }
 
@@ -76,7 +75,6 @@
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
-  /* Flex default min-width:auto blocks truncation against long titles. */
   min-width: 0;
   flex: 1 1 auto;
 }
@@ -108,17 +106,14 @@
 .item-meta {
   display: flex;
   align-items: center;
-  gap: 8px;
-  /* Title yields (ellipsis); meta keeps whole DueChip glyphs (spec §6.8–6.9). */
+  gap: var(--space-2);
   flex: 0 0 auto;
   min-width: 0;
   margin-left: 12px;
   justify-content: flex-end;
-  /* Clip any leftover leftward overflow so DueChip cannot paint under the title. */
-  overflow: hidden;
 }
 
-/* Prefer dropping/soft-truncating intent; due chip stays whole glyphs. */
+/* Prefer dropping intent; due / reminder day+time stay whole. */
 .item-meta .reminder-chip .intent {
   overflow: hidden;
   text-overflow: ellipsis;
@@ -144,42 +139,56 @@
 }
 
 .reminder-chip {
-  font-size: var(--step-meta);
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-1);
+  font-size: var(--step-data);
+  font-family: var(--font-data);
+  font-variant-numeric: tabular-nums;
   color: var(--ink-muted);
-  max-width: 11rem;
+  max-width: none;
   min-width: 0;
   white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
+  overflow: visible;
   flex: 0 1 auto;
+}
+
+.reminder-bell {
+  flex: 0 0 auto;
+  color: inherit;
 }
 
 .reminder-chip .intent {
   color: var(--ink-2);
+  font-family: var(--font-ui);
+  font-size: var(--step-meta);
 }
 
 .prio {
   font-size: 10px;
   color: var(--ink-2);
+  flex: 0 0 auto;
 }
 
 .prio.hollow {
   color: var(--ink-muted);
 }
 
+.item-mark {
+  flex: 0 0 auto;
+  display: inline-flex;
+}
+
+/* §R.3 / V03-R13: grow, never clip; title yields instead. */
 .rel {
-  /* Spec §6.8: fixed 48px relative-time column (was 5.75rem and starved the title). */
-  flex: 0 0 48px;
-  width: 48px;
-  min-width: 48px;
+  flex: 0 0 auto;
+  min-width: var(--rel-col-w);
   text-align: right;
   font-size: var(--step-data);
   font-family: var(--font-data);
   font-variant-numeric: tabular-nums;
   color: var(--ink-muted);
   white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
 }
 
 .chat-badge {
@@ -189,4 +198,78 @@
   border-radius: var(--radius-xs);
   padding: 0 4px;
   line-height: 16px;
+}
+
+/* §1.15: list < 46rem (one-line layout) → reminder collapses to bell only.
+   Container is `.item-list` (see App.css). */
+@container list (max-width: 45.999rem) {
+  .reminder-chip .reminder-text,
+  .reminder-chip .intent {
+    display: none;
+  }
+}
+
+/* §R.3 / §1.15 / V03-L33: < 768 — title owns first line; due/reminder/rel last. */
+@media (max-width: 767px) {
+  .item-row {
+    flex-wrap: wrap;
+    row-gap: 2px;
+    min-height: 52px;
+    align-items: flex-start;
+  }
+
+  .item-row.with-reason {
+    min-height: 68px;
+  }
+
+  .item-row.with-reason.with-snippet {
+    min-height: 84px;
+  }
+
+  /* After glyph (~28px), title takes the rest of line 1 so chips cannot squeeze it. */
+  .item-main {
+    flex: 1 1 calc(100% - 36px);
+    min-width: calc(100% - 36px);
+    max-width: calc(100% - 36px);
+    order: 1;
+  }
+
+  .item-meta {
+    display: contents;
+  }
+
+  .prio {
+    order: 2;
+    align-self: center;
+  }
+
+  .item-mark {
+    order: 3;
+    align-self: center;
+  }
+
+  .due-chip {
+    order: 4;
+    margin-left: 34px;
+  }
+
+  .reminder-chip {
+    order: 5;
+  }
+
+  .reminder-chip .reminder-text,
+  .reminder-chip .intent {
+    display: inline !important;
+  }
+
+  .rel {
+    order: 6;
+    margin-left: auto;
+    min-width: 0;
+    flex: 0 0 auto;
+  }
+
+  .item-row.with-times {
+    padding-bottom: 6px;
+  }
 }

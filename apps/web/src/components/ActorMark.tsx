@@ -1,4 +1,5 @@
 import type { CSSProperties } from "react";
+import { useT } from "../i18n/I18nProvider";
 import {
   type ActorMarkModel,
   assertMarkConsistent,
@@ -24,6 +25,7 @@ export function ActorMark({
   working = false,
   stale = false,
 }: Props) {
+  const t = useT();
   if (import.meta.env.DEV) {
     assertMarkConsistent({ kind, name, monogram });
   }
@@ -61,12 +63,12 @@ export function ActorMark({
   };
   const role =
     kind === "user"
-      ? "Persona"
+      ? t("facet.you")
       : kind === "agent"
-        ? "Agente"
+        ? t("item.agentFallback")
         : kind === "system"
-          ? "Sistema"
-          : "Sin asignar";
+          ? t("actor.system")
+          : t("actor.unassigned");
   const label = `${name} · ${role}`;
   const shape = kind === "user" || kind === "unassigned" ? "circle" : "square";
   return (

@@ -356,6 +356,28 @@ export function createApi(svc: RelayService): Hono {
     }
   });
 
+  app.get("/settings", (c) => {
+    try {
+      return c.json({ settings: svc.getSettings() });
+    } catch (err) {
+      return handleError(c, err);
+    }
+  });
+
+  app.put("/settings", async (c) => {
+    try {
+      const body = (await c.req.json()) as Record<string, unknown>;
+      const patch =
+        body.settings && typeof body.settings === "object"
+          ? (body.settings as Record<string, unknown>)
+          : body;
+      const settings = svc.updateSettings(patch);
+      return c.json({ settings });
+    } catch (err) {
+      return handleError(c, err);
+    }
+  });
+
   return app;
 }
 

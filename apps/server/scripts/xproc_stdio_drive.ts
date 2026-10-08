@@ -63,7 +63,7 @@ async function main(): Promise<void> {
         name: op.tool,
         arguments: {
           ...args,
-          actor: { type: "agent", id: "grok-bot" },
+          actor: { type: "agent", id: "agent-code" },
         },
       });
       const structured = (result as { structuredContent?: unknown })

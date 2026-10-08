@@ -1,4 +1,5 @@
 import { useEffect, useId, useMemo, useRef, useState } from "react";
+import { useT } from "../i18n/I18nProvider";
 
 function pad(n: number): string {
   return String(n).padStart(2, "0");
@@ -61,6 +62,7 @@ export function TimeCombobox({
   onChange,
   onConfirm,
 }: Props) {
+  const t = useT();
   const listId = useId();
   const [text, setText] = useState(value);
   const [open, setOpen] = useState(false);
@@ -101,7 +103,7 @@ export function TimeCombobox({
   return (
     <div className="dtp-time">
       <label className="dtp-time-label">
-        Hora
+        {t("time.label")}
         <input
           type="text"
           className="dtp-time-input mono"
@@ -109,7 +111,7 @@ export function TimeCombobox({
           aria-autocomplete="list"
           aria-expanded={open}
           aria-controls={listId}
-          aria-label="Hora, formato 24 horas"
+          aria-label={t("time.inputAria")}
           disabled={disabled}
           value={text}
           onChange={(e) => {
@@ -147,21 +149,21 @@ export function TimeCombobox({
           id={listId}
           role="listbox"
           className="dtp-time-list"
-          aria-label="Horas"
+          aria-label={t("time.listAria")}
         >
-          {options.map((t) => (
-            <li key={t} role="option" aria-selected={t === value} data-t={t}>
+          {options.map((opt) => (
+            <li key={opt} role="option" aria-selected={opt === value} data-t={opt}>
               <button
                 type="button"
-                className={`dtp-time-opt mono${t === value ? " selected" : ""}`}
+                className={`dtp-time-opt mono${opt === value ? " selected" : ""}`}
                 onMouseDown={(e) => e.preventDefault()}
                 onClick={() => {
-                  setText(t);
-                  onChange(t);
+                  setText(opt);
+                  onChange(opt);
                   setOpen(false);
                 }}
               >
-                {t}
+                {opt}
               </button>
             </li>
           ))}

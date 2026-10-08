@@ -6,6 +6,7 @@ import {
   completeItem,
   reopenItem,
 } from "../src/domain/transitions.js";
+import { USER_ACTOR_ID } from "../src/schemas/enums.js";
 import type { WorkItem } from "../src/schemas/work_item.js";
 
 function baseItem(overrides: Partial<WorkItem> = {}): WorkItem {
@@ -15,7 +16,7 @@ function baseItem(overrides: Partial<WorkItem> = {}): WorkItem {
     goal: null,
     status: "in_progress",
     assignee_type: "agent",
-    assignee_id: "grok-bot",
+    assignee_id: "agent-code",
     due_at: null,
     reminder_at: null,
     reminder_intent: null,
@@ -30,14 +31,14 @@ function baseItem(overrides: Partial<WorkItem> = {}): WorkItem {
     completed_by_type: null,
     completed_by_id: null,
     last_actor_type: "agent",
-    last_actor_id: "grok-bot",
+    last_actor_id: "agent-code",
     list_id: null,
     ...overrides,
   };
 }
 
-const agent = { type: "agent" as const, id: "grok-bot" };
-const user = { type: "user" as const, id: "david" };
+const agent = { type: "agent" as const, id: "agent-code" };
+const user = { type: "user" as const, id: USER_ACTOR_ID };
 
 describe("status transitions", () => {
   it("requires blocked_reason", () => {
@@ -72,8 +73,8 @@ describe("status transitions", () => {
     expect(next.status).toBe("needs_you");
     expect(next.needs_you_reason).toBe("¿Publico A o B?");
     expect(next.assignee_type).toBe("agent");
-    expect(next.assignee_id).toBe("grok-bot");
-    expect(next.last_actor_id).toBe("grok-bot");
+    expect(next.assignee_id).toBe("agent-code");
+    expect(next.last_actor_id).toBe("agent-code");
   });
 
   it("complete stamps completed_by actor", () => {
@@ -84,7 +85,7 @@ describe("status transitions", () => {
     });
     expect(next.status).toBe("done");
     expect(next.completed_by_type).toBe("agent");
-    expect(next.completed_by_id).toBe("grok-bot");
+    expect(next.completed_by_id).toBe("agent-code");
     expect(next.completed_at).toBeTruthy();
   });
 
@@ -99,8 +100,8 @@ describe("status transitions", () => {
     expect(next.completed_at).toBeNull();
     expect(next.completed_by_type).toBeNull();
     expect(next.completed_by_id).toBeNull();
-    expect(next.last_actor_id).toBe("david");
-    expect(next.assignee_id).toBe("grok-bot");
+    expect(next.last_actor_id).toBe(USER_ACTOR_ID);
+    expect(next.assignee_id).toBe("agent-code");
   });
 
   it("reopen goes to inbox when unassigned", () => {

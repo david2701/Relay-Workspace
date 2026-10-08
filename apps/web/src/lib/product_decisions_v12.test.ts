@@ -3,6 +3,8 @@
  * Confirmation of assumptions already shipped; these tests lock the ACs.
  */
 import { describe, expect, it } from "vitest";
+import { translate } from "../i18n/translate";
+import type { MessageKey } from "../i18n/types";
 import { ballHolderId, itemMatchesFacets } from "./facet_filter";
 import {
   formatDateTimeField,
@@ -13,6 +15,14 @@ import {
   formatNoteMetaLine,
   noteMetaHasAuthorship,
 } from "./note_meta";
+
+function esT(
+  key: MessageKey,
+  params?: Record<string, string | number>,
+): string {
+  return translate("es", key, params);
+}
+
 import { dateOnlyParisIso, fromParisWall, isDateOnly } from "./paris_time";
 import {
   readTodoGroupBy,
@@ -30,7 +40,7 @@ function item(
   return {
     goal: null,
     assignee_type: "agent",
-    assignee_id: "grok-bot",
+    assignee_id: "agent-code",
     due_at: null,
     reminder_at: null,
     reminder_intent: null,
@@ -45,7 +55,7 @@ function item(
     completed_by_type: null,
     completed_by_id: null,
     last_actor_type: "agent",
-    last_actor_id: "grok-bot",
+    last_actor_id: "agent-code",
     list_id: null,
     ...patch,
   };
@@ -80,7 +90,7 @@ describe("§6 P1 — 23:59 Europe/Paris = sin hora (no due_has_time)", () => {
     }).toISOString();
     expect(handPicked).toBe("2026-10-08T21:59:00.000Z");
     expect(isDateOnly(handPicked)).toBe(true);
-    expect(formatDateTimeField(handPicked)).toBe("jue 8 oct 2026");
+    expect(formatDateTimeField(handPicked)).toBe("jue, 8 oct 2026");
     expect(formatDateTimeField(handPicked)).not.toMatch(/23:59/);
     expect(formatDue(handPicked, NOW).text).toBe("Hoy");
   });
@@ -103,8 +113,8 @@ describe("§6 P1 — 23:59 Europe/Paris = sin hora (no due_has_time)", () => {
 describe("§6 P2 — notes have no authorship", () => {
   it("meta line is date-only for MCP- and web-shaped notes", () => {
     const now = new Date("2026-10-08T09:19:00.000Z");
-    const mcpMeta = formatNoteMetaLine("2026-10-08T07:19:00.000Z", 0, now);
-    const webMeta = formatNoteMetaLine("2026-10-08T07:19:00.000Z", 3, now);
+    const mcpMeta = formatNoteMetaLine(esT, "2026-10-08T07:19:00.000Z", 0, now);
+    const webMeta = formatNoteMetaLine(esT, "2026-10-08T07:19:00.000Z", 3, now);
     expect(mcpMeta).toBe("Actualizada hace 2 h");
     expect(webMeta).toBe("Actualizada hace 2 h · 3 ítems vinculados");
     expect(noteMetaHasAuthorship(mcpMeta)).toBe(false);
@@ -112,22 +122,22 @@ describe("§6 P2 — notes have no authorship", () => {
   });
 });
 
-describe("§6 P3 — Dueño facet = ball holder (needs_you → david)", () => {
-  it("Grok Bot needs_you matches actor=david and not actor=grok-bot", () => {
+describe("§6 P3 — Dueño facet = ball holder (needs_you → user)", () => {
+  it("Code agent needs_you matches actor=user and not actor=agent-code", () => {
     const need = item({
       id: "ny",
       title: "Decide scope",
       status: "needs_you",
       assignee_type: "agent",
-      assignee_id: "grok-bot",
+      assignee_id: "agent-code",
       needs_you_reason: "Elegir alcance",
     });
-    expect(ballHolderId(need)).toBe("david");
+    expect(ballHolderId(need)).toBe("user");
     expect(
-      itemMatchesFacets(need, { ...EMPTY_FACETS, actor: ["david"] }),
+      itemMatchesFacets(need, { ...EMPTY_FACETS, actor: ["user"] }),
     ).toBe(true);
     expect(
-      itemMatchesFacets(need, { ...EMPTY_FACETS, actor: ["grok-bot"] }),
+      itemMatchesFacets(need, { ...EMPTY_FACETS, actor: ["agent-code"] }),
     ).toBe(false);
   });
 
@@ -137,14 +147,14 @@ describe("§6 P3 — Dueño facet = ball holder (needs_you → david)", () => {
       title: "Decide scope",
       status: "assigned",
       assignee_type: "agent",
-      assignee_id: "grok-bot",
+      assignee_id: "agent-code",
     });
-    expect(ballHolderId(returned)).toBe("grok-bot");
+    expect(ballHolderId(returned)).toBe("agent-code");
     expect(
-      itemMatchesFacets(returned, { ...EMPTY_FACETS, actor: ["david"] }),
+      itemMatchesFacets(returned, { ...EMPTY_FACETS, actor: ["user"] }),
     ).toBe(false);
     expect(
-      itemMatchesFacets(returned, { ...EMPTY_FACETS, actor: ["grok-bot"] }),
+      itemMatchesFacets(returned, { ...EMPTY_FACETS, actor: ["agent-code"] }),
     ).toBe(true);
   });
 });

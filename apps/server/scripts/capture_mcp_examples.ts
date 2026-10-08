@@ -69,7 +69,7 @@ const seed = seedDatabase(dbPath);
 const svc = new RelayService({ dbPath });
 const tools = createMcpTools(svc);
 const toolNames = tools.map((t) => t.name);
-const actor = { id: "grok-bot", type: "agent" };
+const actor = { id: "agent-code", type: "agent" };
 
 const examples: Record<string, unknown> = {
   generated_at: new Date().toISOString(),
@@ -125,11 +125,11 @@ calls.items_update = {
 };
 
 calls.items_delegate = {
-  args: { id: sampleId, agent_id: "grok-bot", actor },
+  args: { id: sampleId, agent_id: "agent-code", actor },
   response: trimDeep(
     invoke(tools, "items_delegate", {
       id: sampleId,
-      agent_id: "grok-bot",
+      agent_id: "agent-code",
       actor,
     }).result,
   ),
@@ -258,7 +258,7 @@ calls.items_set_status_return = {
       actor,
     }).result,
   ),
-  note: "In the web UI David clicks «Devolver a Grok Bot»; agents then see assigned again.",
+  note: "In the web UI The user clicks «Return to Code agent»; agents then see assigned again.",
 };
 
 calls.items_complete = {

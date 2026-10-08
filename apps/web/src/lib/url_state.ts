@@ -1,5 +1,9 @@
 import type { AppView, Status } from "./types";
 
+/** Stable human actor id (legacy `david` rewritten in URLs). */
+export const USER_ACTOR_ID = "user";
+const USER_LEGACY = "david";
+
 export const APP_VIEWS: readonly AppView[] = [
   "attention",
   "agent_wip",
@@ -79,11 +83,17 @@ function sortStatuses(values: readonly string[]): Status[] {
   return STATUS_ORDER.filter((s) => set.has(s));
 }
 
+export function normalizeActorId(id: string): string {
+  return id === USER_LEGACY ? USER_ACTOR_ID : id;
+}
+
 function sortActors(values: readonly string[]): string[] {
-  const uniq = [...new Set(values.filter((a) => a.length > 0))];
+  const uniq = [
+    ...new Set(values.filter((a) => a.length > 0).map(normalizeActorId)),
+  ];
   return uniq.sort((a, b) => {
-    if (a === "david") return -1;
-    if (b === "david") return 1;
+    if (a === USER_ACTOR_ID) return -1;
+    if (b === USER_ACTOR_ID) return 1;
     return a.localeCompare(b);
   });
 }
@@ -172,9 +182,11 @@ export function parseUrlState(
       .split(",")
       .map((s) => s.trim())
       .filter(Boolean);
+    const normalized = parts.map(normalizeActorId);
+    if (parts.some((a) => a === USER_LEGACY)) dirty = true;
     const filtered = knownActors
-      ? parts.filter((a) => a === "david" || knownActors.has(a))
-      : parts;
+      ? normalized.filter((a) => a === USER_ACTOR_ID || knownActors.has(a))
+      : normalized;
     if (filtered.length !== parts.length) dirty = true;
     actor = sortActors(filtered);
     if (actorRaw !== actor.join(",")) dirty = true;

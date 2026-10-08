@@ -15,11 +15,10 @@ const resolvedDb =
   process.env.RELAY_DB ?? resolve(process.cwd(), "../../data/relay.db");
 
 const AGENTS = [
-  "grok-bot",
-  "dev-senior",
-  "redactor",
-  "ux-designer",
-  "qa",
+  "agent-code",
+  "agent-research",
+  "agent-writing",
+  "agent-data",
 ] as const;
 
 const VERBS = [
@@ -47,7 +46,7 @@ const VERBS = [
 
 const NOUNS = [
   "el contrato de hosting",
-  "la demo para Acme",
+  "la demo del producto",
   "el post de lanzamiento",
   "las notas del archivo",
   "el changelog semanal",
@@ -102,7 +101,7 @@ const NOTE_TOPICS = [
 ] as const;
 
 const GOALS = [
-  "Dejar el entregable listo para revisión de David",
+  "Dejar el entregable listo para revisión del dueño",
   "Tener una versión publicable antes del mediodía",
   "Cerrar el bloqueo y continuar el flujo con el agente",
   "Documentar la decisión y avisar al resto del equipo",
@@ -360,7 +359,7 @@ export function seedLargeDatabase(dbPath: string = resolvedDb): {
       insertNote.run({
         id: `nte_lg${pad(n + 1, 7)}`,
         title: topic,
-        body_md: `${topic}.\n\nPuntos clave:\n- Contexto para el handoff\n- Decisión pendiente de David\n- Enlace con el ítem relacionado\n`,
+        body_md: `${topic}.\n\nPuntos clave:\n- Contexto para el handoff\n- Decisión pendiente del dueño\n- Enlace con el ítem relacionado\n`,
         created_at,
         updated_at,
       });

@@ -611,19 +611,29 @@
             "item_id": "itm_maj7i9qv5r",
             "kind": "needs_you_waiting",
             "score": 103.00001944444445,
-            "reason": "Te espera desde hace 3 h"
+            "reason_code": "rec.needs_you_waiting",
+            "reason_params": {
+              "rel": "3 h"
+            }
           },
           {
             "item_id": "itm_r9j7pimxt9",
             "kind": "blocked",
             "score": 90,
-            "reason": "Atascado: falta acceso de lectura a la carpeta /archive"
+            "reason_code": "rec.blocked",
+            "reason_params": {
+              "reason": "falta acceso de lectura a la carpeta /archive"
+            }
           },
           {
             "item_id": "itm_uyoen5x0lf",
             "kind": "reminder_soon",
             "score": 84.00002388888889,
-            "reason": "Aviso en 1 h: Revisar el borrador antes de la demo"
+            "reason_code": "rec.reminder_soon",
+            "reason_params": {
+              "rel": "1 h",
+              "intent": "Revisar el borrador antes de la demo"
+            }
           }
         ]
       }

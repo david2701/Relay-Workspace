@@ -1,12 +1,15 @@
 import { Bell, CalendarBlank, LinkSimple, X } from "@phosphor-icons/react";
 import { useEffect, useMemo, useState } from "react";
+import { useActorLabels } from "../hooks/useActorLabels";
+import { useT } from "../i18n/I18nProvider";
+import type { MessageKey } from "../i18n/types";
 import {
   markForActor,
   markForCompleter,
   markForOwner,
 } from "../lib/actor_mark";
 import { api } from "../lib/api";
-import { copy } from "../lib/copy";
+import { dueFacetLabel, statusLabel } from "../lib/copy";
 import { formatAbsolute, formatRelative } from "../lib/format";
 import { toPlainText } from "../lib/markdown";
 import type {
@@ -17,6 +20,7 @@ import type {
   Status,
   WorkItem,
 } from "../lib/types";
+import { USER_ACTOR_ID } from "../lib/url_state";
 import { ActorMark, isStaleWorking, isWorking } from "./ActorMark";
 import { DateTimePicker } from "./DateTimePicker";
 import { StatusGlyph } from "./StatusGlyph";
@@ -56,6 +60,9 @@ export function DetailPanel({
   onOpenPickerHandled,
   onOpenNote,
 }: Props) {
+  const t = useT();
+  const actorLabels = useActorLabels();
+  const sl = (s: Status) => statusLabel(t, s);
   const [notes, setNotes] = useState<LinkedNote[]>([]);
   const [allNotes, setAllNotes] = useState<{ id: string; title: string }[]>([]);
   const [showLinker, setShowLinker] = useState(false);
@@ -89,26 +96,26 @@ export function DetailPanel({
 
   if (!item) {
     return (
-      <aside className="detail-zone" aria-label="Detalle del ítem">
-        <div className="detail-empty">{copy.detailEmpty}</div>
-        <ul className="detail-empty-keys mono" aria-label="Atajos rápidos">
+      <aside className="detail-zone" aria-label={t("detail.aria")}>
+        <div className="detail-empty">{t("detail.empty")}</div>
+        <ul className="detail-empty-keys mono" aria-label={t("detail.quickKeysAria")}>
           <li>
-            <kbd>N</kbd> captura
+            <kbd>N</kbd> {t("detail.empty.capture")}
           </li>
           <li>
-            <kbd>J</kbd>/<kbd>K</kbd> navega
+            <kbd>J</kbd>/<kbd>K</kbd> {t("detail.empty.navigate")}
           </li>
           <li>
-            <kbd>Enter</kbd> abre
+            <kbd>{t("kbd.enter")}</kbd> {t("detail.empty.open")}
           </li>
           <li>
-            <kbd>X</kbd> completa
+            <kbd>X</kbd> {t("detail.empty.complete")}
           </li>
           <li>
-            <kbd>D</kbd> delega
+            <kbd>D</kbd> {t("detail.empty.delegate")}
           </li>
           <li>
-            <kbd>?</kbd> atajos
+            <kbd>?</kbd> {t("detail.empty.shortcuts")}
           </li>
         </ul>
       </aside>
@@ -160,7 +167,9 @@ export function DetailPanel({
 
   async function saveDecisionNote(text: string) {
     if (!text.trim()) return;
-    const title = `Decisión: ${(item!.needs_you_reason ?? "respuesta").slice(0, 60)}`;
+    const title = t("detail.decisionNoteTitle", {
+      reason: (item!.needs_you_reason ?? "respuesta").slice(0, 60),
+    });
     const { note } = await api.createNote(title, text.trim());
     await api.linkNote(item!.id, note.id, "decision");
     const linked = await api.itemNotes(item!.id);
@@ -214,7 +223,7 @@ export function DetailPanel({
 
   const lastActorName =
     item.last_actor_type === "user"
-      ? "Tú"
+      ? t("facet.you")
       : agents.find((a) => a.id === item.last_actor_id)?.display_name ??
         item.last_actor_id;
 
@@ -226,10 +235,10 @@ export function DetailPanel({
 
   if (showAgentView && context) {
     return (
-      <aside className="detail-zone" aria-label="Detalle del ítem">
+      <aside className="detail-zone" aria-label={t("detail.aria")}>
         <header className="detail-head">
           <button type="button" onClick={() => setShowAgentView(false)}>
-            ← Volver
+            {t("detail.back")}
           </button>
           <button
             type="button"
@@ -238,23 +247,23 @@ export function DetailPanel({
               await navigator.clipboard.writeText(context.markdown);
             }}
           >
-            {copy.context.copyMd}
+            {t("context.copyMd")}
           </button>
         </header>
         <div className="agent-view">
           <h1>{context.pack.title}</h1>
           <section>
-            <div className="label-caps">Objetivo</div>
+            <div className="label-caps">{t("detail.goalCaps")}</div>
             <p>
               {context.pack.goal?.trim()
                 ? context.pack.goal
-                : copy.context.noGoal}
+                : t("context.noGoal")}
             </p>
           </section>
           <section>
-            <div className="label-caps">Estado</div>
+            <div className="label-caps">{t("detail.statusCaps")}</div>
             <p>
-              {copy.statusLabel[context.pack.status as Status] ??
+              {sl(context.pack.status as Status) ??
                 context.pack.status}{" "}
               <span className="mono">({context.pack.status})</span>
               {context.pack.needs_you_reason
@@ -266,11 +275,11 @@ export function DetailPanel({
             </p>
           </section>
           <section>
-            <div className="label-caps">Dueño</div>
-            <p>{context.pack.assignee_display_name ?? "Sin dueño"}</p>
+            <div className="label-caps">{t("detail.ownerLabel")}</div>
+            <p>{context.pack.assignee_display_name ?? t("detail.noOwner")}</p>
           </section>
           <section>
-            <div className="label-caps">Para cuándo</div>
+            <div className="label-caps">{t("detail.whenDue")}</div>
             <p className="mono">
               {context.pack.due_at
                 ? formatAbsolute(context.pack.due_at)
@@ -278,7 +287,7 @@ export function DetailPanel({
             </p>
           </section>
           <section>
-            <div className="label-caps">Recordatorio</div>
+            <div className="label-caps">{t("field.reminder")}</div>
             <p>
               {context.pack.reminder_at ? (
                 <>
@@ -295,7 +304,7 @@ export function DetailPanel({
             </p>
           </section>
           <section>
-            <div className="label-caps">Notas</div>
+            <div className="label-caps">{t("detail.notesCaps")}</div>
             {context.pack.notes.map((n) => (
               <article key={n.id} className="note-card">
                 <strong>
@@ -311,7 +320,7 @@ export function DetailPanel({
   }
 
   return (
-    <aside className="detail-zone" aria-label="Detalle del ítem">
+    <aside className="detail-zone" aria-label={t("detail.aria")}>
       <header className="detail-head">
         <div className="status-wrap">
           <button
@@ -324,9 +333,9 @@ export function DetailPanel({
           >
             <StatusGlyph
               status={item.status}
-              label={copy.statusLabel[item.status]}
+              label={sl(item.status)}
             />
-            {copy.statusLabel[item.status]}
+            {sl(item.status)}
           </button>
           {statusOpen ? (
             <div className="popover" role="menu">
@@ -334,8 +343,8 @@ export function DetailPanel({
                 <div className="reason-form">
                   <div className="label-caps">
                     {reasonMode === "blocked"
-                      ? copy.reason.blockedTitle
-                      : copy.reason.needsYouTitle}
+                      ? t("reason.blockedTitle")
+                      : t("reason.needsYouTitle")}
                   </div>
                   <textarea
                     autoFocus
@@ -343,8 +352,8 @@ export function DetailPanel({
                     value={reasonText}
                     placeholder={
                       reasonMode === "blocked"
-                        ? copy.reason.blockedPlaceholder
-                        : copy.reason.needsYouPlaceholder
+                        ? t("reason.blockedPlaceholder")
+                        : t("reason.needsYouPlaceholder")
                     }
                     onChange={(e) => setReasonText(e.target.value)}
                     onKeyDown={(e) => {
@@ -358,7 +367,7 @@ export function DetailPanel({
                     }}
                   />
                   {reasonText.trim().length < 3 ? (
-                    <div className="field-error">{copy.reason.required}</div>
+                    <div className="field-error">{t("reason.required")}</div>
                   ) : null}
                   <button
                     type="button"
@@ -367,8 +376,8 @@ export function DetailPanel({
                     onClick={() => void confirmReason()}
                   >
                     {reasonMode === "blocked"
-                      ? copy.reason.confirmBlocked
-                      : copy.reason.confirmNeedsYou}
+                      ? t("reason.confirmBlocked")
+                      : t("reason.confirmNeedsYou")}
                   </button>
                 </div>
               ) : (
@@ -379,8 +388,8 @@ export function DetailPanel({
                     role="menuitem"
                     onClick={() => void chooseStatus(s)}
                   >
-                    <StatusGlyph status={s} label={copy.statusLabel[s]} />
-                    {copy.statusLabel[s]}
+                    <StatusGlyph status={s} label={sl(s)} />
+                    {sl(s)}
                   </button>
                 ))
               )}
@@ -390,7 +399,7 @@ export function DetailPanel({
         <button
           type="button"
           className="icon-btn"
-          aria-label="Cerrar"
+          aria-label={t("shortcuts.close")}
           onClick={onClose}
         >
           <X size={16} />
@@ -408,18 +417,25 @@ export function DetailPanel({
       >
         {item.title}
       </h1>
-      {saved ? <div className="saved mono">{copy.cta.open && "Guardado"}</div> : null}
+      {saved ? <div className="saved mono">{t("detail.saved")}</div> : null}
 
       {(item.status === "needs_you" || item.status === "blocked") && (
         <div
           className={`reason-banner ${item.status}`}
           role="region"
-          aria-label={copy.statusLabel[item.status]}
+          aria-label={sl(item.status)}
         >
           <div className="rb-title">
             {item.status === "needs_you"
-              ? `${agents.find((a) => a.id === item.last_actor_id)?.display_name ?? "Agente"} necesita tu decisión · ${formatRelative(item.updated_at)}`
-              : `Atascado · ${formatRelative(item.updated_at)}`}
+              ? t("detail.needsYouBanner", {
+                  agent:
+                    agents.find((a) => a.id === item.last_actor_id)?.display_name ??
+                    actorLabels.agentFallback,
+                  time: formatRelative(item.updated_at),
+                })
+              : t("detail.blockedBanner", {
+                  time: formatRelative(item.updated_at),
+                })}
           </div>
           <div className="rb-body">
             {item.status === "needs_you"
@@ -429,12 +445,12 @@ export function DetailPanel({
           {item.status === "needs_you" ? (
             <>
               <label className="reply-label">
-                {copy.reason.reply}
+                {t("reason.reply")}
                 <textarea
                   autoFocus
                   rows={2}
                   value={reply}
-                  placeholder={copy.reason.replyPlaceholder}
+                  placeholder={t("reason.replyPlaceholder")}
                   onChange={(e) => setReply(e.target.value)}
                 />
               </label>
@@ -445,7 +461,9 @@ export function DetailPanel({
                   disabled={offline || !agent}
                   onClick={() => void returnToAgent()}
                 >
-                  {copy.cta.returnTo(agent?.display_name ?? "agente")}
+                  {t("detail.returnTo", {
+                    agent: agent?.display_name ?? t("item.agentFallback"),
+                  })}
                 </button>
                 <button
                   type="button"
@@ -453,7 +471,7 @@ export function DetailPanel({
                   disabled={offline}
                   onClick={() => void doMyself()}
                 >
-                  {copy.cta.doMyself}
+                  {t("cta.doMyself")}
                 </button>
               </div>
             </>
@@ -465,7 +483,7 @@ export function DetailPanel({
                 disabled={offline}
                 onClick={() => void chooseStatus("in_progress")}
               >
-                {copy.cta.unblock}
+                {t("cta.unblock")}
               </button>
             </div>
           )}
@@ -488,8 +506,17 @@ export function DetailPanel({
                   />
                   <span>
                     {completer.kind === "user"
-                      ? `Completado por ti · ${item.completed_at ? formatAbsolute(item.completed_at) : ""}`
-                      : `Completado por ${completer.name} · ${item.completed_at ? formatAbsolute(item.completed_at) : ""}`}
+                      ? t("item.completedByYou", {
+                          time: item.completed_at
+                            ? formatAbsolute(item.completed_at)
+                            : "",
+                        })
+                      : t("item.completedBy", {
+                          name: completer.name,
+                          time: item.completed_at
+                            ? formatAbsolute(item.completed_at)
+                            : "",
+                        })}
                   </span>
                 </>
               );
@@ -503,18 +530,18 @@ export function DetailPanel({
               onChange(next);
             }}
           >
-            {copy.cta.reopen}
+            {t("cta.reopen")}
           </button>
         </div>
       )}
 
       <section className="detail-section">
-        <div className="label-caps">Traspaso</div>
+        <div className="label-caps">{t("detail.handoff")}</div>
         <div className="kv">
-          <span>Dueño</span>
+          <span>{t("detail.ownerLabel")}</span>
           <span className="kv-val">
             {item.assignee_type === "unassigned" ? (
-              <>Sin dueño</>
+              <>{t("detail.noOwner")}</>
             ) : (
               <>
                 {(() => {
@@ -538,7 +565,7 @@ export function DetailPanel({
                     />
                   );
                 })()}{" "}
-                {item.assignee_type === "user" ? "Tú" : agent?.display_name}
+                {item.assignee_type === "user" ? t("facet.you") : agent?.display_name}
               </>
             )}
             <button
@@ -547,7 +574,7 @@ export function DetailPanel({
               disabled={offline}
               onClick={() => setDelegateOpen((v) => !v)}
             >
-              Cambiar
+              {t("detail.changeOwner")}
             </button>
           </span>
         </div>
@@ -556,7 +583,7 @@ export function DetailPanel({
             {(item.goal == null || item.goal.trim() === "") &&
             notes.length === 0 ? (
               <div className="blind-warn">
-                {copy.delegate.blind}
+                {t("delegate.blind")}
                 <div className="rb-actions">
                   <button
                     type="button"
@@ -566,7 +593,7 @@ export function DetailPanel({
                       document.getElementById("goal-field")?.focus();
                     }}
                   >
-                    {copy.delegate.addGoal}
+                    {t("delegate.addGoal")}
                   </button>
                   <button
                     type="button"
@@ -576,14 +603,18 @@ export function DetailPanel({
                       void openLinker();
                     }}
                   >
-                    {copy.delegate.linkNote}
+                    {t("delegate.linkNote")}
                   </button>
                 </div>
               </div>
             ) : null}
             <div className="mono subtle">
-              Objetivo: {item.goal?.trim() ? item.goal.slice(0, 40) : "Falta"} ·
-              Notas: {notes.length}
+              {t("detail.delegateSummary", {
+                goal: item.goal?.trim()
+                  ? item.goal.slice(0, 40)
+                  : t("detail.goalMissingShort"),
+                n: notes.length,
+              })}
             </div>
             {agents.map((a) => (
               <button
@@ -608,7 +639,7 @@ export function DetailPanel({
           </div>
         ) : null}
         <div className="kv">
-          <span>Último cambio</span>
+          <span>{t("detail.lastChange")}</span>
           <span className="kv-val">
             {(() => {
               const last = markForActor(
@@ -637,7 +668,7 @@ export function DetailPanel({
             disabled={offline}
             onClick={() => setDelegateOpen(true)}
           >
-            {copy.cta.delegate}
+            {t("cta.delegate")}
           </button>
           <button
             type="button"
@@ -648,13 +679,13 @@ export function DetailPanel({
               onChange(next);
             }}
           >
-            {copy.cta.assignMe}
+            {t("cta.assignMe")}
           </button>
         </div>
       </section>
 
       <section className="detail-section">
-        <div className="label-caps">{copy.field.goal}</div>
+        <div className="label-caps">{t("field.goal")}</div>
         <textarea
           id="goal-field"
           className="goal-field"
@@ -662,22 +693,22 @@ export function DetailPanel({
           disabled={offline}
           defaultValue={item.goal ?? ""}
           key={`${item.id}-goal`}
-          placeholder={copy.field.goalPlaceholder}
+          placeholder={t("field.goalPlaceholder")}
           onBlur={(e) => {
             const v = e.target.value;
             if (v !== (item.goal ?? "")) void patch({ goal: v || null });
           }}
         />
         {!item.goal?.trim() && item.assignee_type === "agent" ? (
-          <div className="hint-warn">{copy.field.goalMissing}</div>
+          <div className="hint-warn">{t("field.goalMissing")}</div>
         ) : null}
       </section>
 
       <section className="detail-section">
-        <div className="label-caps">Recordatorio</div>
+        <div className="label-caps">{t("field.reminder")}</div>
         <div className="reminder-grid">
           <DateTimePicker
-            label={copy.field.due}
+            label={t("field.due")}
             icon={<CalendarBlank size={14} />}
             kind="due"
             value={item.due_at}
@@ -691,7 +722,7 @@ export function DetailPanel({
             }}
           />
           <DateTimePicker
-            label={copy.field.reminder}
+            label={t("field.reminder")}
             icon={<Bell size={14} />}
             kind="reminder"
             value={item.reminder_at}
@@ -705,14 +736,14 @@ export function DetailPanel({
             }}
           />
           <label className="span2">
-            {copy.field.intent}
+            {t("field.intent")}
             <input
               type="text"
               maxLength={80}
               disabled={offline}
               defaultValue={item.reminder_intent ?? ""}
               key={`${item.id}-intent`}
-              placeholder={copy.field.intentPlaceholder}
+              placeholder={t("field.intentPlaceholder")}
               onBlur={(e) => {
                 const v = e.target.value;
                 if (v !== (item.reminder_intent ?? "")) {
@@ -723,34 +754,34 @@ export function DetailPanel({
           </label>
         </div>
         {item.reminder_at && !item.reminder_intent?.trim() ? (
-          <div className="hint-soft">{copy.field.intentMissing}</div>
+          <div className="hint-soft">{t("field.intentMissing")}</div>
         ) : null}
       </section>
 
       <section className="detail-section">
         <div className="section-head">
-          <div className="label-caps">{copy.context.title}</div>
+          <div className="label-caps">{t("context.title")}</div>
           <button
             type="button"
             className="linkish"
             disabled={offline}
             onClick={() => void openLinker()}
           >
-            <LinkSimple size={14} /> {copy.cta.linkNote}
+            <LinkSimple size={14} /> {t("cta.linkNote")}
           </button>
         </div>
         {notes.length === 0 ? (
-          <p className="empty-inline">{copy.context.empty}</p>
+          <p className="empty-inline">{t("context.empty")}</p>
         ) : (
           (["decision", "context", "reference"] as const).map((role) =>
             grouped[role].length ? (
               <div key={role} className="note-group">
                 <div className="label-caps">
                   {role === "decision"
-                    ? "Decisión"
+                    ? t("note.role.decision")
                     : role === "context"
-                      ? "Contexto"
-                      : "Referencia"}
+                      ? t("note.role.context")
+                      : t("note.role.reference")}
                 </div>
                 {grouped[role].map((n) => (
                   <article key={n.id} className="note-card note-card-openable">
@@ -770,7 +801,7 @@ export function DetailPanel({
                           setNotes((prev) => prev.filter((x) => x.id !== n.id));
                         }}
                       >
-                        Quitar
+                        {t("detail.unlink")}
                       </button>
                     </div>
                     <p className="note-extract">{toPlainText(n.body_md)}</p>
@@ -788,14 +819,14 @@ export function DetailPanel({
           className="linkish agent-view-link"
           onClick={() => void openAgentView()}
         >
-          {copy.context.agentView} →
+          {t("context.agentView")} →
         </button>
         {showLinker ? (
           <div className="popover linker">
             <input
               autoFocus
               value={linkerQ}
-              placeholder="Busca una nota o escribe un título nuevo"
+              placeholder={t("detail.linkerPlaceholder")}
               onChange={(e) => setLinkerQ(e.target.value)}
               onKeyDown={(e) => {
                 if (e.key === "Enter") {
@@ -817,10 +848,10 @@ export function DetailPanel({
                   onClick={() => setLinkRole(r)}
                 >
                   {r === "context"
-                    ? "Contexto"
+                    ? t("note.role.context")
                     : r === "reference"
-                      ? "Referencia"
-                      : "Decisión"}
+                      ? t("note.role.reference")
+                      : t("note.role.decision")}
                 </button>
               ))}
             </div>
@@ -840,7 +871,7 @@ export function DetailPanel({
               {linkerQ.trim() ? (
                 <li>
                   <button type="button" onClick={() => void createAndLink()}>
-                    Crear nota «{linkerQ.trim()}»
+                    {t("detail.createNoteTitle", { title: linkerQ.trim() })}
                   </button>
                 </li>
               ) : null}
@@ -852,8 +883,15 @@ export function DetailPanel({
       <footer className="detail-foot mono">
         id {item.id} ·{" "}
         {item.source === "mcp"
-          ? `Creado desde el chat por ${agents.find((a) => a.id === item.last_actor_id)?.display_name ?? "agente"} · ${formatAbsolute(item.created_at)}`
-          : `Creado por ti en Relay · ${formatAbsolute(item.created_at)}`}
+          ? t("detail.createdFromChat", {
+              agent:
+                agents.find((a) => a.id === item.last_actor_id)?.display_name ??
+                t("item.agentFallback"),
+              time: formatAbsolute(item.created_at),
+            })
+          : t("detail.createdByYouInRelay", {
+              time: formatAbsolute(item.created_at),
+            })}
       </footer>
     </aside>
   );

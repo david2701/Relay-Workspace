@@ -16,6 +16,11 @@ import {
   reopenItem,
   stampActor,
 } from "../domain/transitions.js";
+import {
+  dateOnlyZoneIso,
+  isDateOnlyInZone,
+  toZoneParts,
+} from "../domain/zone_time.js";
 import { type Agent, DEFAULT_AGENTS } from "../schemas/agent.js";
 import {
   type InboxView,
@@ -38,6 +43,13 @@ import type {
   NoteRole,
   UpdateNoteInput,
 } from "../schemas/note.js";
+import {
+  DEFAULT_SETTINGS,
+  type RelaySettings,
+  SettingsSchema,
+  type UpdateSettingsInput,
+  UpdateSettingsSchema,
+} from "../schemas/settings.js";
 import type {
   Actor,
   CreateItemInput,
@@ -161,6 +173,91 @@ export class RelayService {
 
   listAgents(): Agent[] {
     return this.agents.list();
+  }
+
+  private readMeta(key: string): string | null {
+    const row = this.db
+      .prepare(`SELECT value FROM relay_meta WHERE key = ?`)
+      .get(key) as { value: string } | undefined;
+    return row?.value ?? null;
+  }
+
+  private writeMeta(key: string, value: string): void {
+    this.db
+      .prepare(
+        `INSERT INTO relay_meta(key, value) VALUES (?, ?)
+         ON CONFLICT(key) DO UPDATE SET value = excluded.value`,
+      )
+      .run(key, value);
+  }
+
+  getSettings(): RelaySettings {
+    const raw = {
+      timezone: this.readMeta("timezone") ?? DEFAULT_SETTINGS.timezone,
+      user_display_name:
+        this.readMeta("user_display_name") ?? DEFAULT_SETTINGS.user_display_name,
+      user_initial: this.readMeta("user_initial") ?? DEFAULT_SETTINGS.user_initial,
+    };
+    return SettingsSchema.parse(raw);
+  }
+
+  updateSettings(input: UpdateSettingsInput): RelaySettings {
+    const patch = UpdateSettingsSchema.parse(input);
+    const current = this.getSettings();
+    const merged = SettingsSchema.parse({ ...current, ...patch });
+    try {
+      Intl.DateTimeFormat(undefined, { timeZone: merged.timezone });
+    } catch {
+      throw new ValidationError(`Invalid IANA timezone: ${merged.timezone}`);
+    }
+    const timezoneChanged =
+      patch.timezone !== undefined && patch.timezone !== current.timezone;
+    if (timezoneChanged) {
+      // PR2: re-anchor date-only (23:59) dues in one transaction.
+      this.db.exec("BEGIN");
+      try {
+        this.writeMeta("timezone", merged.timezone);
+        this.reanchorDateOnlyDues(current.timezone, merged.timezone);
+        this.db.exec("COMMIT");
+      } catch (err) {
+        this.db.exec("ROLLBACK");
+        throw err;
+      }
+      this.afterLocalWrite();
+    } else if (patch.timezone !== undefined) {
+      this.writeMeta("timezone", merged.timezone);
+    }
+    if (patch.user_display_name !== undefined) {
+      this.writeMeta("user_display_name", merged.user_display_name);
+    }
+    if (patch.user_initial !== undefined) {
+      this.writeMeta("user_initial", merged.user_initial);
+    }
+    return merged;
+  }
+
+  /**
+   * Move every non-cancelled `due_at` at 23:59 in `oldTz` to 23:59 of the
+   * same calendar day in `newTz`. Reminder times and real clock times stay.
+   */
+  private reanchorDateOnlyDues(oldTz: string, newTz: string): void {
+    const rows = this.db
+      .prepare(
+        `SELECT id, due_at FROM work_items
+         WHERE due_at IS NOT NULL AND status != 'cancelled'`,
+      )
+      .all() as Array<{ id: string; due_at: string }>;
+    const update = this.db.prepare(
+      `UPDATE work_items SET due_at = ?, updated_at = ? WHERE id = ?`,
+    );
+    const wall = nowIso();
+    for (const row of rows) {
+      if (!isDateOnlyInZone(row.due_at, oldTz)) continue;
+      const p = toZoneParts(new Date(row.due_at), oldTz);
+      const next = dateOnlyZoneIso(p.y, p.m, p.d, newTz);
+      if (next === row.due_at) continue;
+      update.run(next, wall, row.id);
+    }
   }
 
   resolveActor(
@@ -460,6 +557,7 @@ export class RelayService {
     opts?: InboxQueryOptions,
   ): InboxQueryResult | InboxSyncResult {
     const now = opts?.now ?? new Date();
+    const timeZone = this.getSettings().timezone;
     if (opts?.since !== undefined) {
       // Delta sync needs the full table so completions leave the view via removed_ids.
       // ensureCachesFresh (via listAllItems) picks up mcp:stdio / SQL writers.
@@ -468,6 +566,7 @@ export class RelayService {
         view,
         since: opts.since,
         now,
+        timeZone,
       };
       const delta = buildInboxSync(syncArgs);
       const cursor = this.stampSyncCursor(now);
@@ -477,7 +576,12 @@ export class RelayService {
     }
     // Todo snapshot: open rows only (skip ~36% done/cancelled) + fast group_counts.
     const items = view === "all" ? this.listOpenItems() : this.listAllItems();
-    const args: Parameters<typeof queryInbox>[0] = { items, view, now };
+    const args: Parameters<typeof queryInbox>[0] = {
+      items,
+      view,
+      now,
+      timeZone,
+    };
     if (opts?.limit !== undefined) args.limit = opts.limit;
     if (opts?.cursor !== undefined) args.cursor = opts.cursor;
     const snap = queryInbox(args);
@@ -512,7 +616,14 @@ export class RelayService {
       noteList.push(link.item_id);
       linksByNote.set(link.note_id, noteList);
     }
-    const deps: SearchDeps = { db: this.db, items, notesById, linksByItem, linksByNote };
+    const deps: SearchDeps = {
+      db: this.db,
+      items,
+      notesById,
+      linksByItem,
+      linksByNote,
+      timeZone: this.getSettings().timezone,
+    };
     if (now) deps.now = now;
     return deps;
   }

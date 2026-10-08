@@ -9,24 +9,27 @@ import {
   useState,
 } from "react";
 import { createPortal } from "react-dom";
+import { useT } from "../i18n/I18nProvider";
+import {
+  type ActiveWall,
+  activeTimezone,
+  activeTimezoneLabel,
+  dateOnlyActiveIso,
+  fromActiveWall,
+  fromActiveWallDetailed,
+  isDateOnly,
+  toActiveParts,
+} from "../lib/active_zone";
 import {
   dstMessage,
   formatParsePreview,
   parseNaturalDate,
 } from "../lib/date_parse";
+import { getDisplayContext } from "../lib/display_context";
 import {
   formatDateTimeAccessible,
   formatDateTimeField,
 } from "../lib/format";
-import {
-  dateOnlyParisIso,
-  fromParisWall,
-  fromParisWallDetailed,
-  isDateOnly,
-  PARIS_TZ,
-  type ParisWall,
-  toParisParts,
-} from "../lib/paris_time";
 import { CalendarGrid } from "./CalendarGrid";
 import { buildShortcuts, PickerShortcuts, type Shortcut } from "./PickerShortcuts";
 import { TimeCombobox } from "./TimeCombobox";
@@ -57,13 +60,13 @@ function browserTz(): string {
   try {
     return Intl.DateTimeFormat().resolvedOptions().timeZone;
   } catch {
-    return PARIS_TZ;
+    return activeTimezone();
   }
 }
 
 function showTzHint(iso: string | null, dst?: boolean): boolean {
   if (dst) return true;
-  if (browserTz() !== PARIS_TZ) return true;
+  if (browserTz() !== getDisplayContext().timezone) return true;
   return false;
 }
 
@@ -80,6 +83,7 @@ export function DateTimePicker({
   onRequestOpenHandled,
   onCommit,
 }: Props) {
+  const t = useT();
   const id = useId();
   const dialogId = `${id}-dialog`;
   const previewId = `${id}-preview`;
@@ -108,11 +112,11 @@ export function DateTimePicker({
 
   const now = useMemo(() => new Date(), [open]);
 
-  const parts = draft ? toParisParts(new Date(draft)) : null;
-  const [viewY, setViewY] = useState(() => parts?.y ?? toParisParts(now).y);
-  const [viewM, setViewM] = useState(() => parts?.m ?? toParisParts(now).m);
+  const parts = draft ? toActiveParts(new Date(draft)) : null;
+  const [viewY, setViewY] = useState(() => parts?.y ?? toActiveParts(now).y);
+  const [viewM, setViewM] = useState(() => parts?.m ?? toActiveParts(now).m);
   const [focusDay, setFocusDay] = useState(() => {
-    const p = parts ?? toParisParts(now);
+    const p = parts ?? toActiveParts(now);
     return { y: p.y, m: p.m, d: p.d };
   });
 
@@ -123,8 +127,9 @@ export function DateTimePicker({
         now,
         value: draft,
         relatedDueAt,
+        t,
       }),
-    [kind, now, draft, relatedDueAt],
+    [kind, now, draft, relatedDueAt, t],
   );
 
   const liveParse = useMemo(() => {
@@ -149,18 +154,18 @@ export function DateTimePicker({
     liveParse?.ok === true
       ? liveParse.dst
       : draft
-        ? fromParisWallDetailed({
-            y: toParisParts(new Date(draft)).y,
-            m: toParisParts(new Date(draft)).m,
-            d: toParisParts(new Date(draft)).d,
-            hh: toParisParts(new Date(draft)).hh,
-            mm: toParisParts(new Date(draft)).mm,
+        ? fromActiveWallDetailed({
+            y: toActiveParts(new Date(draft)).y,
+            m: toActiveParts(new Date(draft)).m,
+            d: toActiveParts(new Date(draft)).d,
+            hh: toActiveParts(new Date(draft)).hh,
+            mm: toActiveParts(new Date(draft)).mm,
           }).dst
         : undefined;
 
   const pastWarn =
     previewIso && new Date(previewIso).getTime() < now.getTime()
-      ? "Esta fecha ya pasó. Puedes guardarla igual."
+      ? t("picker.pastDateWarn")
       : null;
 
   const afterDueWarn =
@@ -168,8 +173,11 @@ export function DateTimePicker({
     previewIso &&
     relatedDueAt &&
     new Date(previewIso).getTime() > new Date(relatedDueAt).getTime()
-      ? "El aviso llega después de la fecha límite."
+      ? t("picker.afterDueWarn")
       : null;
+
+  const ambiguousMsg = `${t("picker.ambiguous")} ${t("picker.ambiguousHint")}`;
+  const tzLabel = t("picker.tzHint", { zone: activeTimezoneLabel() });
 
   useEffect(() => {
     if (open) return;
@@ -179,7 +187,7 @@ export function DateTimePicker({
     setParseError(null);
     setAlertError(null);
     if (value) {
-      const p = toParisParts(new Date(value));
+      const p = toActiveParts(new Date(value));
       setViewY(p.y);
       setViewM(p.m);
       setFocusDay({ y: p.y, m: p.m, d: p.d });
@@ -359,7 +367,7 @@ export function DateTimePicker({
       setDraft(next);
       setInputText(next ? formatDateTimeField(next) : "");
     } catch {
-      setError("No se guardó el cambio. Reintentar");
+      setError(t("picker.saveError"));
       setDraft(value);
       setInputText(value ? formatDateTimeField(value) : "");
     } finally {
@@ -391,15 +399,15 @@ export function DateTimePicker({
           return;
         }
         if (liveParse.reason === "ambiguous") {
-          setParseError("¿Hora o día? Escribe 15h o 15/10.");
-          setAlertError("¿Hora o día? Escribe 15h o 15/10.");
+          setParseError(ambiguousMsg);
+          setAlertError(ambiguousMsg);
           return;
         }
         setParseError(
-          "No entiendo esa fecha. Prueba: mañana 9, vie 14:30 o 15/10.",
+          t("picker.parse.error"),
         );
         setAlertError(
-          "No entiendo esa fecha. Prueba: mañana 9, vie 14:30 o 15/10.",
+          t("picker.parse.error"),
         );
         return;
       }
@@ -414,7 +422,7 @@ export function DateTimePicker({
   }
 
   function setDay(y: number, m: number, d: number) {
-    const cur = draft ? toParisParts(new Date(draft)) : null;
+    const cur = draft ? toActiveParts(new Date(draft)) : null;
     let hh = cur && !isDateOnly(draft!) ? cur.hh : kind === "reminder" ? 9 : 23;
     let mm = cur && !isDateOnly(draft!) ? cur.mm : kind === "reminder" ? 0 : 59;
     const dateOnly = noTime && allowDateOnly;
@@ -422,10 +430,10 @@ export function DateTimePicker({
       hh = 23;
       mm = 59;
     }
-    const wall: ParisWall = { y, m, d, hh, mm };
+    const wall: ActiveWall = { y, m, d, hh, mm };
     const iso = dateOnly
-      ? dateOnlyParisIso(y, m, d)
-      : fromParisWall(wall).toISOString();
+      ? dateOnlyActiveIso(y, m, d)
+      : fromActiveWall(wall).toISOString();
     setDraft(iso);
     setInputText(formatDateTimeField(iso));
     setFocusDay({ y, m, d });
@@ -440,9 +448,9 @@ export function DateTimePicker({
 
   function setTime(hhmm: string) {
     if (!draft && !parts) {
-      const p = toParisParts(now);
+      const p = toActiveParts(now);
       const [hh, mm] = hhmm.split(":").map(Number);
-      const iso = fromParisWall({
+      const iso = fromActiveWall({
         y: p.y,
         m: p.m,
         d: p.d,
@@ -454,9 +462,9 @@ export function DateTimePicker({
       setInputText(formatDateTimeField(iso));
       return;
     }
-    const p = toParisParts(new Date(draft!));
+    const p = toActiveParts(new Date(draft!));
     const [hh, mm] = hhmm.split(":").map(Number);
-    const iso = fromParisWall({
+    const iso = fromActiveWall({
       y: p.y,
       m: p.m,
       d: p.d,
@@ -471,13 +479,13 @@ export function DateTimePicker({
   function toggleNoTime(checked: boolean) {
     setNoTime(checked);
     if (!draft) return;
-    const p = toParisParts(new Date(draft));
+    const p = toActiveParts(new Date(draft));
     if (checked) {
-      const iso = dateOnlyParisIso(p.y, p.m, p.d);
+      const iso = dateOnlyActiveIso(p.y, p.m, p.d);
       setDraft(iso);
       setInputText(formatDateTimeField(iso));
     } else {
-      const iso = fromParisWall({
+      const iso = fromActiveWall({
         y: p.y,
         m: p.m,
         d: p.d,
@@ -489,7 +497,8 @@ export function DateTimePicker({
     }
   }
 
-  const emptyLabel = kind === "due" ? "Sin fecha" : "Sin aviso";
+  const emptyLabel =
+    kind === "due" ? t("picker.noDate") : t("picker.noReminder");
   const displayValue = busy
     ? "…"
     : open
@@ -519,7 +528,7 @@ export function DateTimePicker({
       id={dialogId}
       role="dialog"
       aria-modal={narrow ? true : undefined}
-      aria-label={`Elegir fecha: ${label}`}
+      aria-label={t("picker.chooseDateAria", { label })}
       tabIndex={-1}
       className={`dtp-popover${narrow ? " sheet" : ""}`}
       style={
@@ -559,7 +568,7 @@ export function DateTimePicker({
             <button
               type="button"
               className="dtp-sheet-close"
-              aria-label="Cerrar"
+              aria-label={t("shortcuts.close")}
               onClick={cancelClose}
             >
               ×
@@ -576,7 +585,7 @@ export function DateTimePicker({
               <>
                 → {formatParsePreview(previewIso, previewDateOnly)}
                 {tzHint ? (
-                  <span className="dtp-tz"> hora de París</span>
+                  <span className="dtp-tz"> {tzLabel}</span>
                 ) : null}
               </>
             ) : (
@@ -610,9 +619,9 @@ export function DateTimePicker({
             selected={
               draft
                 ? {
-                    y: toParisParts(new Date(draft)).y,
-                    m: toParisParts(new Date(draft)).m,
-                    d: toParisParts(new Date(draft)).d,
+                    y: toActiveParts(new Date(draft)).y,
+                    m: toActiveParts(new Date(draft)).m,
+                    d: toActiveParts(new Date(draft)).d,
                   }
                 : null
             }
@@ -632,7 +641,7 @@ export function DateTimePicker({
             <TimeCombobox
               value={
                 draft && !noTime
-                  ? `${pad(toParisParts(new Date(draft)).hh)}:${pad(toParisParts(new Date(draft)).mm)}`
+                  ? `${pad(toActiveParts(new Date(draft)).hh)}:${pad(toActiveParts(new Date(draft)).mm)}`
                   : ""
               }
               disabled={noTime && allowDateOnly}
@@ -646,7 +655,7 @@ export function DateTimePicker({
                   checked={noTime}
                   onChange={(e) => toggleNoTime(e.target.checked)}
                 />
-                Sin hora
+                {t("picker.noTime")}
               </label>
             ) : null}
           </div>
@@ -656,14 +665,14 @@ export function DateTimePicker({
               className="dtp-clear"
               onClick={() => void commit(null)}
             >
-              {kind === "due" ? "Quitar fecha" : "Quitar aviso"}
+              {kind === "due" ? t("picker.removeDue") : t("picker.removeReminder")}
             </button>
             <button
               type="button"
               className="btn-secondary"
               onClick={() => void confirmDraft()}
             >
-              Listo
+              {t("picker.done")}
             </button>
           </div>
         </div>
@@ -675,7 +684,7 @@ export function DateTimePicker({
     <div className={`dtp${disabled ? " disabled" : ""}`}>
       <span className="dtp-label">
         {icon} {label}
-        {savedFlash ? <span className="dtp-saved mono"> Guardado</span> : null}
+        {savedFlash ? <span className="dtp-saved mono"> {t("detail.saved")}</span> : null}
       </span>
       <div className="dtp-trigger-wrap">
         <input
@@ -695,14 +704,14 @@ export function DateTimePicker({
           disabled={disabled}
           placeholder={
             open
-              ? "Escribe: mañana 9, vie 14:30, 15/10…"
+              ? t("picker.input.placeholder")
               : emptyLabel
           }
           title={
             disabled
-              ? "Sin conexión con la API local"
+              ? t("offline.disabled")
               : tzHint && value
-                ? `${formatDateTimeField(value)} · hora de París`
+                ? `${formatDateTimeField(value)} · ${tzLabel}`
                 : undefined
           }
           value={open ? inputText : displayValue}
@@ -755,7 +764,7 @@ export function DateTimePicker({
             className="linkish"
             onClick={() => void commit(draft)}
           >
-            Reintentar
+            {t("cta.retry")}
           </button>
         </div>
       ) : null}

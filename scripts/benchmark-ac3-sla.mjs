@@ -14,7 +14,7 @@ const WEB = process.env.RELAY_WEB ?? "http://127.0.0.1:7421";
 const MAX_MS = 2000;
 const SAMPLES = 10;
 
-async function mcp(name, args, actorId = "grok-bot") {
+async function mcp(name, args, actorId = "agent-code") {
   const res = await fetch(`${API}/mcp/invoke`, {
     method: "POST",
     headers: {
@@ -61,7 +61,7 @@ async function measureNeedsYou(page, i) {
   const title = `SLA needs_you ${i} ${Date.now()}`;
   const created = await mcp("items_create", { title });
   const id = created.item.id;
-  await mcp("items_delegate", { id, agent_id: "grok-bot" });
+  await mcp("items_delegate", { id, agent_id: "agent-code" });
   const t0 = Date.now();
   await mcp("items_ask_user", {
     id,
@@ -76,7 +76,7 @@ async function measureBlocked(page, i) {
   const title = `SLA blocked ${i} ${Date.now()}`;
   const created = await mcp("items_create", { title });
   const id = created.item.id;
-  await mcp("items_delegate", { id, agent_id: "grok-bot" });
+  await mcp("items_delegate", { id, agent_id: "agent-code" });
   const t0 = Date.now();
   await mcp("items_set_status", {
     id,
@@ -88,13 +88,18 @@ async function measureBlocked(page, i) {
   return { mcpReturnMs: mcpDone - t0, uiMs: Date.now() - mcpDone, totalMs: Date.now() - t0 };
 }
 
+/** Locale-independent navigation — never match translated rail labels. */
+async function goView(page, view) {
+  await page.goto(`${WEB}/${view}`, { waitUntil: "domcontentloaded" });
+  await page.locator(`[data-inbox-view="${view}"]`).waitFor({ timeout: 15_000 });
+}
+
 async function measureComplete(page, i) {
-  await page.getByRole("button", { name: /Con agentes/ }).click();
-  await page.locator('[data-inbox-view="agent_wip"]').waitFor({ timeout: 5000 });
+  await goView(page, "agent_wip");
   const title = `SLA complete ${i} ${Date.now()}`;
   const created = await mcp("items_create", { title, goal: "SLA" });
   const id = created.item.id;
-  await mcp("items_delegate", { id, agent_id: "grok-bot" });
+  await mcp("items_delegate", { id, agent_id: "agent-code" });
   await mcp("items_set_status", { id, status: "in_progress" });
   await page.getByRole("option", { name: new RegExp(title) }).waitFor({
     state: "visible",
@@ -108,8 +113,7 @@ async function measureComplete(page, i) {
     .getByRole("option", { name: new RegExp(title) })
     .waitFor({ state: "visible", timeout: MAX_MS + 200 });
   const uiMs = Date.now() - mcpDone;
-  await page.getByRole("button", { name: /Atención/ }).click();
-  await page.locator('[data-inbox-view="attention"]').waitFor({ timeout: 5000 });
+  await goView(page, "attention");
   return { mcpReturnMs: mcpDone - t0, uiMs, totalMs: Date.now() - t0 };
 }
 
@@ -117,8 +121,7 @@ async function runVariant(page, name, fn) {
   const samples = [];
   for (let i = 0; i < SAMPLES; i += 1) {
     if (name !== "complete") {
-      await page.getByRole("button", { name: /Atención/ }).click();
-      await page.locator('[data-inbox-view="attention"]').waitFor({ timeout: 5000 });
+      await goView(page, "attention");
     }
     const s = await fn(page, i);
     samples.push(s);
@@ -142,7 +145,6 @@ async function main() {
   const browser = await chromium.launch({ headless: true });
   const page = await browser.newPage({ viewport: { width: 1440, height: 900 } });
   await page.goto(WEB, { waitUntil: "domcontentloaded" });
-  await page.getByRole("button", { name: /Atención/ }).click();
   await page.locator('[data-inbox-view="attention"]').waitFor({ timeout: 60_000 });
   // Large seeds need the first snapshot painted before SLA samples start.
   await page.getByRole("option").first().waitFor({ state: "visible", timeout: 60_000 });

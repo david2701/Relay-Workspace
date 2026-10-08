@@ -57,6 +57,11 @@ jobs:
       - name: check:mcp-docs
         run: pnpm check:mcp-docs
 
-      # Block 2 (i18n) will replace this no-op with a real missing-keys gate.
-      - name: check:i18n-missing-keys (placeholder — block 2)
+      - name: check:i18n-missing-keys
         run: pnpm run check:i18n-missing-keys
+
+      - name: check:hardcoded-strings
+        run: pnpm run check:hardcoded-strings
+
+      - name: check:client-names
+        run: pnpm run check:client-names

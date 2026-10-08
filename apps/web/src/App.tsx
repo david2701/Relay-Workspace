@@ -12,16 +12,21 @@ import { FilterBar } from "./components/FilterBar";
 import { ItemRow } from "./components/ItemRow";
 import { NoteView } from "./components/NoteView";
 import { focusSearchField } from "./components/SearchField";
+import { SettingsPanel } from "./components/SettingsPanel";
 import { ThemeSwitch } from "./components/ThemeSwitch";
 import { VirtualItemList } from "./components/VirtualItemList";
+import { useActorLabels } from "./hooks/useActorLabels";
 import { usePoll } from "./hooks/usePoll";
 import { useTheme } from "./hooks/useTheme";
 import { useUrlState } from "./hooks/useUrlState";
-import { markForOwner } from "./lib/actor_mark";
-import { api } from "./lib/api";
-import { copy } from "./lib/copy";
+import { useI18n, useT } from "./i18n/I18nProvider";
+import type { MessageKey } from "./i18n/types";
+import { markForOwner, markForUser } from "./lib/actor_mark";
+import { api, type RelaySettings } from "./lib/api";
 import { groupByDue } from "./lib/date_groups";
+import { setDisplayContext } from "./lib/display_context";
 import { itemMatchesFacets } from "./lib/facet_filter";
+import { formatGroupLabel } from "./lib/group_label";
 import {
   applyInboxDelta,
   ensureAttentionSections,
@@ -51,7 +56,9 @@ import type {
 import {
   EMPTY_FACETS,
   hasActiveFacets,
+  USER_ACTOR_ID,
 } from "./lib/url_state";
+import { setUserProfile } from "./lib/user_profile";
 import {
   assertNoDuplicateIds,
   buildViewSections,
@@ -74,22 +81,37 @@ function readCollapsedGroups(): Set<string> {
   }
 }
 
-const VIEWS: { id: AppView; label: string }[] = [
-  { id: "attention", label: copy.nav.attention },
-  { id: "agent_wip", label: copy.nav.agent_wip },
-  { id: "upcoming", label: copy.nav.upcoming },
-  { id: "done", label: copy.nav.done },
-  { id: "all", label: copy.nav.all },
-  { id: "notes", label: copy.nav.notes },
-];
-
 function dismissedKey(id: string): string {
   return `relay.dismiss.${id}`;
 }
 
+const DEFAULT_SETTINGS: RelaySettings = {
+  timezone: "Europe/Paris",
+  user_display_name: "",
+  user_initial: "",
+};
+
+const APP_VERSION = "0.3.0-dev";
+
 export default function App() {
+  const t = useT();
+  const actorLabels = useActorLabels();
+  const { locale, intlLocale } = useI18n();
   const { theme, setTheme } = useTheme();
+  const [settings, setSettings] = useState<RelaySettings>(DEFAULT_SETTINGS);
+  const [settingsOpen, setSettingsOpen] = useState(false);
   const [agents, setAgents] = useState<Agent[]>([]);
+  const VIEWS = useMemo(
+    (): { id: AppView; label: string }[] => [
+      { id: "attention", label: t("nav.attention") },
+      { id: "agent_wip", label: t("nav.agent_wip") },
+      { id: "upcoming", label: t("nav.upcoming") },
+      { id: "done", label: t("nav.done") },
+      { id: "all", label: t("nav.all") },
+      { id: "notes", label: t("nav.notes") },
+    ],
+    [t],
+  );
   const knownActors = useMemo(
     () => new Set(agents.map((a) => a.id)),
     [agents],
@@ -191,6 +213,31 @@ export default function App() {
 
   useEffect(() => {
     void api.agents().then((r) => setAgents(r.agents));
+  }, []);
+
+  useEffect(() => {
+    void api.getSettings().then((r) => setSettings(r.settings));
+  }, []);
+
+  useEffect(() => {
+    setDisplayContext({
+      timezone: settings.timezone,
+      intlLocale,
+      locale,
+    });
+    setUserProfile({
+      displayName: settings.user_display_name,
+      initial: settings.user_initial,
+    });
+  }, [settings.timezone, settings.user_display_name, settings.user_initial, intlLocale, locale]);
+
+  const applySettingsPatch = useCallback((patch: Partial<RelaySettings>) => {
+    setSettings((prev) => ({ ...prev, ...patch }));
+  }, []);
+
+  const persistSettings = useCallback(async (patch: Partial<RelaySettings>) => {
+    const { settings: next } = await api.updateSettings(patch);
+    setSettings(next);
   }, []);
 
   const inboxView: InboxView = view === "notes" ? "attention" : view;
@@ -500,7 +547,7 @@ export default function App() {
           setSearchError(null);
         } catch {
           if (searchGen.current !== gen) return;
-          setSearchError("No se pudo buscar. Reintentar");
+          setSearchError(t("error.search"));
         } finally {
           if (searchGen.current === gen) setSearching(false);
         }
@@ -561,18 +608,38 @@ export default function App() {
           .filter((c) => c.count > 0)
           .map((c) => ({
             key: c.key,
-            label: c.label,
+            label: formatGroupLabel(c.key, {
+              t,
+              intlLocale,
+              date: c.date,
+              timeZone: settings.timezone,
+            }),
             items: byKey.get(c.key)?.items ?? [],
             count: c.count,
           }));
       } else {
         result = buckets.map((g) => ({
           key: g.key,
-          label: g.label,
+          labelKey: g.labelKey,
+          label: t(g.labelKey),
           items: g.items,
           count: g.items.length,
         }));
       }
+    } else if (view === "upcoming" || view === "done") {
+      // Server sends stable codes — localize here (never use English label prose).
+      result = result.map((s) => {
+        if (s.labelKey || s.label) return s;
+        return {
+          ...s,
+          label: formatGroupLabel(s.key, {
+            t,
+            intlLocale,
+            date: s.date,
+            timeZone: settings.timezone,
+          }),
+        };
+      });
     }
     if (import.meta.env.DEV && result.length > 0) {
       assertNoDuplicateIds(result, inboxView);
@@ -590,6 +657,9 @@ export default function App() {
     tick,
     view,
     todoGroupBy,
+    t,
+    intlLocale,
+    settings.timezone,
   ]);
 
   const flatItems = useMemo(() => {
@@ -619,20 +689,22 @@ export default function App() {
   const headerCount =
     view === "notes"
       ? filtersActive
-        ? `${filteredNotes.length} de ${notesTotal}`
+        ? t("header.of", { n: filteredNotes.length, total: notesTotal })
         : String(notesTotal)
       : !inboxReady
         ? null
         : filtersActive && baseUnfilteredCount > 0
-          ? `${flatItems.length} de ${baseUnfilteredCount}`
+          ? t("header.of", { n: flatItems.length, total: baseUnfilteredCount })
           : String(baseUnfilteredCount || flatItems.length);
   const countLive =
     filtersActive
-      ? `${filteredCount} resultados de ${
-          view === "notes"
-            ? notesTotal
-            : baseUnfilteredCount || searchTotal || filteredCount
-        }`
+      ? t("header.results", {
+          n: filteredCount,
+          total:
+            view === "notes"
+              ? notesTotal
+              : baseUnfilteredCount || searchTotal || filteredCount,
+        })
       : null;
 
   // If selection falls outside filtered results, move to first / clear.
@@ -692,7 +764,7 @@ export default function App() {
         completed_by_type: null,
         completed_by_id: null,
         last_actor_type: "user",
-        last_actor_id: "david",
+        last_actor_id: USER_ACTOR_ID,
         list_id: null,
       };
       setPendingRows((p) => [optimistic, ...p]);
@@ -712,7 +784,7 @@ export default function App() {
         setPendingRows((p) =>
           p.map((x) =>
             x.id === tempId
-              ? { ...x, title: `${title} — ${copy.capture.error}` }
+              ? { ...x, title: `${title} — ${t("capture.error")}` }
               : x,
           ),
         );
@@ -827,6 +899,11 @@ export default function App() {
         return;
       }
       if (gPending) {
+        if (e.key.toLowerCase() === "s") {
+          setSettingsOpen(true);
+          setGPending(false);
+          return;
+        }
         const map: Record<string, AppView> = {
           a: "attention",
           g: "agent_wip",
@@ -895,7 +972,7 @@ export default function App() {
     setSelectedItem(item);
     flash(item.id);
     setToast({
-      text: copy.toastCompleted,
+      text: t("toast.completed"),
       undo: () => {
         void api.reopen(item.id).then((r) => {
           setSelectedItem(r.item);
@@ -909,12 +986,12 @@ export default function App() {
 
   const title =
     view === "notes"
-      ? copy.nav.notes
+      ? t("nav.notes")
       : VIEWS.find((v) => v.id === view)?.label ?? "Relay";
 
   return (
     <div className="app-shell">
-      <nav className="rail" aria-label="Vistas">
+      <nav className="rail" aria-label={t("a11y.views")}>
         <div className="brand">Relay</div>
         <ul>
           {VIEWS.filter((v) => v.id !== "notes").map((v) => (
@@ -930,7 +1007,7 @@ export default function App() {
                   <span
                     className="rail-count mono"
                     data-rail-counter="attention"
-                    aria-label={`${needsYouCount} ítems te necesitan`}
+                    aria-label={t("a11y.needsYouCount", { n: needsYouCount })}
                   >
                     {needsYouCount}
                   </span>
@@ -945,16 +1022,29 @@ export default function App() {
           className={view === "notes" ? "active" : ""}
           onClick={() => selectView("notes")}
         >
-          <span className="rail-label">{copy.nav.notes}</span>
+          <span className="rail-label">{t("nav.notes")}</span>
         </button>
         <div className="rail-foot">
           <div className="mono sync-seal">
             {offline
-              ? copy.sync.offline
-              : copy.sync.ok(syncAge.current)}
+              ? t("sync.offline")
+              : t("sync.ok", {
+                  relative: new Intl.RelativeTimeFormat(intlLocale, {
+                    numeric: "auto",
+                    style: "short",
+                  }).format(-Math.max(0, syncAge.current), "second"),
+                })}
           </div>
           <button type="button" className="linkish" onClick={() => setShowShortcuts(true)}>
-            ? {copy.nav.shortcuts}
+            ? {t("nav.shortcuts")}
+          </button>
+          <button
+            type="button"
+            className="linkish"
+            onClick={() => setSettingsOpen(true)}
+            aria-label={t("nav.settings")}
+          >
+            ⚙
           </button>
           <ThemeSwitch theme={theme} onChange={setTheme} />
         </div>
@@ -977,8 +1067,8 @@ export default function App() {
                 className="group-toggle"
                 aria-label={
                   todoGroupBy === "due"
-                    ? "Agrupar: Fecha"
-                    : "Agrupar: Ninguno"
+                    ? t("groupBy.due")
+                    : t("groupBy.none")
                 }
                 onClick={() => {
                   const next = todoGroupBy === "due" ? "none" : "due";
@@ -986,7 +1076,7 @@ export default function App() {
                   localStorage.setItem(TODO_GROUP_KEY, next);
                 }}
               >
-                {todoGroupBy === "due" ? "Agrupar: Fecha" : "Agrupar: Ninguno"}
+                {todoGroupBy === "due" ? t("groupBy.due") : t("groupBy.none")}
               </button>
             ) : null}
           </div>
@@ -1004,8 +1094,8 @@ export default function App() {
           hideOwner={false}
           placeholder={
             view === "notes"
-              ? "Buscar en notas…"
-              : "Buscar en ítems y notas…"
+              ? t("search.placeholderNotes")
+              : t("search.placeholderItems")
           }
           onQueryChange={setQuery}
           onFacetsChange={setFacets}
@@ -1023,16 +1113,16 @@ export default function App() {
 
         {offline ? (
           <div className="banner offline" role="status">
-            {copy.offline.banner}{" "}
+            {t("offline.banner")}{" "}
             <button type="button" className="linkish" onClick={() => void reload()}>
-              {copy.cta.retry}
+              {t("cta.retry")}
             </button>{" "}
             <button
               type="button"
               className="linkish"
               onClick={() => setShowHowto((v) => !v)}
             >
-              {copy.offline.howto}
+              {t("offline.howto")}
             </button>
             {showHowto ? (
               <pre className="howto mono">{`relay api   →  http://127.0.0.1:7420
@@ -1044,9 +1134,9 @@ relay web   →  http://127.0.0.1:7421`}</pre>
 
         {error && !offline ? (
           <div className="banner error" role="alert">
-            No pudimos cargar esta vista.{" "}
+            {t("error.loadView")}{" "}
             <button type="button" className="linkish" onClick={() => void reload()}>
-              {copy.cta.retry}
+              {t("cta.retry")}
             </button>
           </div>
         ) : null}
@@ -1054,17 +1144,17 @@ relay web   →  http://127.0.0.1:7421`}</pre>
         {view !== "notes" ? (
           <div className="capture-wrap">
             <label className="sr-only" htmlFor="quick-capture">
-              Nuevo ítem
+              {t("capture.label")}
             </label>
             <input
               id="quick-capture"
               ref={captureRef}
               className="quick-capture"
-              placeholder={copy.capture.placeholder}
+              placeholder={t("capture.placeholder")}
               value={capture}
               maxLength={200}
               disabled={offline}
-              title={offline ? copy.offline.disabled : undefined}
+              title={offline ? t("offline.disabled") : undefined}
               onChange={(e) => setCapture(e.target.value)}
               onKeyDown={(e) => {
                 if (e.key === "Enter" && !e.shiftKey) {
@@ -1092,7 +1182,7 @@ relay web   →  http://127.0.0.1:7421`}</pre>
         ) : null}
 
         {view === "attention" && visibleRecs.length > 0 ? (
-          <section className="suggested" aria-label="Sugerido">
+          <section className="suggested" aria-label={t("section.suggested")}>
             <button
               type="button"
               className="suggested-head label-caps"
@@ -1105,7 +1195,7 @@ relay web   →  http://127.0.0.1:7421`}</pre>
                 );
               }}
             >
-              Sugerido · {visibleRecs.length}
+              {t("suggested.header", { n: visibleRecs.length })}
             </button>
             {!suggestedCollapsed
               ? visibleRecs.map((r) => {
@@ -1113,9 +1203,9 @@ relay web   →  http://127.0.0.1:7421`}</pre>
                     inbox?.items.find((i) => i.id === r.item_id) ??
                     flatItems.find((i) => i.id === r.item_id);
                   const mark = item
-                    ? markForOwner(item, agents)
-                    : { kind: "user" as const, name: "David", monogram: "D" };
-                  const title = r.title || item?.title || "Sin título";
+                    ? markForOwner(item, agents, actorLabels)
+                    : markForUser();
+                  const title = r.title || item?.title || t("item.noTitle");
                   return (
                     <div key={r.item_id} className="suggested-row" role="listitem">
                       <ActorMark
@@ -1126,19 +1216,24 @@ relay web   →  http://127.0.0.1:7421`}</pre>
                       />
                       <div className="sug-text">
                         <div className="sug-title">{title}</div>
-                        <div className="sug-reason">{r.reason}</div>
+                        <div className="sug-reason">
+                          {t(
+                            r.reason_code as MessageKey,
+                            r.reason_params ?? {},
+                          )}
+                        </div>
                       </div>
                       <button
                         type="button"
                         className="linkish"
                         onClick={() => setSelectedId(r.item_id)}
                       >
-                        {copy.cta.open}
+                        {t("cta.open")}
                       </button>
                       <button
                         type="button"
                         className="icon-x"
-                        aria-label={copy.cta.notNow}
+                        aria-label={t("cta.notNow")}
                         onClick={() => {
                           sessionStorage.setItem(dismissedKey(r.item_id), "1");
                           setDismissTick((n) => n + 1);
@@ -1156,12 +1251,12 @@ relay web   →  http://127.0.0.1:7421`}</pre>
         {view === "notes" ? (
           <div className="notes-list">
             {notes.length === 0 ? (
-              <Empty text={copy.empty.notes} />
+              <Empty text={t("empty.notes")} />
             ) : filteredNotes.length === 0 ? (
               <Empty
-                text="Nada coincide con estos filtros."
+                text={t("empty.noMatch")}
                 action={{
-                  label: "Quitar filtros",
+                  label: t("empty.clearFilters"),
                   onClick: clearFilters,
                 }}
               />
@@ -1234,15 +1329,15 @@ relay web   →  http://127.0.0.1:7421`}</pre>
             {inbox && flatItems.length === 0 ? (
               filtersActive ? (
                 <Empty
-                  text="Nada coincide con estos filtros."
+                  text={t("empty.noMatch")}
                   action={{
-                    label: "Quitar filtros",
+                    label: t("empty.clearFilters"),
                     onClick: clearFilters,
                   }}
                   secondary={
                     qTrim
                       ? {
-                          label: `Buscar «${qTrim}» en todas las vistas`,
+                          label: t("empty.searchAllViews", { q: qTrim }),
                           onClick: () => {
                             replaceUrl({
                               view: "all",
@@ -1258,9 +1353,9 @@ relay web   →  http://127.0.0.1:7421`}</pre>
                 />
               ) : view === "attention" ? (
                 <Empty
-                  text={copy.empty.attention}
+                  text={t("empty.attention")}
                   action={{
-                    label: copy.empty.attentionCta,
+                    label: t("empty.attentionCta"),
                     onClick: () => selectView("agent_wip"),
                   }}
                 />
@@ -1268,12 +1363,12 @@ relay web   →  http://127.0.0.1:7421`}</pre>
                 <Empty
                   text={
                     view === "agent_wip"
-                      ? copy.empty.agent_wip
+                      ? t("empty.agent_wip")
                       : view === "upcoming"
-                        ? copy.empty.upcoming
+                        ? t("empty.upcoming")
                         : view === "done"
-                          ? copy.empty.done
-                          : copy.empty.all
+                          ? t("empty.done")
+                          : t("empty.all")
                   }
                 />
               )
@@ -1291,7 +1386,7 @@ relay web   →  http://127.0.0.1:7421`}</pre>
                   />
                   {view !== "all" ? (
                     <div className="elsewhere mono">
-                      {copy.capture.created_elsewhere}
+                      {t("capture.created_elsewhere")}
                     </div>
                   ) : null}
                 </div>
@@ -1310,7 +1405,7 @@ relay web   →  http://127.0.0.1:7421`}</pre>
                   setToast(null);
                 }}
               >
-                Deshacer (Z)
+                {t("toast.undo")}
               </button>
             ) : null}
           </div>
@@ -1332,7 +1427,7 @@ relay web   →  http://127.0.0.1:7421`}</pre>
           noteId={selectedNoteId}
           offline={offline}
           returnLabel={
-            selectedId ? "← Volver al ítem" : "← Cerrar"
+            selectedId ? t("note.backToItem") : t("note.close")
           }
           onBack={closeNote}
           onNoteChange={onNoteChange}
@@ -1359,30 +1454,43 @@ relay web   →  http://127.0.0.1:7421`}</pre>
           <div
             className="shortcuts"
             role="dialog"
-            aria-label="Atajos"
+            aria-label={t("shortcuts.title")}
             onClick={(e) => e.stopPropagation()}
           >
-            <h3>Atajos</h3>
+            <h3>{t("shortcuts.title")}</h3>
             <ul className="mono">
-              <li>N — captura</li>
-              <li>J / K — fila siguiente / anterior</li>
-              <li>Enter — abrir detalle</li>
-              <li>X / Espacio — completar</li>
-              <li>D — delegar · M — me lo quedo · L — vincular nota</li>
-              <li>S — estado · Shift+R — reabrir</li>
-              <li>G luego A/G/P/H/T/O — cambiar vista</li>
-              <li>T — para cuándo · Shift+T — avisarme</li>
+              <li>{t("shortcuts.line1")}</li>
+              <li>{t("shortcuts.line2")}</li>
+              <li>{t("shortcuts.line3")}</li>
+              <li>{t("shortcuts.line4")}</li>
+              <li>{t("shortcuts.line5")}</li>
+              <li>{t("shortcuts.line6")}</li>
+              <li>{t("shortcuts.line7")}</li>
+              <li>{t("shortcuts.line8")}</li>
             </ul>
             <button type="button" className="btn-secondary" onClick={() => setShowShortcuts(false)}>
-              Cerrar
+              {t("shortcuts.close")}
             </button>
           </div>
         </div>
       ) : null}
 
+      <SettingsPanel
+        open={settingsOpen}
+        settings={settings}
+        theme={theme}
+        version={APP_VERSION}
+        onClose={() => setSettingsOpen(false)}
+        onPatch={async (patch) => {
+          applySettingsPatch(patch);
+          await persistSettings(patch);
+        }}
+        onThemeChange={setTheme}
+      />
+
       <div className="sr-only" aria-live="polite">
         {needsYouCount > 0
-          ? `Hay ${needsYouCount} ítems que te necesitan`
+          ? t("a11y.needsYouCount", { n: needsYouCount })
           : ""}
       </div>
     </div>
@@ -1416,9 +1524,10 @@ function Empty({
 }
 
 function Skeleton() {
+  const t = useT();
   return (
     <div aria-busy="true" className="skeleton">
-      <span className="sr-only">Cargando</span>
+      <span className="sr-only">{t("loading")}</span>
       {["a", "b", "c", "d", "e", "f"].map((id, i) => (
         <div key={id} className="skel-row" style={{ width: `${50 + (i % 3) * 12}%` }} />
       ))}

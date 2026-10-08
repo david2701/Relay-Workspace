@@ -1,4 +1,4 @@
-import { USER_ACTOR_ID } from "../schemas/enums.js";
+import { normalizeUserActorId, USER_ACTOR_ID } from "../schemas/enums.js";
 import type {
   SearchMatch,
   SearchMatchField,
@@ -10,13 +10,15 @@ import type { WorkItem } from "../schemas/work_item.js";
 import type { RelayDb } from "../store/db.js";
 import { decodeCursor, encodeCursor } from "./cursor.js";
 import { itemIdsInView } from "./inbox_query.js";
+import { toParisParts } from "./paris_time.js";
 import {
-  addParisDays,
-  endOfParisDay,
-  fromParisWall,
-  startOfParisDay,
-  toParisParts,
-} from "./paris_time.js";
+  addZoneDays,
+  DEFAULT_TIMEZONE,
+  endOfZoneDay,
+  fromZoneWall,
+  startOfZoneDay,
+  toZoneParts,
+} from "./zone_time.js";
 
 const MATCH_PRIORITY: readonly SearchMatchField[] = [
   "title",
@@ -108,7 +110,7 @@ function fieldText(item: WorkItem, field: SearchMatchField): string | null {
   return null;
 }
 
-/** Ball-holder (visible witness): needs_you → david, else assignee. */
+/** Ball-holder (visible witness): needs_you → user, else assignee. */
 export function ballHolderId(item: WorkItem): string | null {
   if (item.status === "needs_you") return USER_ACTOR_ID;
   if (item.assignee_type === "user") return USER_ACTOR_ID;
@@ -116,38 +118,48 @@ export function ballHolderId(item: WorkItem): string | null {
   return null;
 }
 
-function parseDayBound(value: string, end: boolean): Date | null {
+function parseDayBound(
+  value: string,
+  end: boolean,
+  timeZone: string,
+): Date | null {
   const m = value.match(/^(\d{4})-(\d{2})-(\d{2})$/);
   if (m) {
     const y = Number(m[1]);
     const mo = Number(m[2]);
     const d = Number(m[3]);
-    if (end) return endOfParisDay(fromParisWall({ y, m: mo, d, hh: 12, mm: 0 }));
-    return startOfParisDay(fromParisWall({ y, m: mo, d, hh: 12, mm: 0 }));
+    const noon = fromZoneWall({ y, m: mo, d, hh: 12, mm: 0 }, timeZone);
+    if (end) return endOfZoneDay(noon, timeZone);
+    return startOfZoneDay(noon, timeZone);
   }
   const dt = new Date(value);
   if (Number.isNaN(dt.getTime())) return null;
-  return end ? endOfParisDay(dt) : startOfParisDay(dt);
+  return end ? endOfZoneDay(dt, timeZone) : startOfZoneDay(dt, timeZone);
 }
 
-function matchesDue(item: WorkItem, query: SearchQuery, now: Date): boolean {
+function matchesDue(
+  item: WorkItem,
+  query: SearchQuery,
+  now: Date,
+  timeZone: string,
+): boolean {
   if (!query.due) return true;
   const due = item.due_at ? new Date(item.due_at) : null;
   if (query.due === "none") return due === null;
   if (due === null) return false;
-  const startToday = startOfParisDay(now);
-  const endToday = endOfParisDay(now);
+  const startToday = startOfZoneDay(now, timeZone);
+  const endToday = endOfZoneDay(now, timeZone);
   if (query.due === "overdue") return due.getTime() < startToday.getTime();
   if (query.due === "today") {
     return due.getTime() >= startToday.getTime() && due.getTime() <= endToday.getTime();
   }
   if (query.due === "week") {
-    const endWeek = addParisDays(endToday, 7);
+    const endWeek = addZoneDays(endToday, 7, timeZone);
     return due.getTime() >= startToday.getTime() && due.getTime() <= endWeek.getTime();
   }
   if (query.due === "range") {
-    const from = query.from ? parseDayBound(query.from, false) : null;
-    const to = query.to ? parseDayBound(query.to, true) : null;
+    const from = query.from ? parseDayBound(query.from, false, timeZone) : null;
+    const to = query.to ? parseDayBound(query.to, true, timeZone) : null;
     if (from && due.getTime() < from.getTime()) return false;
     if (to && due.getTime() > to.getTime()) return false;
     return true;
@@ -155,15 +167,21 @@ function matchesDue(item: WorkItem, query: SearchQuery, now: Date): boolean {
   return true;
 }
 
-function matchesFacets(item: WorkItem, query: SearchQuery, now: Date): boolean {
+function matchesFacets(
+  item: WorkItem,
+  query: SearchQuery,
+  now: Date,
+  timeZone: string,
+): boolean {
   if (query.status && query.status.length > 0) {
     if (!query.status.includes(item.status)) return false;
   }
   if (query.actor && query.actor.length > 0) {
     const holder = ballHolderId(item);
-    if (!holder || !query.actor.includes(holder)) return false;
+    const actors = query.actor.map(normalizeUserActorId);
+    if (!holder || !actors.includes(holder)) return false;
   }
-  if (!matchesDue(item, query, now)) return false;
+  if (!matchesDue(item, query, now, timeZone)) return false;
   return true;
 }
 
@@ -252,6 +270,7 @@ export type SearchDeps = {
   linksByItem: Map<string, string[]>;
   linksByNote: Map<string, string[]>;
   now?: Date;
+  timeZone?: string;
 };
 
 function needlesFromQuery(q: string | undefined): string[] {
@@ -265,6 +284,7 @@ function needlesFromQuery(q: string | undefined): string[] {
 export function searchItems(deps: SearchDeps, query: SearchQuery): SearchResult {
   void query.label; // reserved facet — ignored
   const now = deps.now ?? new Date();
+  const timeZone = deps.timeZone ?? DEFAULT_TIMEZONE;
   const needles = needlesFromQuery(query.q);
   const matchQuery = query.q ? buildFtsMatchQuery(query.q) : null;
 
@@ -289,7 +309,7 @@ export function searchItems(deps: SearchDeps, query: SearchQuery): SearchResult 
 
   let viewIds: Set<string> | null = null;
   if (query.view) {
-    viewIds = itemIdsInView(deps.items, query.view, now);
+    viewIds = itemIdsInView(deps.items, query.view, now, timeZone);
   }
 
   type Ranked = {
@@ -302,7 +322,7 @@ export function searchItems(deps: SearchDeps, query: SearchQuery): SearchResult 
   for (const item of deps.items) {
     if (candidateIds && !candidateIds.has(item.id)) continue;
     if (viewIds && !viewIds.has(item.id)) continue;
-    if (!matchesFacets(item, query, now)) continue;
+    if (!matchesFacets(item, query, now, timeZone)) continue;
     const noteIds = deps.linksByItem.get(item.id) ?? [];
     const linkedNotes = noteIds
       .map((id) => deps.notesById.get(id))
@@ -381,10 +401,23 @@ export function searchNotes(
 }
 
 /** Exported for tests / date facet helpers. */
-export function parisDayBounds(now: Date): { start: Date; end: Date; parts: ReturnType<typeof toParisParts> } {
+export function zoneDayBounds(
+  now: Date,
+  timeZone: string,
+): { start: Date; end: Date; parts: ReturnType<typeof toZoneParts> } {
   return {
-    start: startOfParisDay(now),
-    end: endOfParisDay(now),
-    parts: toParisParts(now),
+    start: startOfZoneDay(now, timeZone),
+    end: endOfZoneDay(now, timeZone),
+    parts: toZoneParts(now, timeZone),
   };
+}
+
+/** @deprecated Use zoneDayBounds(now, "Europe/Paris") or configured timezone. */
+export function parisDayBounds(now: Date): {
+  start: Date;
+  end: Date;
+  parts: ReturnType<typeof toParisParts>;
+} {
+  const b = zoneDayBounds(now, "Europe/Paris");
+  return { ...b, parts: toParisParts(now) };
 }

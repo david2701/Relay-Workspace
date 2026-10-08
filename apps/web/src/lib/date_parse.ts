@@ -1,13 +1,22 @@
+import { translate } from "../i18n/translate";
+import type { LocaleCode } from "../i18n/types";
 import {
-  addParisDays,
+  ALL_EMPTY_PHRASES,
+  MULTI_WORD_PHRASES,
+  SINGLE_DAY_PHRASES,
+  WEEKDAYS,
+} from "./date_parse_phrases";
+import { getDisplayContext } from "./display_context";
+import {
+  addZoneDays,
   type DstNote,
-  dateOnlyParisIso,
-  fromParisWallDetailed,
-  type ParisWall,
-  parisWeekday,
-  startOfParisDay,
-  toParisParts,
-} from "./paris_time";
+  dateOnlyZoneIso,
+  fromZoneWallDetailed,
+  startOfZoneDay,
+  toZoneParts,
+  type ZoneWall,
+  zoneWeekday,
+} from "./zone_time";
 
 export type ParseKind = "due" | "reminder";
 
@@ -25,51 +34,67 @@ export type ParseFail = {
 
 export type ParseResult = ParseOk | ParseFail;
 
-const MONTHS_FULL = [
-  "enero",
-  "febrero",
-  "marzo",
-  "abril",
-  "mayo",
-  "junio",
-  "julio",
-  "agosto",
-  "septiembre",
-  "octubre",
-  "noviembre",
-  "diciembre",
-] as const;
-
-const MONTHS_SHORT = [
-  "ene",
-  "feb",
-  "mar",
-  "abr",
-  "may",
-  "jun",
-  "jul",
-  "ago",
-  "sep",
-  "oct",
-  "nov",
-  "dic",
-] as const;
-
-const WEEKDAYS: Record<string, number> = {
-  domingo: 0,
-  dom: 0,
-  lunes: 1,
-  lun: 1,
-  martes: 2,
-  mar: 2,
-  miercoles: 3,
-  mie: 3,
-  jueves: 4,
-  jue: 4,
-  viernes: 5,
-  vie: 5,
-  sabado: 6,
-  sab: 6,
+/** Folded month token → 1–12 (ES / EN / FR abbreviations and full names). */
+const MONTH_TOKEN_TO_NUM: Record<string, number> = {
+  // ES
+  ene: 1,
+  enero: 1,
+  feb: 2,
+  febrero: 2,
+  mar: 3,
+  marzo: 3,
+  abr: 4,
+  abril: 4,
+  may: 5,
+  mayo: 5,
+  jun: 6,
+  junio: 6,
+  jul: 7,
+  julio: 7,
+  ago: 8,
+  agosto: 8,
+  sep: 9,
+  septiembre: 9,
+  set: 9,
+  setiembre: 9,
+  oct: 10,
+  octubre: 10,
+  nov: 11,
+  noviembre: 11,
+  dic: 12,
+  diciembre: 12,
+  // EN
+  jan: 1,
+  january: 1,
+  february: 2,
+  march: 3,
+  apr: 4,
+  april: 4,
+  june: 6,
+  july: 7,
+  aug: 8,
+  august: 8,
+  september: 9,
+  october: 10,
+  november: 11,
+  dec: 12,
+  december: 12,
+  // FR (accents folded: févr→fevr, août→aout, déc→dec)
+  janv: 1,
+  janvier: 1,
+  fevr: 2,
+  fev: 2,
+  fevrier: 2,
+  mars: 3,
+  avril: 4,
+  mai: 5,
+  juin: 6,
+  juillet: 7,
+  aout: 8,
+  septembre: 9,
+  octobre: 10,
+  novembre: 11,
+  decembre: 12,
 };
 
 export function foldAccents(s: string): string {
@@ -81,14 +106,15 @@ function pad(n: number): string {
 }
 
 function wallToResult(
-  wall: ParisWall,
+  wall: ZoneWall,
   dateOnly: boolean,
+  timeZone: string,
 ): ParseOk {
   if (dateOnly) {
-    const iso = dateOnlyParisIso(wall.y, wall.m, wall.d);
+    const iso = dateOnlyZoneIso(wall.y, wall.m, wall.d, timeZone);
     return { ok: true, iso, dateOnly: true };
   }
-  const { date, dst } = fromParisWallDetailed(wall);
+  const { date, dst } = fromZoneWallDetailed(wall, timeZone);
   const result: ParseOk = {
     ok: true,
     iso: date.toISOString(),
@@ -98,31 +124,36 @@ function wallToResult(
   return result;
 }
 
-function nextWeekday(now: Date, targetWd: number): Date {
-  // Next occurrence excluding today.
-  let d = addParisDays(startOfParisDay(now), 1);
+function nextWeekday(now: Date, targetWd: number, timeZone: string): Date {
+  let d = addZoneDays(startOfZoneDay(now, timeZone), 1, timeZone);
   for (let i = 0; i < 8; i += 1) {
-    if (parisWeekday(d) === targetWd) return d;
-    d = addParisDays(d, 1);
+    if (zoneWeekday(d, timeZone) === targetWd) return d;
+    d = addZoneDays(d, 1, timeZone);
   }
   return d;
 }
 
-function nextSaturday(now: Date): Date {
-  return nextWeekday(now, 6);
+function nextSaturday(now: Date, timeZone: string): Date {
+  return nextWeekday(now, 6, timeZone);
 }
 
-function nextMonday(now: Date): Date {
-  return nextWeekday(now, 1);
+function nextMonday(now: Date, timeZone: string): Date {
+  return nextWeekday(now, 1, timeZone);
 }
 
 function parseMonthToken(tok: string): number | null {
-  const i = MONTHS_SHORT.indexOf(tok.slice(0, 3) as (typeof MONTHS_SHORT)[number]);
-  if (i >= 0) return i + 1;
-  const full = MONTHS_FULL.findIndex((m) => foldAccents(m) === tok || tok.startsWith(foldAccents(m).slice(0, 3)));
-  if (full >= 0) return full + 1;
+  const t = foldAccents(tok).replace(/\./g, "");
+  if (MONTH_TOKEN_TO_NUM[t] !== undefined) return MONTH_TOKEN_TO_NUM[t]!;
+  // Prefix match for longer tokens (e.g. "oct." already stripped)
+  for (const [k, n] of Object.entries(MONTH_TOKEN_TO_NUM)) {
+    if (k.length >= 3 && (t.startsWith(k) || k.startsWith(t))) return n;
+  }
   return null;
 }
+
+const MONTH_ALT = Object.keys(MONTH_TOKEN_TO_NUM)
+  .sort((a, b) => b.length - a.length)
+  .join("|");
 
 type TimeParts = { hh: number; mm: number };
 
@@ -171,58 +202,81 @@ function defaultTime(
 function resolveNamedDay(
   folded: string,
   now: Date,
+  timeZone: string,
 ): { date: Date; consumed: string } | null {
-  if (folded === "hoy") {
-    return { date: startOfParisDay(now), consumed: "hoy" };
+  const today = () => startOfZoneDay(now, timeZone);
+  if (
+    folded === "hoy" ||
+    folded === "today" ||
+    folded === "aujourd hui" ||
+    folded === "aujourdhui"
+  ) {
+    return { date: today(), consumed: folded };
   }
-  if (folded === "manana") {
-    return { date: addParisDays(startOfParisDay(now), 1), consumed: "manana" };
-  }
-  if (folded === "pasado manana" || folded === "pasado") {
-    return { date: addParisDays(startOfParisDay(now), 2), consumed: folded };
-  }
-  if (folded === "esta tarde") {
-    const p = toParisParts(now);
+  if (folded === "manana" || folded === "tomorrow" || folded === "demain") {
     return {
-      date: fromParisWallDetailed({
-        y: p.y,
-        m: p.m,
-        d: p.d,
-        hh: 18,
-        mm: 0,
-      }).date,
-      consumed: "esta tarde",
+      date: addZoneDays(today(), 1, timeZone),
+      consumed: folded,
+    };
+  }
+  if (
+    folded === "pasado manana" ||
+    folded === "pasado" ||
+    folded === "day after tomorrow" ||
+    folded === "apres demain"
+  ) {
+    return {
+      date: addZoneDays(today(), 2, timeZone),
+      consumed: folded,
+    };
+  }
+  if (
+    folded === "esta tarde" ||
+    folded === "this afternoon" ||
+    folded === "cet apres midi"
+  ) {
+    const p = toZoneParts(now, timeZone);
+    return {
+      date: fromZoneWallDetailed(
+        { y: p.y, m: p.m, d: p.d, hh: 18, mm: 0 },
+        timeZone,
+      ).date,
+      consumed: folded,
     };
   }
   if (
     folded === "finde" ||
     folded === "fin de semana" ||
-    folded === "este fin de semana"
+    folded === "este fin de semana" ||
+    folded === "weekend" ||
+    folded === "week end" ||
+    folded === "this weekend" ||
+    folded === "ce week end" ||
+    folded === "ce weekend"
   ) {
-    const sat = nextSaturday(now);
-    const sp = toParisParts(sat);
+    const sat = nextSaturday(now, timeZone);
+    const sp = toZoneParts(sat, timeZone);
     return {
-      date: fromParisWallDetailed({
-        y: sp.y,
-        m: sp.m,
-        d: sp.d,
-        hh: 10,
-        mm: 0,
-      }).date,
+      date: fromZoneWallDetailed(
+        { y: sp.y, m: sp.m, d: sp.d, hh: 10, mm: 0 },
+        timeZone,
+      ).date,
       consumed: folded,
     };
   }
-  if (folded === "proxima semana" || folded === "prox semana") {
-    const mon = nextMonday(now);
-    const mp = toParisParts(mon);
+  if (
+    folded === "proxima semana" ||
+    folded === "prox semana" ||
+    folded === "next week" ||
+    folded === "semaine prochaine"
+  ) {
+    const mon = nextMonday(now, timeZone);
+    const mp = toZoneParts(mon, timeZone);
     return {
-      date: fromParisWallDetailed({
-        y: mp.y,
-        m: mp.m,
-        d: mp.d,
-        hh: 9,
-        mm: 0,
-      }).date,
+      date: fromZoneWallDetailed(
+        { y: mp.y, m: mp.m, d: mp.d, hh: 9, mm: 0 },
+        timeZone,
+      ).date,
       consumed: folded,
     };
   }
@@ -235,22 +289,31 @@ function resolveNamedDay(
  */
 export function parseNaturalDate(
   text: string,
-  opts: { now?: Date; kind: ParseKind },
+  opts: {
+    now?: Date;
+    kind: ParseKind;
+    locale?: LocaleCode;
+    timezone?: string;
+  },
 ): ParseResult {
   const now = opts.now ?? new Date();
   const kind = opts.kind;
+  const timeZone = opts.timezone ?? getDisplayContext().timezone;
   const trimmed = text.trim();
   if (!trimmed) return { ok: false, reason: "empty" };
 
-  const folded = foldAccents(trimmed).replace(/\s+/g, " ");
+  const folded = foldAccents(trimmed)
+    .replace(/['’-]/g, " ")
+    .replace(/\s+/g, " ")
+    .trim();
 
-  if (
-    folded === "sin fecha" ||
-    folded === "sin aviso" ||
-    folded === "ninguna" ||
-    folded === "ninguno"
-  ) {
+  if (ALL_EMPTY_PHRASES.some((p) => folded === foldAccents(p).replace(/'/g, " "))) {
     return { ok: false, reason: "empty" };
+  }
+
+  // P0: reject 12h clock tokens so the UI can show picker.parse.no12h
+  if (/(?:^|\s)(\d{1,2})(?::(\d{2}))?\s*(am|pm)(?:\s|$)/i.test(trimmed)) {
+    return { ok: false, reason: "unknown" };
   }
 
   // Bare integer → ambiguous (hour or day?)
@@ -264,117 +327,119 @@ export function parseNaturalDate(
     const n = Number(disp[1]);
     const unit = disp[2]!;
     if (unit === "d") {
-      const day = addParisDays(startOfParisDay(now), n);
-      const p = toParisParts(day);
+      const day = addZoneDays(startOfZoneDay(now, timeZone), n, timeZone);
+      const p = toZoneParts(day, timeZone);
       const def = defaultTime(kind, false);
       return wallToResult(
         { y: p.y, m: p.m, d: p.d, hh: def.hh, mm: def.mm },
         def.dateOnly,
+        timeZone,
       );
     }
     if (unit === "sem") {
-      const day = addParisDays(startOfParisDay(now), n * 7);
-      const p = toParisParts(day);
+      const day = addZoneDays(startOfZoneDay(now, timeZone), n * 7, timeZone);
+      const p = toZoneParts(day, timeZone);
       const def = defaultTime(kind, false);
       return wallToResult(
         { y: p.y, m: p.m, d: p.d, hh: def.hh, mm: def.mm },
         def.dateOnly,
+        timeZone,
       );
     }
     if (unit === "h") {
       const t = new Date(now.getTime() + n * 3_600_000);
-      const p = toParisParts(t);
+      const p = toZoneParts(t, timeZone);
       return wallToResult(
         { y: p.y, m: p.m, d: p.d, hh: p.hh, mm: p.mm },
         false,
+        timeZone,
       );
     }
     if (unit === "min") {
       const t = new Date(now.getTime() + n * 60_000);
-      const p = toParisParts(t);
+      const p = toZoneParts(t, timeZone);
       return wallToResult(
         { y: p.y, m: p.m, d: p.d, hh: p.hh, mm: p.mm },
         false,
+        timeZone,
       );
     }
   }
 
   // Multi-word named shortcuts first
-  for (const phrase of [
-    "pasado manana",
-    "esta tarde",
-    "fin de semana",
-    "este fin de semana",
-    "proxima semana",
-    "prox semana",
-  ]) {
+  for (const phrase of MULTI_WORD_PHRASES) {
     if (folded === phrase || folded.startsWith(`${phrase} `)) {
-      const named = resolveNamedDay(phrase, now);
+      const named = resolveNamedDay(phrase, now, timeZone);
       if (!named) break;
       const rest = folded.slice(phrase.length).trim();
       // Fixed-time shortcuts (esta tarde / finde / próxima semana)
       if (
-        phrase === "esta tarde" ||
-        phrase === "fin de semana" ||
-        phrase === "este fin de semana" ||
-        phrase === "proxima semana" ||
-        phrase === "prox semana"
+        phrase.includes("tarde") ||
+        phrase.includes("afternoon") ||
+        phrase.includes("apres midi") ||
+        phrase.includes("semana") ||
+        phrase.includes("week") ||
+        phrase.includes("fin de semana") ||
+        phrase.includes("weekend") ||
+        phrase.includes("week end")
       ) {
         if (rest) {
           const tm = parseTimeFromRest(rest);
           if (!tm) return { ok: false, reason: "unknown" };
-          const p = toParisParts(named.date);
+          const p = toZoneParts(named.date, timeZone);
           return wallToResult(
             { y: p.y, m: p.m, d: p.d, hh: tm.hh, mm: tm.mm },
             false,
+            timeZone,
           );
         }
-        const p = toParisParts(named.date);
+        const p = toZoneParts(named.date, timeZone);
         return wallToResult(
           { y: p.y, m: p.m, d: p.d, hh: p.hh, mm: p.mm },
           false,
+          timeZone,
         );
       }
-      // pasado mañana — day only unless time follows
-      return finishDay(named.date, rest, kind, now);
+      return finishDay(named.date, rest, kind, timeZone);
     }
   }
 
-  // Single-token named days
-  for (const phrase of ["hoy", "manana", "pasado", "finde"]) {
+  for (const phrase of SINGLE_DAY_PHRASES) {
     if (folded === phrase || folded.startsWith(`${phrase} `)) {
-      const named = resolveNamedDay(phrase === "finde" ? "finde" : phrase, now);
+      const named = resolveNamedDay(phrase, now, timeZone);
       if (!named) break;
       const rest = folded.slice(phrase.length).trim();
       if (phrase === "finde") {
         if (rest) {
           const tm = parseTimeFromRest(rest);
           if (!tm) return { ok: false, reason: "unknown" };
-          const p = toParisParts(named.date);
+          const p = toZoneParts(named.date, timeZone);
           return wallToResult(
             { y: p.y, m: p.m, d: p.d, hh: tm.hh, mm: tm.mm },
             false,
+            timeZone,
           );
         }
-        const p = toParisParts(named.date);
+        const p = toZoneParts(named.date, timeZone);
         return wallToResult(
           { y: p.y, m: p.m, d: p.d, hh: p.hh, mm: p.mm },
           false,
+          timeZone,
         );
       }
-      return finishDay(named.date, rest, kind, now);
+      return finishDay(named.date, rest, kind, timeZone);
     }
   }
 
-  // Weekday names
+  const wdKeys = Object.keys(WEEKDAYS).join("|");
   const wdMatch = folded.match(
-    /^(domingo|dom|lunes|lun|martes|mar|miercoles|mie|jueves|jue|viernes|vie|sabado|sab)(?:\s+(.+))?$/,
+    new RegExp(`^(${wdKeys})(?:\\s+(.+))?$`),
   );
   if (wdMatch) {
     const wd = WEEKDAYS[wdMatch[1]!];
     if (wd === undefined) return { ok: false, reason: "unknown" };
-    const day = nextWeekday(now, wd);
-    return finishDay(day, wdMatch[2] ?? "", kind, now);
+    const day = nextWeekday(now, wd, timeZone);
+    return finishDay(day, wdMatch[2] ?? "", kind, timeZone);
   }
 
   // Numeric / named calendar dates: 15/10, 15-10, 15/10/2026, 15 oct, 15 octubre
@@ -387,40 +452,59 @@ export function parseNaturalDate(
     let year = slash[3] ? Number(slash[3]) : undefined;
     if (year !== undefined && year < 100) year += 2000;
     const rest = slash[4] ?? "";
-    const resolved = resolveCalendarDay(day, month, year, now);
+    const resolved = resolveCalendarDay(day, month, year, now, timeZone);
     if (!resolved) return { ok: false, reason: "unknown" };
-    return finishDay(resolved, rest, kind, now);
+    return finishDay(resolved, rest, kind, timeZone);
   }
 
-  const namedDate = folded.match(
-    /^(\d{1,2})\s+(ene|feb|mar|abr|may|jun|jul|ago|sep|oct|nov|dic|enero|febrero|marzo|abril|mayo|junio|julio|agosto|septiembre|octubre|noviembre|diciembre)(?:\s+(\d{4}))?(?:\s+(.+))?$/,
+  // Day-first: «15 oct», «15 octubre», «15 oct.», «15 oct 2026 9»
+  const dayFirst = folded.match(
+    new RegExp(
+      `^(\\d{1,2})\\s+(${MONTH_ALT})\\.?(?:\\s+(\\d{4}))?(?:\\s+(.+))?$`,
+    ),
   );
-  if (namedDate) {
-    const day = Number(namedDate[1]);
-    const month = parseMonthToken(namedDate[2]!);
+  if (dayFirst) {
+    const day = Number(dayFirst[1]);
+    const month = parseMonthToken(dayFirst[2]!);
     if (!month) return { ok: false, reason: "unknown" };
-    const year = namedDate[3] ? Number(namedDate[3]) : undefined;
-    const rest = namedDate[4] ?? "";
-    const resolved = resolveCalendarDay(day, month, year, now);
+    const year = dayFirst[3] ? Number(dayFirst[3]) : undefined;
+    const rest = dayFirst[4] ?? "";
+    const resolved = resolveCalendarDay(day, month, year, now, timeZone);
     if (!resolved) return { ok: false, reason: "unknown" };
-    return finishDay(resolved, rest, kind, now);
+    return finishDay(resolved, rest, kind, timeZone);
   }
 
-  // Time only: today, or tomorrow if already past
+  // Month-first: “oct 15”, “october 15, 2026”, “oct. 15”
+  const monthFirst = folded.match(
+    new RegExp(
+      `^(${MONTH_ALT})\\.?(?:\\s+|\\s*,\\s*)(\\d{1,2})(?:(?:\\s+|\\s*,\\s*)(\\d{4}))?(?:\\s+(.+))?$`,
+    ),
+  );
+  if (monthFirst) {
+    const month = parseMonthToken(monthFirst[1]!);
+    const day = Number(monthFirst[2]);
+    if (!month) return { ok: false, reason: "unknown" };
+    const year = monthFirst[3] ? Number(monthFirst[3]) : undefined;
+    const rest = monthFirst[4] ?? "";
+    const resolved = resolveCalendarDay(day, month, year, now, timeZone);
+    if (!resolved) return { ok: false, reason: "unknown" };
+    return finishDay(resolved, rest, kind, timeZone);
+  }
+
   const timeOnly = parseTimeFromRest(folded);
   if (timeOnly && isPureTime(folded)) {
-    const p = toParisParts(now);
-    let wall: ParisWall = {
+    const p = toZoneParts(now, timeZone);
+    let wall: ZoneWall = {
       y: p.y,
       m: p.m,
       d: p.d,
       hh: timeOnly.hh,
       mm: timeOnly.mm,
     };
-    let result = wallToResult(wall, false);
+    let result = wallToResult(wall, false, timeZone);
     if (new Date(result.iso).getTime() <= now.getTime()) {
-      const tomorrow = addParisDays(startOfParisDay(now), 1);
-      const tp = toParisParts(tomorrow);
+      const tomorrow = addZoneDays(startOfZoneDay(now, timeZone), 1, timeZone);
+      const tp = toZoneParts(tomorrow, timeZone);
       wall = {
         y: tp.y,
         m: tp.m,
@@ -428,7 +512,7 @@ export function parseNaturalDate(
         hh: timeOnly.hh,
         mm: timeOnly.mm,
       };
-      result = wallToResult(wall, false);
+      result = wallToResult(wall, false, timeZone);
     }
     return result;
   }
@@ -452,21 +536,23 @@ function finishDay(
   day: Date,
   rest: string,
   kind: ParseKind,
-  _now: Date,
+  timeZone: string,
 ): ParseResult {
-  const p = toParisParts(day);
+  const p = toZoneParts(day, timeZone);
   const tm = rest.trim() ? parseTimeFromRest(rest) : null;
   if (rest.trim() && !tm) return { ok: false, reason: "unknown" };
   if (tm) {
     return wallToResult(
       { y: p.y, m: p.m, d: p.d, hh: tm.hh, mm: tm.mm },
       false,
+      timeZone,
     );
   }
   const def = defaultTime(kind, false);
   return wallToResult(
     { y: p.y, m: p.m, d: p.d, hh: def.hh, mm: def.mm },
     def.dateOnly,
+    timeZone,
   );
 }
 
@@ -475,23 +561,30 @@ function resolveCalendarDay(
   month: number,
   year: number | undefined,
   now: Date,
+  timeZone: string,
 ): Date | null {
   if (month < 1 || month > 12 || day < 1 || day > 31) return null;
-  const np = toParisParts(now);
+  const np = toZoneParts(now, timeZone);
   if (year !== undefined) {
-    return startOfParisDay(
-      fromParisWallDetailed({ y: year, m: month, d: day, hh: 12, mm: 0 }).date,
+    return startOfZoneDay(
+      fromZoneWallDetailed(
+        { y: year, m: month, d: day, hh: 12, mm: 0 },
+        timeZone,
+      ).date,
+      timeZone,
     );
   }
-  // Next future occurrence (including today if still that day)
   let y = np.y;
-  let candidate = startOfParisDay(
-    fromParisWallDetailed({ y, m: month, d: day, hh: 12, mm: 0 }).date,
+  let candidate = startOfZoneDay(
+    fromZoneWallDetailed({ y, m: month, d: day, hh: 12, mm: 0 }, timeZone).date,
+    timeZone,
   );
-  if (candidate.getTime() < startOfParisDay(now).getTime()) {
+  if (candidate.getTime() < startOfZoneDay(now, timeZone).getTime()) {
     y += 1;
-    candidate = startOfParisDay(
-      fromParisWallDetailed({ y, m: month, d: day, hh: 12, mm: 0 }).date,
+    candidate = startOfZoneDay(
+      fromZoneWallDetailed({ y, m: month, d: day, hh: 12, mm: 0 }, timeZone)
+        .date,
+      timeZone,
     );
   }
   return candidate;
@@ -499,46 +592,44 @@ function resolveCalendarDay(
 
 /** Format a parse result for the live preview line. */
 export function formatParsePreview(iso: string, dateOnly: boolean): string {
-  const p = toParisParts(new Date(iso));
-  const DAYS = ["dom", "lun", "mar", "mié", "jue", "vie", "sáb"] as const;
-  const MONTHS = [
-    "ene",
-    "feb",
-    "mar",
-    "abr",
-    "may",
-    "jun",
-    "jul",
-    "ago",
-    "sep",
-    "oct",
-    "nov",
-    "dic",
-  ] as const;
-  const wd = parisWeekday(new Date(iso));
-  const datePart = `${DAYS[wd]} ${p.d} ${MONTHS[p.m - 1]} ${p.y}`;
+  const ctx = getDisplayContext();
+  const d = new Date(iso);
+  const datePart = new Intl.DateTimeFormat(ctx.intlLocale, {
+    timeZone: ctx.timezone,
+    weekday: "short",
+    day: "numeric",
+    month: "short",
+    year: "numeric",
+  }).format(d);
+  const p = toZoneParts(d, ctx.timezone);
   if (dateOnly || (p.hh === 23 && p.mm === 59)) return datePart;
-  return `${datePart} · ${pad(p.hh)}:${pad(p.mm)}`;
+  const hm = new Intl.DateTimeFormat(ctx.intlLocale, {
+    timeZone: ctx.timezone,
+    hour: "2-digit",
+    minute: "2-digit",
+    hourCycle: "h23",
+  }).format(d);
+  return `${datePart} · ${hm}`;
 }
 
 export function dstMessage(dst: DstNote): string {
-  const MONTHS = [
-    "ene",
-    "feb",
-    "mar",
-    "abr",
-    "may",
-    "jun",
-    "jul",
-    "ago",
-    "sep",
-    "oct",
-    "nov",
-    "dic",
-  ] as const;
+  const ctx = getDisplayContext();
   const w = dst.wall;
+  const month = new Intl.DateTimeFormat(ctx.intlLocale, { month: "short" }).format(
+    new Date(Date.UTC(w.y, w.m - 1, w.d)),
+  );
+  const hm = `${pad(w.hh)}:${pad(w.mm)}`;
   if (dst.kind === "gap") {
-    return `Esa hora no existe el ${w.d} ${MONTHS[w.m - 1]} (cambio de hora). Se guarda a las ${pad(w.hh)}:${pad(w.mm)}.`;
+    return translate(ctx.locale, "picker.dstGap", {
+      day: w.d,
+      month,
+      time: hm,
+    });
   }
-  return `Esa hora se repite el ${w.d} ${MONTHS[w.m - 1]}. Se usa la primera (${pad(w.hh)}:${pad(w.mm)} CEST).`;
+  return translate(ctx.locale, "picker.dstOverlap", {
+    day: w.d,
+    month,
+    time: hm,
+  });
 }
+

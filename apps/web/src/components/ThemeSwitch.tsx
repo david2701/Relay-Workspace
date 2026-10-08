@@ -1,3 +1,6 @@
+import { useT } from "../i18n/I18nProvider";
+import type { MessageKey } from "../i18n/types";
+
 type Theme = "light" | "dark" | "system";
 
 type Props = {
@@ -5,28 +8,29 @@ type Props = {
   onChange: (t: Theme) => void;
 };
 
-const OPTIONS: { id: Theme; label: string }[] = [
-  { id: "light", label: "Claro" },
-  { id: "dark", label: "Oscuro" },
-  { id: "system", label: "Sistema" },
-];
+const THEME_KEYS: Record<Theme, MessageKey> = {
+  light: "theme.light",
+  dark: "theme.dark",
+  system: "theme.system",
+};
 
 export function ThemeSwitch({ theme, onChange }: Props) {
+  const t = useT();
   return (
     <div
       className="theme-switch"
       role="group"
-      aria-label="Tema"
+      aria-label={t("a11y.theme")}
     >
-      {OPTIONS.map((opt) => (
+      {(["light", "dark", "system"] as const).map((id) => (
         <button
-          key={opt.id}
+          key={id}
           type="button"
-          className={theme === opt.id ? "on" : ""}
-          aria-pressed={theme === opt.id}
-          onClick={() => onChange(opt.id)}
+          className={theme === id ? "on" : ""}
+          aria-pressed={theme === id}
+          onClick={() => onChange(id)}
         >
-          {opt.label}
+          {t(THEME_KEYS[id])}
         </button>
       ))}
     </div>

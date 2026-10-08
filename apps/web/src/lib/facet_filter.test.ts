@@ -7,7 +7,7 @@ function item(patch: Partial<WorkItem> & Pick<WorkItem, "id" | "title" | "status
   return {
     goal: null,
     assignee_type: "agent",
-    assignee_id: "grok-bot",
+    assignee_id: "agent-code",
     due_at: null,
     reminder_at: null,
     reminder_intent: null,
@@ -22,22 +22,22 @@ function item(patch: Partial<WorkItem> & Pick<WorkItem, "id" | "title" | "status
     completed_by_type: null,
     completed_by_id: null,
     last_actor_type: "agent",
-    last_actor_id: "grok-bot",
+    last_actor_id: "agent-code",
     list_id: null,
     ...patch,
   };
 }
 
 describe("ballHolderId P3", () => {
-  it("needs_you maps to david even when assignee is an agent", () => {
+  it("needs_you maps to user even when assignee is an agent", () => {
     const i = item({
       id: "n1",
       title: "Decide",
       status: "needs_you",
       assignee_type: "agent",
-      assignee_id: "grok-bot",
+      assignee_id: "agent-code",
     });
-    expect(ballHolderId(i)).toBe("david");
+    expect(ballHolderId(i)).toBe("user");
   });
 
   it("assigned agent keeps agent as holder", () => {
@@ -46,9 +46,9 @@ describe("ballHolderId P3", () => {
       title: "Work",
       status: "assigned",
       assignee_type: "agent",
-      assignee_id: "dev-senior",
+      assignee_id: "agent-research",
     });
-    expect(ballHolderId(i)).toBe("dev-senior");
+    expect(ballHolderId(i)).toBe("agent-research");
   });
 });
 
@@ -58,35 +58,35 @@ describe("itemMatchesFacets", () => {
       id: "1",
       title: "A",
       status: "blocked",
-      assignee_id: "dev-senior",
+      assignee_id: "agent-research",
     });
     const blockedQa = item({
       id: "2",
       title: "B",
       status: "blocked",
-      assignee_id: "qa",
+      assignee_id: "agent-data",
     });
     const facets = {
       ...EMPTY_FACETS,
       status: ["blocked" as const],
-      actor: ["dev-senior"],
+      actor: ["agent-research"],
     };
     expect(itemMatchesFacets(blockedDs, facets)).toBe(true);
     expect(itemMatchesFacets(blockedQa, facets)).toBe(false);
   });
 
-  it("needs_you matches actor=david (P3)", () => {
+  it("needs_you matches actor=user (P3)", () => {
     const need = item({
       id: "n",
       title: "N",
       status: "needs_you",
-      assignee_id: "grok-bot",
+      assignee_id: "agent-code",
     });
     expect(
-      itemMatchesFacets(need, { ...EMPTY_FACETS, actor: ["david"] }),
+      itemMatchesFacets(need, { ...EMPTY_FACETS, actor: ["user"] }),
     ).toBe(true);
     expect(
-      itemMatchesFacets(need, { ...EMPTY_FACETS, actor: ["grok-bot"] }),
+      itemMatchesFacets(need, { ...EMPTY_FACETS, actor: ["agent-code"] }),
     ).toBe(false);
   });
 });

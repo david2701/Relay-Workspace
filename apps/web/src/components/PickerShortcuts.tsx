@@ -1,14 +1,17 @@
-import { formatParsePreview } from "../lib/date_parse";
+import { type TFunction, useI18n, useT } from "../i18n/I18nProvider";
+import type { MessageKey } from "../i18n/types";
 import {
-  addParisDays,
-  dateOnlyParisIso,
-  fromParisWall,
+  type ActiveWall,
+  activeTimezone,
+  activeWeekday,
+  addActiveDays,
+  dateOnlyActiveIso,
+  fromActiveWall,
   isDateOnly,
-  type ParisWall,
-  parisWeekday,
-  startOfParisDay,
-  toParisParts,
-} from "../lib/paris_time";
+  startOfActiveDay,
+  toActiveParts,
+} from "../lib/active_zone";
+import { formatParsePreview } from "../lib/date_parse";
 
 export type ShortcutKind = "due" | "reminder";
 
@@ -20,9 +23,9 @@ export type Shortcut = {
   preview: string;
 };
 
-function wallIso(wall: ParisWall, dateOnly: boolean): string {
-  if (dateOnly) return dateOnlyParisIso(wall.y, wall.m, wall.d);
-  return fromParisWall(wall).toISOString();
+function wallIso(wall: ActiveWall, dateOnly: boolean): string {
+  if (dateOnly) return dateOnlyActiveIso(wall.y, wall.m, wall.d);
+  return fromActiveWall(wall).toISOString();
 }
 
 function roundUpQuarter(date: Date): Date {
@@ -36,31 +39,50 @@ function roundDownQuarter(date: Date): Date {
 }
 
 function nextSaturday(now: Date): Date {
-  let d = addParisDays(startOfParisDay(now), 1);
+  let d = addActiveDays(startOfActiveDay(now), 1);
   for (let i = 0; i < 8; i += 1) {
-    if (parisWeekday(d) === 6) return d;
-    d = addParisDays(d, 1);
+    if (activeWeekday(d) === 6) return d;
+    d = addActiveDays(d, 1);
   }
   return d;
 }
 
 function nextMonday(now: Date): Date {
-  let d = addParisDays(startOfParisDay(now), 1);
+  let d = addActiveDays(startOfActiveDay(now), 1);
   for (let i = 0; i < 8; i += 1) {
-    if (parisWeekday(d) === 1) return d;
-    d = addParisDays(d, 1);
+    if (activeWeekday(d) === 1) return d;
+    d = addActiveDays(d, 1);
   }
   return d;
 }
+
+const SHORTCUT_LABEL_KEYS: Record<string, MessageKey> = {
+  today: "picker.today",
+  afternoon: "picker.afternoon",
+  tomorrow: "picker.tomorrow",
+  weekend: "picker.weekend",
+  nextweek: "picker.nextWeek",
+  in1h: "picker.in1h",
+  "before-due": "picker.beforeDue",
+  clear: "picker.noDate",
+};
 
 export function buildShortcuts(args: {
   kind: ShortcutKind;
   now: Date;
   value: string | null;
   relatedDueAt?: string | null;
+  t: TFunction;
 }): Shortcut[] {
-  const { kind, now, value, relatedDueAt } = args;
-  const p = toParisParts(now);
+  const { kind, now, value, relatedDueAt, t } = args;
+  const lbl = (id: string) => {
+    if (id === "clear") {
+      return kind === "due" ? t("picker.noDate") : t("picker.noReminder");
+    }
+    const key = SHORTCUT_LABEL_KEYS[id];
+    return key ? t(key) : id;
+  };
+  const p = toActiveParts(now);
   const out: Shortcut[] = [];
 
   function push(
@@ -82,7 +104,7 @@ export function buildShortcuts(args: {
   if (kind === "due") {
     push(
       "today",
-      "Hoy",
+      lbl("today"),
       wallIso({ y: p.y, m: p.m, d: p.d, hh: 23, mm: 59 }, true),
       true,
     );
@@ -91,30 +113,30 @@ export function buildShortcuts(args: {
   if (p.hh < 17 || (p.hh === 17 && p.mm < 30)) {
     push(
       "afternoon",
-      "Esta tarde",
+      lbl("afternoon"),
       wallIso({ y: p.y, m: p.m, d: p.d, hh: 18, mm: 0 }, false),
       false,
     );
   }
 
   {
-    const tom = addParisDays(startOfParisDay(now), 1);
-    const tp = toParisParts(tom);
+    const tom = addActiveDays(startOfActiveDay(now), 1);
+    const tp = toActiveParts(tom);
     push(
       "tomorrow",
-      "Mañana",
+      lbl("tomorrow"),
       wallIso({ y: tp.y, m: tp.m, d: tp.d, hh: 9, mm: 0 }, false),
       false,
     );
   }
 
-  const wd = parisWeekday(now);
+  const wd = activeWeekday(now);
   if (wd >= 1 && wd <= 5) {
     const sat = nextSaturday(now);
-    const sp = toParisParts(sat);
+    const sp = toActiveParts(sat);
     push(
       "weekend",
-      "Este fin de semana",
+      lbl("weekend"),
       wallIso({ y: sp.y, m: sp.m, d: sp.d, hh: 10, mm: 0 }, false),
       false,
     );
@@ -122,10 +144,10 @@ export function buildShortcuts(args: {
 
   {
     const mon = nextMonday(now);
-    const mp = toParisParts(mon);
+    const mp = toActiveParts(mon);
     push(
       "nextweek",
-      "Próxima semana",
+      lbl("nextweek"),
       wallIso({ y: mp.y, m: mp.m, d: mp.d, hh: 9, mm: 0 }, false),
       false,
     );
@@ -133,10 +155,10 @@ export function buildShortcuts(args: {
 
   if (kind === "reminder") {
     const in1h = roundUpQuarter(new Date(now.getTime() + 60 * 60_000));
-    const ip = toParisParts(in1h);
+    const ip = toActiveParts(in1h);
     push(
       "in1h",
-      "En 1 hora",
+      lbl("in1h"),
       wallIso({ y: ip.y, m: ip.m, d: ip.d, hh: ip.hh, mm: ip.mm }, false),
       false,
     );
@@ -144,8 +166,8 @@ export function buildShortcuts(args: {
     if (relatedDueAt && new Date(relatedDueAt).getTime() > now.getTime()) {
       let before: Date;
       if (isDateOnly(relatedDueAt)) {
-        const dp = toParisParts(new Date(relatedDueAt));
-        before = fromParisWall({
+        const dp = toActiveParts(new Date(relatedDueAt));
+        before = fromActiveWall({
           y: dp.y,
           m: dp.m,
           d: dp.d,
@@ -158,10 +180,10 @@ export function buildShortcuts(args: {
         );
       }
       if (before.getTime() > now.getTime()) {
-        const bp = toParisParts(before);
+        const bp = toActiveParts(before);
         push(
           "before-due",
-          "Antes de que venza",
+          lbl("before-due"),
           wallIso(
             { y: bp.y, m: bp.m, d: bp.d, hh: bp.hh, mm: bp.mm },
             false,
@@ -175,7 +197,7 @@ export function buildShortcuts(args: {
   if (value) {
     out.push({
       id: "clear",
-      label: kind === "due" ? "Sin fecha" : "Sin aviso",
+      label: lbl("clear"),
       iso: null,
       dateOnly: false,
       preview: "",
@@ -198,13 +220,19 @@ export function PickerShortcuts({
   onSelect,
   onActiveChange,
 }: Props) {
-  const DAYS = ["dom", "lun", "mar", "mié", "jue", "vie", "sáb"];
+  const t = useT();
+  const { intlLocale } = useI18n();
+  const wdShort = (iso: string) =>
+    new Intl.DateTimeFormat(intlLocale, {
+      timeZone: activeTimezone(),
+      weekday: "short",
+    }).format(new Date(iso));
 
   return (
     <div
       className="dtp-shortcuts"
       role="listbox"
-      aria-label="Atajos"
+      aria-label={t("picker.shortcutsAria")}
       tabIndex={-1}
       onKeyDown={(e) => {
         if (e.key === "ArrowDown") {
@@ -230,8 +258,8 @@ export function PickerShortcuts({
         // Compact right column (v1.2 §1 anatomy): «vie 9 · 09:00», no year.
         let right = "";
         if (s.iso) {
-          const pp = toParisParts(new Date(s.iso));
-          const wd = DAYS[parisWeekday(new Date(s.iso))];
+          const pp = toActiveParts(new Date(s.iso));
+          const wd = wdShort(s.iso);
           const hm = `${String(pp.hh).padStart(2, "0")}:${String(pp.mm).padStart(2, "0")}`;
           if (s.id === "today") {
             right = `${wd} ${pp.d}`;

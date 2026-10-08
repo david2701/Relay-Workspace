@@ -6,6 +6,7 @@ import {
   useMemo,
   useRef,
 } from "react";
+import { useT } from "../i18n/I18nProvider";
 import type { DateGroupKey } from "../lib/date_groups";
 import type { Agent, SearchMatch, WorkItem } from "../lib/types";
 import type { ViewSection } from "../lib/view_model";
@@ -51,14 +52,20 @@ function sectionCount(section: ViewSection): number {
 export function flattenSections(
   sections: ViewSection[],
   collapsedKeys?: ReadonlySet<string>,
+  resolveLabel?: (section: ViewSection) => string,
 ): VirtualRow[] {
   const rows: VirtualRow[] = [];
   for (const section of sections) {
-    if (section.label) {
+    const headerLabel = resolveLabel
+      ? resolveLabel(section)
+      : section.labelKey
+        ? ""
+        : section.label;
+    if (headerLabel) {
       rows.push({
         type: "header",
         key: `hdr:${section.key}`,
-        label: section.label,
+        label: headerLabel,
         count: sectionCount(section),
         sectionKey: section.key,
       });
@@ -153,9 +160,15 @@ export function VirtualItemList({
   onLoadMore,
   hasMore,
 }: Props) {
+  const t = useT();
   const rows = useMemo(
-    () => flattenSections(sections, collapsedKeys),
-    [sections, collapsedKeys],
+    () =>
+      flattenSections(sections, collapsedKeys, (s) => {
+        if (s.labelKey) return t(s.labelKey);
+        if (s.label) return s.label;
+        return s.key;
+      }),
+    [sections, collapsedKeys, t],
   );
   const useVirtual = rows.length > VIRTUALIZE_THRESHOLD;
   // Fixed-size estimates only — no measureElement (avoids ResizeObserver thrash).
@@ -216,7 +229,11 @@ export function VirtualItemList({
           const collapsed = !!collapsedKeys?.has(section.key);
           const items = collapsed ? [] : section.items;
           const count = sectionCount(section);
-          if (!section.label) {
+          // Attention sections carry labelKey; other views resolve label in App.
+          const label = section.labelKey
+            ? t(section.labelKey)
+            : section.label || section.key;
+          if (!label) {
             return (
               <div key={section.key || "all"}>
                 {items.map((item) => (
@@ -235,7 +252,7 @@ export function VirtualItemList({
               <div key={section.key}>
                 <DateGroupHeader
                   groupKey={section.key as DateGroupKey}
-                  label={section.label}
+                  label={label}
                   count={count}
                   collapsed={collapsed}
                   onToggle={() => onToggleGroup(section.key)}
@@ -252,11 +269,7 @@ export function VirtualItemList({
             );
           }
           return (
-            <Section
-              key={section.key}
-              label={section.label}
-              count={count}
-            >
+            <Section key={section.key} label={label} count={count}>
               {items.map((item) =>
                 renderItemRow(item, {
                   ...itemProps,

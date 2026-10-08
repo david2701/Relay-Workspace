@@ -6,13 +6,13 @@ import type {
 import type { WorkItem } from "../schemas/work_item.js";
 import { decodeCursor, encodeCursor } from "./cursor.js";
 import { countDueGroups } from "./date_groups.js";
-import {
-  addParisDays,
-  endOfParisDay,
-  parisWeekday,
-  startOfParisDay,
-} from "./paris_time.js";
 import { nowIso } from "./time.js";
+import {
+  addZoneDays,
+  DEFAULT_TIMEZONE,
+  endOfZoneDay,
+  startOfZoneDay,
+} from "./zone_time.js";
 
 function isTerminal(item: WorkItem): boolean {
   return item.status === "done" || item.status === "cancelled";
@@ -31,27 +31,35 @@ function nearestSchedule(item: WorkItem): Date | null {
   return dates[0] ?? null;
 }
 
-const WEEKDAY_ES = ["dom", "lun", "mar", "mié", "jue", "vie", "sáb"] as const;
-
-function groupLabel(date: Date, now: Date): { key: string; label: string } {
-  const today = startOfParisDay(now);
-  const target = startOfParisDay(date);
+/**
+ * Stable group codes only — UI maps key → locale / Intl.
+ * `label` mirrors `key` (never localized prose).
+ * `date` is set for weekday buckets so the client can format via Intl.
+ */
+function groupLabel(
+  date: Date,
+  now: Date,
+  timeZone: string,
+): { key: string; label: string; date?: string } {
+  const today = startOfZoneDay(now, timeZone);
+  const target = startOfZoneDay(date, timeZone);
   const diffDays = Math.round(
     (target.getTime() - today.getTime()) / (1000 * 60 * 60 * 24),
   );
-  if (diffDays === 0) return { key: "today", label: "Hoy" };
-  if (diffDays === 1) return { key: "tomorrow", label: "Mañana" };
-  if (diffDays === -1) return { key: "yesterday", label: "Ayer" };
+  if (diffDays === 0) return { key: "today", label: "today" };
+  if (diffDays === 1) return { key: "tomorrow", label: "tomorrow" };
+  if (diffDays === -1) return { key: "yesterday", label: "yesterday" };
   if (diffDays > 1 && diffDays < 7) {
     return {
       key: `dow-${diffDays}`,
-      label: WEEKDAY_ES[parisWeekday(date)] ?? "día",
+      label: `dow-${diffDays}`,
+      date: date.toISOString(),
     };
   }
   if (diffDays < -1 && diffDays > -7) {
-    return { key: "this_week", label: "Esta semana" };
+    return { key: "this_week", label: "this_week" };
   }
-  return { key: "this_week", label: "Esta semana" };
+  return { key: "this_week", label: "this_week" };
 }
 
 type AttentionBuckets = {
@@ -60,7 +68,11 @@ type AttentionBuckets = {
   today: WorkItem[];
 };
 
-function buildAttention(items: readonly WorkItem[], now: Date): AttentionBuckets {
+function buildAttention(
+  items: readonly WorkItem[],
+  now: Date,
+  timeZone: string,
+): AttentionBuckets {
   // Spec order (v1.1 §1.2): needs_you / blocked oldest-first; today by schedule.
   const needsYou = items
     .filter((i) => i.status === "needs_you")
@@ -68,7 +80,7 @@ function buildAttention(items: readonly WorkItem[], now: Date): AttentionBuckets
   const blocked = items
     .filter((i) => i.status === "blocked")
     .sort((a, b) => a.updated_at.localeCompare(b.updated_at));
-  const endToday = endOfParisDay(now);
+  const endToday = endOfZoneDay(now, timeZone);
   const today = items
     .filter((i) => {
       if (isTerminal(i)) return false;
@@ -87,12 +99,18 @@ function buildAttention(items: readonly WorkItem[], now: Date): AttentionBuckets
   return { needsYou, blocked, today };
 }
 
-type GroupBucket = { key: string; label: string; items: WorkItem[] };
+type GroupBucket = {
+  key: string;
+  label: string;
+  date?: string;
+  items: WorkItem[];
+};
 
 function buildFullView(
   items: readonly WorkItem[],
   view: InboxView,
   now: Date,
+  timeZone: string,
 ): {
   items: WorkItem[];
   sections?: InboxQueryResult["sections"];
@@ -101,7 +119,7 @@ function buildFullView(
   group_counts?: InboxQueryResult["group_counts"];
 } {
   if (view === "attention") {
-    const { needsYou, blocked, today } = buildAttention(items, now);
+    const { needsYou, blocked, today } = buildAttention(items, now, timeZone);
     return {
       items: [...needsYou, ...blocked, ...today],
       sections: [
@@ -135,7 +153,7 @@ function buildFullView(
     return { items: filtered };
   }
   if (view === "upcoming") {
-    const horizon = addParisDays(endOfParisDay(now), 7);
+    const horizon = addZoneDays(endOfZoneDay(now, timeZone), 7, timeZone);
     const filtered = items
       .filter((i) => {
         if (isTerminal(i)) return false;
@@ -152,7 +170,7 @@ function buildFullView(
     for (const item of filtered) {
       const near = nearestSchedule(item);
       if (!near) continue;
-      const g = groupLabel(near, now);
+      const g = groupLabel(near, now, timeZone);
       const existing = groupMap.get(g.key);
       if (existing) existing.items.push(item);
       else groupMap.set(g.key, { ...g, items: [item] });
@@ -164,12 +182,13 @@ function buildFullView(
       group_counts: groups.map((g) => ({
         key: g.key,
         label: g.label,
+        ...(g.date ? { date: g.date } : {}),
         count: g.items.length,
       })),
     };
   }
   if (view === "done") {
-    const weekAgo = addParisDays(startOfParisDay(now), -7);
+    const weekAgo = addZoneDays(startOfZoneDay(now, timeZone), -7, timeZone);
     const filtered = items
       .filter((i) => {
         if (!isTerminal(i) || !i.completed_at) return false;
@@ -179,18 +198,16 @@ function buildFullView(
     const groupMap = new Map<string, GroupBucket>();
     for (const item of filtered) {
       if (!item.completed_at) continue;
-      const g = groupLabel(new Date(item.completed_at), now);
+      const g = groupLabel(new Date(item.completed_at), now, timeZone);
       const key =
         g.key === "today"
           ? "today"
           : g.key === "yesterday"
             ? "yesterday"
             : "this_week";
-      const label =
-        key === "today" ? "Hoy" : key === "yesterday" ? "Ayer" : "Esta semana";
       const existing = groupMap.get(key);
       if (existing) existing.items.push(item);
-      else groupMap.set(key, { key, label, items: [item] });
+      else groupMap.set(key, { key, label: key, items: [item] });
     }
     const order = ["today", "yesterday", "this_week"];
     const groups = order
@@ -216,7 +233,7 @@ function buildFullView(
   return {
     items: filtered,
     // Full-view date-group totals for Todo «Agrupar: Fecha» (page-independent).
-    group_counts: countDueGroups(filtered, now),
+    group_counts: countDueGroups(filtered, now, timeZone),
   };
 }
 
@@ -268,6 +285,7 @@ function sliceGroups(
     .map((g) => ({
       key: g.key,
       label: g.label,
+      ...(g.date ? { date: g.date } : {}),
       items: g.items.filter((i) => pageIds.has(i.id)),
     }))
     .filter((g) => g.items.length > 0);
@@ -277,6 +295,8 @@ export type InboxQueryArgs = {
   items: readonly WorkItem[];
   view: InboxView;
   now?: Date;
+  /** IANA timezone for day boundaries (default UTC). */
+  timeZone?: string;
   limit?: number;
   /** Opaque cursor or raw item id of the last item on the previous page. */
   cursor?: string;
@@ -284,8 +304,9 @@ export type InboxQueryArgs = {
 
 export function queryInbox(args: InboxQueryArgs): InboxQueryResult {
   const now = args.now ?? new Date();
+  const timeZone = args.timeZone ?? DEFAULT_TIMEZONE;
   const counters = { needs_you: countNeedsYou(args.items) };
-  const full = buildFullView(args.items, args.view, now);
+  const full = buildFullView(args.items, args.view, now, timeZone);
   const pageOpts: { limit?: number; cursor?: string } = {};
   if (args.limit !== undefined) pageOpts.limit = args.limit;
   if (args.cursor !== undefined) pageOpts.cursor = args.cursor;
@@ -325,12 +346,14 @@ export type InboxSyncArgs = {
   view: InboxView;
   since: string;
   now?: Date;
+  timeZone?: string;
 };
 
 export function buildInboxSync(args: InboxSyncArgs): InboxSyncResult {
   const now = args.now ?? new Date();
+  const timeZone = args.timeZone ?? DEFAULT_TIMEZONE;
   const counters = { needs_you: countNeedsYou(args.items) };
-  const full = buildFullView(args.items, args.view, now);
+  const full = buildFullView(args.items, args.view, now, timeZone);
   const inView = new Set(full.items.map((i) => i.id));
   const changed = args.items.filter((i) => i.updated_at > args.since);
   const upserts: WorkItem[] = [];
@@ -359,6 +382,7 @@ export function itemIdsInView(
   items: readonly WorkItem[],
   view: InboxView,
   now: Date = new Date(),
+  timeZone: string = DEFAULT_TIMEZONE,
 ): Set<string> {
-  return new Set(buildFullView(items, view, now).items.map((i) => i.id));
+  return new Set(buildFullView(items, view, now, timeZone).items.map((i) => i.id));
 }

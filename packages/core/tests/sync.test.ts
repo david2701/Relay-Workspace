@@ -22,11 +22,11 @@ describe("inbox sync delta", () => {
   it("returns upserts for changes since cursor and removals when leaving a view", () => {
     const actor = { type: "user" as const, id: USER_ACTOR_ID };
     const a = svc.createItem({ title: "Alpha" }, actor, "ui");
-    svc.delegate(a.id, "grok-bot", actor, "ui");
+    svc.delegate(a.id, "agent-code", actor, "ui");
     svc.askUser(
       a.id,
       "Need a decision on Alpha",
-      { type: "agent", id: "grok-bot" },
+      { type: "agent", id: "agent-code" },
       "mcp",
     );
     const snap = svc.inboxQuery("attention");
@@ -35,11 +35,11 @@ describe("inbox sync delta", () => {
     expect(since).toBeTruthy();
 
     const b = svc.createItem({ title: "Beta" }, actor, "ui");
-    svc.delegate(b.id, "grok-bot", actor, "ui");
+    svc.delegate(b.id, "agent-code", actor, "ui");
     svc.askUser(
       b.id,
       "Need a decision on Beta",
-      { type: "agent", id: "grok-bot" },
+      { type: "agent", id: "agent-code" },
       "mcp",
     );
 
@@ -47,7 +47,7 @@ describe("inbox sync delta", () => {
     svc.setStatus(
       a.id,
       { status: "assigned" },
-      { type: "agent", id: "grok-bot" },
+      { type: "agent", id: "agent-code" },
       "mcp",
     );
 

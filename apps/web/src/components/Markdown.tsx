@@ -1,6 +1,8 @@
 import type { Components } from "react-markdown";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
+import { translate } from "../i18n/translate";
+import { getDisplayContext } from "../lib/display_context";
 import {
   isInternalPath,
   remarkHtmlAsText,
@@ -23,6 +25,9 @@ export function Markdown({
   readOnly = false,
   className,
 }: Props) {
+  const { locale } = getDisplayContext();
+  const msg = (key: "markdown.opensNewTab" | "markdown.imageWithAlt" | "markdown.imageNoAlt", vars?: Record<string, string | number>) =>
+    translate(locale, key, vars ?? {});
   const components: Components = {
     h1: ({ children }) => <h3 className="md-h1">{children}</h3>,
     h2: ({ children }) => <h4 className="md-h2">{children}</h4>,
@@ -89,14 +94,14 @@ export function Markdown({
           <span className="md-ext" aria-hidden>
             ↗
           </span>
-          <span className="sr-only">(se abre en otra pestaña)</span>
+          <span className="sr-only">{msg("markdown.opensNewTab")}</span>
         </a>
       );
     },
     img: ({ alt, src }) => {
       const label = alt?.trim()
-        ? `Imagen: ${alt.trim()}`
-        : "Imagen sin descripción";
+        ? msg("markdown.imageWithAlt", { alt: alt.trim() })
+        : msg("markdown.imageNoAlt");
       const safe = src ? sanitizeUrl(src) : "";
       if (safe && !isInternalPath(safe)) {
         return (
@@ -110,7 +115,7 @@ export function Markdown({
             <span className="md-ext" aria-hidden>
               ↗
             </span>
-            <span className="sr-only">(se abre en otra pestaña)</span>
+            <span className="sr-only">{msg("markdown.opensNewTab")}</span>
           </a>
         );
       }

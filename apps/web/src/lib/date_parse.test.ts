@@ -18,7 +18,7 @@ describe("parseNaturalDate (V12-D4/D5/D7)", () => {
       expect(a.iso).toBe("2026-10-09T07:00:00.000Z");
       expect(b.iso).toBe(a.iso);
       expect(formatParsePreview(a.iso, a.dateOnly)).toBe(
-        "vie 9 oct 2026 · 09:00",
+        "vie, 9 oct 2026 · 09:00",
       );
     }
   });
@@ -28,7 +28,7 @@ describe("parseNaturalDate (V12-D4/D5/D7)", () => {
     expect(d1).toMatchObject({ ok: true });
     if (d1.ok) {
       expect(formatParsePreview(d1.iso, d1.dateOnly)).toBe(
-        "jue 15 oct 2026 · 14:30",
+        "jue, 15 oct 2026 · 14:30",
       );
     }
 
@@ -36,19 +36,19 @@ describe("parseNaturalDate (V12-D4/D5/D7)", () => {
     expect(d2).toMatchObject({ ok: true });
     if (d2.ok) {
       expect(d2.dateOnly).toBe(true);
-      expect(formatParsePreview(d2.iso, d2.dateOnly)).toBe("dom 11 oct 2026");
+      expect(formatParsePreview(d2.iso, d2.dateOnly)).toBe("dom, 11 oct 2026");
     }
 
     const d3 = parseNaturalDate("jue", { now: NOW, kind: "due" });
     expect(d3).toMatchObject({ ok: true });
     if (d3.ok) {
-      expect(formatParsePreview(d3.iso, d3.dateOnly)).toBe("jue 15 oct 2026");
+      expect(formatParsePreview(d3.iso, d3.dateOnly)).toBe("jue, 15 oct 2026");
     }
 
     const d4 = parseNaturalDate("3/1", { now: NOW, kind: "due" });
     expect(d4).toMatchObject({ ok: true });
     if (d4.ok) {
-      expect(formatParsePreview(d4.iso, d4.dateOnly)).toBe("dom 3 ene 2027");
+      expect(formatParsePreview(d4.iso, d4.dateOnly)).toBe("dom, 3 ene 2027");
     }
   });
 
