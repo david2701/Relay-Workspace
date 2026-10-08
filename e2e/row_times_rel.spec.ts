@@ -131,11 +131,12 @@ test.describe("V03-R13 .rel never clips", () => {
         });
         expect(clipped, clipped.join("; ")).toEqual([]);
         if (width >= 768) {
-          const minWidth = await page
-            .locator(".rel")
-            .first()
-            .evaluate((el) => getComputedStyle(el).minWidth);
-          expect(minWidth).toContain("ch");
+          // getComputedStyle resolves `13ch` to px (~91px for Plex Mono 12).
+          const minPx = await page.locator(".rel").first().evaluate((el) => {
+            const raw = getComputedStyle(el).minWidth;
+            return Number.parseFloat(raw);
+          });
+          expect(minPx).toBeGreaterThanOrEqual(80);
         }
         if (width === 390) {
           const box = await page.locator(".rel").first().boundingBox();
