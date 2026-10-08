@@ -1,6 +1,11 @@
 import { markForCompleter, markForWitness } from "../lib/actor_mark";
 import { copy } from "../lib/copy";
-import { formatDue, formatRelative } from "../lib/format";
+import {
+  formatDue,
+  formatDueForGroup,
+  formatRelative,
+  formatReminder,
+} from "../lib/format";
 import type { Agent, WorkItem } from "../lib/types";
 import { ActorMark, isStaleWorking, isWorking } from "./ActorMark";
 import { StatusGlyph } from "./StatusGlyph";
@@ -13,6 +18,8 @@ type Props = {
   flash?: boolean;
   showChatBadge?: boolean;
   showCompletedBy?: boolean;
+  /** When grouped by due date, compact the due chip (§1.8). */
+  dueGroupKey?: string | undefined;
   onSelect: () => void;
 };
 
@@ -23,6 +30,7 @@ export function ItemRow({
   flash,
   showChatBadge,
   showCompletedBy,
+  dueGroupKey,
   onSelect,
 }: Props) {
   const witness = markForWitness(item, agents);
@@ -34,11 +42,15 @@ export function ItemRow({
       : item.status === "blocked" && item.blocked_reason
         ? `Atascado: ${item.blocked_reason}`
         : null;
-  const due = item.due_at ? formatDue(item.due_at) : null;
+  const due = item.due_at
+    ? dueGroupKey
+      ? formatDueForGroup(item.due_at, dueGroupKey)
+      : formatDue(item.due_at)
+    : null;
   const reminder =
     item.reminder_at && item.status !== "done" && item.status !== "cancelled"
       ? {
-          time: formatDue(item.reminder_at).text.replace(/^Hoy /, "").replace(/^Mañana /, "Mañ "),
+          time: formatReminder(item.reminder_at).text,
           intent: item.reminder_intent,
         }
       : null;
@@ -111,7 +123,10 @@ export function ItemRow({
         ) : null}
       </div>
       <div className="item-meta">
-        {due && item.status !== "done" && item.status !== "cancelled" ? (
+        {due &&
+        due.text &&
+        item.status !== "done" &&
+        item.status !== "cancelled" ? (
           <span className={`due-chip mono tone-${due.tone}`}>{due.text}</span>
         ) : null}
         {reminder ? (

@@ -25,6 +25,7 @@ import type {
   Recommendation,
   WorkItem,
 } from "./lib/types";
+import { groupByDue } from "./lib/date_groups";
 import {
   assertNoDuplicateIds,
   buildViewSections,
@@ -32,6 +33,27 @@ import {
 } from "./lib/view_model";
 import "./components/ActorMark.css";
 import "./App.css";
+
+const TODO_GROUP_KEY = "relay.todo.groupBy";
+const COLLAPSED_GROUPS_KEY = "relay.groups.collapsed.all";
+
+function readTodoGroupBy(): "due" | "none" {
+  const v = localStorage.getItem(TODO_GROUP_KEY);
+  if (v === "none") return "none";
+  return "due";
+}
+
+function readCollapsedGroups(): Set<string> {
+  try {
+    const raw = localStorage.getItem(COLLAPSED_GROUPS_KEY);
+    if (!raw) return new Set();
+    const arr = JSON.parse(raw) as unknown;
+    if (!Array.isArray(arr)) return new Set();
+    return new Set(arr.filter((x): x is string => typeof x === "string"));
+  } catch {
+    return new Set();
+  }
+}
 
 const VIEWS: { id: AppView; label: string }[] = [
   { id: "attention", label: copy.nav.attention },
@@ -70,6 +92,11 @@ export default function App() {
   const [notes, setNotes] = useState<Note[]>([]);
   const [filter, setFilter] = useState("");
   const [gPending, setGPending] = useState(false);
+  const [todoGroupBy, setTodoGroupBy] = useState<"due" | "none">(readTodoGroupBy);
+  const [collapsedGroups, setCollapsedGroups] = useState<Set<string>>(
+    readCollapsedGroups,
+  );
+  const [openPicker, setOpenPicker] = useState<"due" | "reminder" | null>(null);
   const captureRef = useRef<HTMLInputElement>(null);
   const listRef = useRef<HTMLDivElement>(null);
   const prevUpdated = useRef<Map<string, string>>(new Map());
@@ -276,16 +303,38 @@ export default function App() {
       filter,
       now: Date.now(),
     });
-    if (import.meta.env.DEV && sections.length > 0) {
-      assertNoDuplicateIds(sections, inboxView);
+    let result = sections;
+    if (view === "all" && todoGroupBy === "due") {
+      const items = sections.flatMap((s) => s.items);
+      result = groupByDue(items, new Date()).map((g) => ({
+        key: g.key,
+        label: g.label,
+        items: g.items,
+      }));
     }
-    return sections;
-  }, [inbox, inboxView, lingerRows, pendingRows, filter, tick]);
+    if (import.meta.env.DEV && result.length > 0) {
+      assertNoDuplicateIds(result, inboxView);
+    }
+    return result;
+  }, [
+    inbox,
+    inboxView,
+    lingerRows,
+    pendingRows,
+    filter,
+    tick,
+    view,
+    todoGroupBy,
+  ]);
 
-  const flatItems = useMemo(
-    () => viewSections.flatMap((s) => s.items),
-    [viewSections],
-  );
+  const flatItems = useMemo(() => {
+    if (view === "all" && todoGroupBy === "due") {
+      return viewSections
+        .filter((s) => !collapsedGroups.has(s.key))
+        .flatMap((s) => s.items);
+    }
+    return viewSections.flatMap((s) => s.items);
+  }, [viewSections, view, todoGroupBy, collapsedGroups]);
 
   // Rail Atención counter: when Atención is painted, use the rendered
   // Te necesita row count (same list as the header · N). Otherwise use
@@ -370,7 +419,16 @@ export default function App() {
         (t.tagName === "INPUT" ||
           t.tagName === "TEXTAREA" ||
           t.isContentEditable);
+      // Ignore picker/menu chrome; the main item list is also role=listbox.
+      const overlayHost = t?.closest(
+        "[role=dialog],[role=grid],[role=menu]",
+      );
+      const listbox = t?.closest("[role=listbox]");
+      const inOverlay =
+        !!overlayHost ||
+        (!!listbox && !listbox.classList.contains("item-list"));
       if (e.key === "Escape") {
+        if (inOverlay) return;
         if (showShortcuts) {
           setShowShortcuts(false);
           return;
@@ -385,7 +443,7 @@ export default function App() {
           return;
         }
       }
-      if (typing) return;
+      if (typing || inOverlay) return;
       if (e.key === "n" || e.key === "N") {
         e.preventDefault();
         captureRef.current?.focus();
@@ -419,6 +477,11 @@ export default function App() {
           selectView(v);
           setGPending(false);
         }
+        return;
+      }
+      if ((e.key === "t" || e.key === "T") && selectedId) {
+        e.preventDefault();
+        setOpenPicker(e.shiftKey ? "reminder" : "due");
         return;
       }
       if (e.key === "j" || e.key === "ArrowDown") {
@@ -537,13 +600,33 @@ export default function App() {
       <main className="list-zone">
         <header className="list-head">
           <h2>{title}</h2>
-          <input
-            id="view-filter"
-            className="view-filter"
-            placeholder="Filtrar por título"
-            value={filter}
-            onChange={(e) => setFilter(e.target.value)}
-          />
+          <div className="list-head-actions">
+            {view === "all" ? (
+              <button
+                type="button"
+                className="group-toggle"
+                aria-label={
+                  todoGroupBy === "due"
+                    ? "Agrupar: Fecha"
+                    : "Agrupar: Ninguno"
+                }
+                onClick={() => {
+                  const next = todoGroupBy === "due" ? "none" : "due";
+                  setTodoGroupBy(next);
+                  localStorage.setItem(TODO_GROUP_KEY, next);
+                }}
+              >
+                {todoGroupBy === "due" ? "Agrupar: Fecha" : "Agrupar: Ninguno"}
+              </button>
+            ) : null}
+            <input
+              id="view-filter"
+              className="view-filter"
+              placeholder="Filtrar por título"
+              value={filter}
+              onChange={(e) => setFilter(e.target.value)}
+            />
+          </div>
         </header>
 
         {offline ? (
@@ -711,6 +794,24 @@ relay web   →  http://127.0.0.1:7421`}</pre>
                 flashIds={flashIds}
                 showChatBadge={view === "all"}
                 showCompletedBy={view === "done"}
+                dueGroupMode={view === "all" && todoGroupBy === "due"}
+                {...(view === "all" && todoGroupBy === "due"
+                  ? {
+                      collapsedKeys: collapsedGroups,
+                      onToggleGroup: (key: string) => {
+                        setCollapsedGroups((prev) => {
+                          const next = new Set(prev);
+                          if (next.has(key)) next.delete(key);
+                          else next.add(key);
+                          localStorage.setItem(
+                            COLLAPSED_GROUPS_KEY,
+                            JSON.stringify([...next]),
+                          );
+                          return next;
+                        });
+                      },
+                    }
+                  : {})}
                 onSelect={setSelectedId}
               />
             ) : null}
@@ -790,6 +891,8 @@ relay web   →  http://127.0.0.1:7421`}</pre>
           void reload();
         }}
         onFlash={flash}
+        openPicker={openPicker}
+        onOpenPickerHandled={() => setOpenPicker(null)}
       />
 
       {showShortcuts ? (
@@ -809,6 +912,7 @@ relay web   →  http://127.0.0.1:7421`}</pre>
               <li>D — delegar · M — me lo quedo · L — vincular nota</li>
               <li>S — estado · Shift+R — reabrir</li>
               <li>G luego A/G/P/H/T/O — cambiar vista</li>
+              <li>T — para cuándo · Shift+T — avisarme</li>
             </ul>
             <button type="button" className="btn-secondary" onClick={() => setShowShortcuts(false)}>
               Cerrar

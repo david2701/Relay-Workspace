@@ -4,8 +4,10 @@ import {
   type RefObject,
   useMemo,
 } from "react";
+import type { DateGroupKey } from "../lib/date_groups";
 import type { Agent, WorkItem } from "../lib/types";
 import type { ViewSection } from "../lib/view_model";
+import { DateGroupHeader } from "./DateGroupHeader";
 import { ItemRow } from "./ItemRow";
 
 const HEADER_H = 28;
@@ -13,7 +15,13 @@ const ROW_H = 36;
 const ROW_H_REASON = 52;
 
 export type VirtualRow =
-  | { type: "header"; key: string; label: string; count: number }
+  | {
+      type: "header";
+      key: string;
+      label: string;
+      count: number;
+      sectionKey: string;
+    }
   | { type: "item"; key: string; item: WorkItem; sectionKey: string };
 
 function hasReason(item: WorkItem): boolean {
@@ -23,7 +31,10 @@ function hasReason(item: WorkItem): boolean {
   );
 }
 
-export function flattenSections(sections: ViewSection[]): VirtualRow[] {
+export function flattenSections(
+  sections: ViewSection[],
+  collapsedKeys?: ReadonlySet<string>,
+): VirtualRow[] {
   const rows: VirtualRow[] = [];
   for (const section of sections) {
     if (section.label) {
@@ -32,8 +43,10 @@ export function flattenSections(sections: ViewSection[]): VirtualRow[] {
         key: `hdr:${section.key}`,
         label: section.label,
         count: section.items.length,
+        sectionKey: section.key,
       });
     }
+    if (collapsedKeys?.has(section.key)) continue;
     for (const item of section.items) {
       rows.push({
         type: "item",
@@ -59,6 +72,10 @@ type Props = {
   flashIds: Set<string>;
   showChatBadge?: boolean;
   showCompletedBy?: boolean;
+  /** When set, section headers are collapsible date groups. */
+  collapsedKeys?: ReadonlySet<string> | undefined;
+  onToggleGroup?: ((key: string) => void) | undefined;
+  dueGroupMode?: boolean | undefined;
   onSelect: (id: string) => void;
 };
 
@@ -70,9 +87,15 @@ export function VirtualItemList({
   flashIds,
   showChatBadge,
   showCompletedBy,
+  collapsedKeys,
+  onToggleGroup,
+  dueGroupMode,
   onSelect,
 }: Props) {
-  const rows = useMemo(() => flattenSections(sections), [sections]);
+  const rows = useMemo(
+    () => flattenSections(sections, collapsedKeys),
+    [sections, collapsedKeys],
+  );
 
   const virtualizer = useVirtualizer({
     count: rows.length,
@@ -107,17 +130,30 @@ export function VirtualItemList({
             }}
           >
             {row.type === "header" ? (
-              <Section
-                label={row.label}
-                count={row.count}
-                virtualized
-              />
+              dueGroupMode && onToggleGroup ? (
+                <DateGroupHeader
+                  groupKey={row.sectionKey as DateGroupKey}
+                  label={row.label}
+                  count={row.count}
+                  collapsed={!!collapsedKeys?.has(row.sectionKey)}
+                  onToggle={() => onToggleGroup(row.sectionKey)}
+                />
+              ) : (
+                <Section
+                  label={row.label}
+                  count={row.count}
+                  virtualized
+                />
+              )
             ) : (
               <ItemRow
                 item={row.item}
                 agents={agents}
                 selected={selectedId === row.item.id}
                 flash={flashIds.has(row.item.id)}
+                {...(dueGroupMode
+                  ? { dueGroupKey: row.sectionKey }
+                  : {})}
                 {...(showChatBadge !== undefined
                   ? { showChatBadge }
                   : {})}

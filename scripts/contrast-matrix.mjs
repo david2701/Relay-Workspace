@@ -93,6 +93,9 @@ const PAIRS = [
   ["focus", "raised", 3.0],
   ["control", "paper", 3.0],
   ["control", "raised", 3.0],
+  // v1.2 §0.3 — match highlight
+  ["ink", "mark-bg", 7.0],
+  ["ink-2", "mark-bg", 4.5],
 ];
 
 function checkMode(label, vars) {
