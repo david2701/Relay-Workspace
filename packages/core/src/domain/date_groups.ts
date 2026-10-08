@@ -21,7 +21,7 @@ export type DueGroupKey =
  */
 export const DUE_GROUP_LABELS: Record<DueGroupKey, string> = {
   overdue: "overdue",
-  today: "Today",
+  today: "today",
   tomorrow: "tomorrow",
   week: "week",
   later: "later",
