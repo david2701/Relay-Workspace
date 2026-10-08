@@ -16,6 +16,11 @@ import {
   reopenItem,
   stampActor,
 } from "../domain/transitions.js";
+import {
+  dateOnlyZoneIso,
+  isDateOnlyInZone,
+  toZoneParts,
+} from "../domain/zone_time.js";
 import { type Agent, DEFAULT_AGENTS } from "../schemas/agent.js";
 import {
   type InboxView,
@@ -205,7 +210,21 @@ export class RelayService {
     } catch {
       throw new ValidationError(`Invalid IANA timezone: ${merged.timezone}`);
     }
-    if (patch.timezone !== undefined) {
+    const timezoneChanged =
+      patch.timezone !== undefined && patch.timezone !== current.timezone;
+    if (timezoneChanged) {
+      // PR2: re-anchor date-only (23:59) dues in one transaction.
+      this.db.exec("BEGIN");
+      try {
+        this.writeMeta("timezone", merged.timezone);
+        this.reanchorDateOnlyDues(current.timezone, merged.timezone);
+        this.db.exec("COMMIT");
+      } catch (err) {
+        this.db.exec("ROLLBACK");
+        throw err;
+      }
+      this.afterLocalWrite();
+    } else if (patch.timezone !== undefined) {
       this.writeMeta("timezone", merged.timezone);
     }
     if (patch.user_display_name !== undefined) {
@@ -215,6 +234,30 @@ export class RelayService {
       this.writeMeta("user_initial", merged.user_initial);
     }
     return merged;
+  }
+
+  /**
+   * Move every non-cancelled `due_at` at 23:59 in `oldTz` to 23:59 of the
+   * same calendar day in `newTz`. Reminder times and real clock times stay.
+   */
+  private reanchorDateOnlyDues(oldTz: string, newTz: string): void {
+    const rows = this.db
+      .prepare(
+        `SELECT id, due_at FROM work_items
+         WHERE due_at IS NOT NULL AND status != 'cancelled'`,
+      )
+      .all() as Array<{ id: string; due_at: string }>;
+    const update = this.db.prepare(
+      `UPDATE work_items SET due_at = ?, updated_at = ? WHERE id = ?`,
+    );
+    const wall = nowIso();
+    for (const row of rows) {
+      if (!isDateOnlyInZone(row.due_at, oldTz)) continue;
+      const p = toZoneParts(new Date(row.due_at), oldTz);
+      const next = dateOnlyZoneIso(p.y, p.m, p.d, newTz);
+      if (next === row.due_at) continue;
+      update.run(next, wall, row.id);
+    }
   }
 
   resolveActor(

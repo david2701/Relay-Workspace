@@ -33,6 +33,7 @@ step "test:e2e" pnpm test:e2e
 step "check:mcp-docs" pnpm check:mcp-docs
 step "check:i18n-missing-keys" pnpm run check:i18n-missing-keys
 step "check:hardcoded-strings" pnpm run check:hardcoded-strings
+step "check:client-names" pnpm run check:client-names
 
 echo ""
 echo "CI OK — all steps exit 0"

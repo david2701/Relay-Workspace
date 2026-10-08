@@ -7,6 +7,8 @@ import {
   type ReactNode,
 } from "react";
 import { resolveInitialLocale, storeLocale } from "./detect";
+import { resolveFormatLocale } from "./format_locale";
+import { applyPseudoLocale, isPseudoLocaleEnabled } from "./pseudo_locale";
 import { translate } from "./translate";
 import type { LocaleCode, MessageKey } from "./types";
 
@@ -19,36 +21,48 @@ type I18nContextValue = {
   locale: LocaleCode;
   setLocale: (locale: LocaleCode) => void;
   t: TFunction;
-  /** BCP-47 tag for Intl formatters */
+  /** BCP-47 tag for Intl formatters (PR5 region-aware). */
   intlLocale: string;
 };
 
 const I18nContext = createContext<I18nContextValue | null>(null);
 
-function intlTag(locale: LocaleCode): string {
-  if (locale === "fr") return "fr-FR";
-  if (locale === "es") return "es-ES";
-  return "en-US";
-}
-
 export function I18nProvider({ children }: { children: ReactNode }) {
   const [locale, setLocaleState] = useState<LocaleCode>(() =>
     resolveInitialLocale(),
+  );
+  const [intlLocale, setIntlLocale] = useState<string>(() =>
+    resolveFormatLocale(resolveInitialLocale()),
   );
 
   const setLocale = (next: LocaleCode) => {
     storeLocale(next);
     setLocaleState(next);
+    setIntlLocale(resolveFormatLocale(next));
   };
 
   useEffect(() => {
     document.documentElement.lang = locale;
-  }, [locale]);
+    try {
+      const hourCycle = new Intl.DateTimeFormat(intlLocale, {
+        hour: "numeric",
+      }).resolvedOptions().hourCycle;
+      if (hourCycle) {
+        document.documentElement.dataset.hourCycle = hourCycle;
+      }
+    } catch {
+      /* ignore */
+    }
+  }, [locale, intlLocale]);
 
   const value = useMemo<I18nContextValue>(() => {
-    const t: TFunction = (key, vars) => translate(locale, key, vars ?? {});
-    return { locale, setLocale, t, intlLocale: intlTag(locale) };
-  }, [locale]);
+    const baseT: TFunction = (key, vars) =>
+      translate(locale, key, vars ?? {});
+    const t: TFunction = isPseudoLocaleEnabled()
+      ? (key, vars) => applyPseudoLocale(baseT(key, vars))
+      : baseT;
+    return { locale, setLocale, t, intlLocale };
+  }, [locale, intlLocale]);
 
   return <I18nContext.Provider value={value}>{children}</I18nContext.Provider>;
 }

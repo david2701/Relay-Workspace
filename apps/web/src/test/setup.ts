@@ -13,5 +13,5 @@ beforeEach(() => {
     locale: "es",
   });
   resetUserProfileForTests();
-  setUserProfile({ displayName: "David", initial: "D" });
+  setUserProfile({ displayName: "Alex", initial: "A" });
 });

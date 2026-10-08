@@ -86,9 +86,11 @@ function dismissedKey(id: string): string {
 
 const DEFAULT_SETTINGS: RelaySettings = {
   timezone: "Europe/Paris",
-  user_display_name: "You",
-  user_initial: "Y",
+  user_display_name: "",
+  user_initial: "",
 };
+
+const APP_VERSION = "0.3.0-dev";
 
 export default function App() {
   const t = useT();
@@ -875,6 +877,11 @@ export default function App() {
         return;
       }
       if (gPending) {
+        if (e.key.toLowerCase() === "s") {
+          setSettingsOpen(true);
+          setGPending(false);
+          return;
+        }
         const map: Record<string, AppView> = {
           a: "attention",
           g: "agent_wip",
@@ -1439,9 +1446,14 @@ relay web   →  http://127.0.0.1:7421`}</pre>
       <SettingsPanel
         open={settingsOpen}
         settings={settings}
+        theme={theme}
+        version={APP_VERSION}
         onClose={() => setSettingsOpen(false)}
-        onChange={applySettingsPatch}
-        onSave={persistSettings}
+        onPatch={async (patch) => {
+          applySettingsPatch(patch);
+          await persistSettings(patch);
+        }}
+        onThemeChange={setTheme}
       />
 
       <div className="sr-only" aria-live="polite">
