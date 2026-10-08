@@ -347,13 +347,92 @@ test.describe("V03-L29–L33 row due/reminder", () => {
   });
 });
 
+test.describe("V03-L33 title readable at 390", () => {
+  test("title width ≥ 60% of row content / ≥ 12ch at 390 en/fr/es/en-XA", async ({
+    page,
+  }) => {
+    const item = await seedL29Item();
+    const locales: Array<{
+      code: "en" | "fr" | "es";
+      pseudoXa?: boolean;
+      label: string;
+    }> = [
+      { code: "en", label: "en" },
+      { code: "fr", label: "fr" },
+      { code: "es", label: "es" },
+      { code: "en", pseudoXa: true, label: "en-XA" },
+    ];
+    for (const loc of locales) {
+      await openLocale(page, loc.code, 390, { pseudoXa: loc.pseudoXa });
+      await hideDetailOverlay(page);
+      const row = page.getByRole("option", { name: new RegExp(item.title) });
+      await row.scrollIntoViewIfNeeded();
+      await expect(row).toBeVisible({ timeout: SLA_MS });
+      const metrics = await row.evaluate((el) => {
+        const title = el.querySelector(".item-title") as HTMLElement | null;
+        const main = el.querySelector(".item-main") as HTMLElement | null;
+        if (!title || !main) return null;
+        const titleBox = title.getBoundingClientRect();
+        const mainBox = main.getBoundingClientRect();
+        const ch = Number.parseFloat(getComputedStyle(title).fontSize) || 14;
+        return {
+          titleW: titleBox.width,
+          mainW: mainBox.width,
+          ch,
+          titleText: title.textContent ?? "",
+        };
+      });
+      expect(metrics, loc.label).toBeTruthy();
+      expect(metrics!.titleText.length, loc.label).toBeGreaterThan(8);
+      expect(metrics!.titleW, loc.label).toBeGreaterThanOrEqual(12 * metrics!.ch * 0.55);
+      expect(metrics!.titleW / metrics!.mainW, loc.label).toBeGreaterThanOrEqual(
+        0.6,
+      );
+    }
+  });
+});
+
+test.describe("V03 detail FR date fields unclipped @ 390", () => {
+  test("FR detail due/reminder triggers scrollWidth <= clientWidth", async ({
+    page,
+  }) => {
+    const item = await seedL29Item();
+    await openLocale(page, "fr", 390);
+    await page.goto(`/attention?item=${item.id}`);
+    await waitInboxView(page, "attention");
+    const zone = page.locator(".detail-zone");
+    await expect(zone).toBeVisible({ timeout: SLA_MS });
+    const triggers = zone.locator(".dtp-trigger");
+    await expect(triggers.first()).toBeVisible({ timeout: SLA_MS });
+    const n = await triggers.count();
+    expect(n).toBeGreaterThanOrEqual(2);
+    for (let i = 0; i < n; i += 1) {
+      const clip = await triggers.nth(i).evaluate((el) => {
+        const html = el as HTMLElement;
+        return {
+          sw: html.scrollWidth,
+          cw: html.clientWidth,
+          text: html.value || html.textContent || "",
+        };
+      });
+      expect(
+        clip.sw <= clip.cw + 1,
+        `trigger[${i}] «${clip.text}» sw=${clip.sw} cw=${clip.cw}`,
+      ).toBe(true);
+    }
+  });
+});
+
 test.describe("V03-R13 .rel never clips", () => {
-  for (const locale of ["en", "fr", "es"] as const) {
-    for (const width of [1440, 768, 390] as const) {
+  for (const locale of ["en", "fr", "es", "en-XA"] as const) {
+    for (const width of [1440, 1024, 768, 390] as const) {
       test(`${locale} @ ${width}: every .rel scrollWidth <= clientWidth`, async ({
         page,
       }) => {
-        await openLocale(page, locale, width);
+        const locCode = locale === "en-XA" ? "en" : locale;
+        await openLocale(page, locCode, width, {
+          ...(locale === "en-XA" ? { pseudoXa: true } : {}),
+        });
         if (width === 390) await hideDetailOverlay(page);
         if (locale === "fr") {
           await page.evaluate(() => {

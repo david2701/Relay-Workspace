@@ -209,7 +209,7 @@
   }
 }
 
-/* §R.3 / §1.15: < 768 — times on last line; reminder keeps day+time. */
+/* §R.3 / §1.15 / V03-L33: < 768 — title owns first line; due/reminder/rel last. */
 @media (max-width: 767px) {
   .item-row {
     flex-wrap: wrap;
@@ -226,9 +226,11 @@
     min-height: 84px;
   }
 
+  /* After glyph (~28px), title takes the rest of line 1 so chips cannot squeeze it. */
   .item-main {
-    flex: 1 1 0;
-    min-width: 0;
+    flex: 1 1 calc(100% - 36px);
+    min-width: calc(100% - 36px);
+    max-width: calc(100% - 36px);
     order: 1;
   }
 

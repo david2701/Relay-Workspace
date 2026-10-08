@@ -289,6 +289,13 @@
   gap: 10px;
 }
 
+/* FR/ES at 390: two date fields side-by-side clip the time — stack below 768. */
+@media (max-width: 767px) {
+  .reminder-grid {
+    grid-template-columns: 1fr;
+  }
+}
+
 .reminder-grid label {
   display: grid;
   gap: 4px;
