@@ -102,6 +102,9 @@ export function applyInboxDelta(
   if (delta.section_counts !== undefined) {
     next.section_counts = delta.section_counts;
   }
+  if (delta.group_counts !== undefined) {
+    next.group_counts = delta.group_counts;
+  }
 
   if (prev.view === "attention" || prev.sections) {
     // Keep spec oldest-first order; VirtualItemList scrolls flash ids into view.

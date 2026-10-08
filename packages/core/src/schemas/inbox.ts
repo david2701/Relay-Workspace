@@ -5,6 +5,7 @@ import { WorkItemSchema } from "./work_item.js";
 
 export const RecommendationSchema = z.object({
   item_id: ItemIdSchema,
+  title: z.string().min(1),
   reason: z.string().min(1),
   score: z.number(),
   kind: z.enum([

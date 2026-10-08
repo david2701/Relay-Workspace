@@ -13,6 +13,16 @@ import { MatchSnippet } from "./MatchSnippet";
 import { StatusGlyph } from "./StatusGlyph";
 import "./ItemRow.css";
 
+function truncateIntent(intent: string | null | undefined): string | null {
+  if (!intent) return null;
+  const t = intent.trim();
+  if (t.length <= 24) return t;
+  const slice = t.slice(0, 24);
+  const sp = slice.lastIndexOf(" ");
+  const cut = sp >= 12 ? slice.slice(0, sp) : slice;
+  return `${cut}…`;
+}
+
 type Props = {
   item: WorkItem;
   agents: Agent[];
@@ -46,18 +56,31 @@ export const ItemRow = memo(function ItemRow({
       : item.status === "blocked" && item.blocked_reason
         ? `Atascado: ${item.blocked_reason}`
         : null;
-  const due = item.due_at
-    ? dueGroupKey
-      ? formatDueForGroup(item.due_at, dueGroupKey)
-      : formatDue(item.due_at)
-    : null;
-  const reminder =
+  const reminderRaw =
     item.reminder_at && item.status !== "done" && item.status !== "cancelled"
       ? {
           time: formatReminder(item.reminder_at).text,
           intent: item.reminder_intent,
         }
       : null;
+  // Fecha groups: header owns the day. Show at most one schedule chip
+  // (reminder preferred) so meta never mid-word-squeezes due+reminder.
+  let due: { text: string; tone: "muted" | "warn" | "crit" } | null = null;
+  if (item.due_at && item.status !== "done" && item.status !== "cancelled") {
+    if (!dueGroupKey) {
+      due = formatDue(item.due_at);
+    } else if (!reminderRaw && dueGroupKey !== "none") {
+      due = formatDueForGroup(item.due_at, dueGroupKey);
+    }
+  }
+  const reminder = reminderRaw
+    ? {
+        time: reminderRaw.time,
+        intent: due?.text
+          ? null
+          : truncateIntent(reminderRaw.intent),
+      }
+    : null;
 
   const showSnippet = match && match.field !== "title";
   const aria = [

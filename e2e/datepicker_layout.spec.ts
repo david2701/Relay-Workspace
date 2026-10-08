@@ -121,5 +121,49 @@ for (const width of [1440, 768, 390] as const) {
       return null;
     });
     expect(overflow).toBeNull();
+
+    // B1: opaque surface + top-most at several interior points.
+    const surface = await dialog.evaluate((el) => {
+      const inner = el.querySelector(".dtp-popover-inner") as HTMLElement;
+      const cs = getComputedStyle(inner);
+      const bg = cs.backgroundColor;
+      const m = bg.match(/rgba?\(([^)]+)\)/);
+      let alpha = 1;
+      if (m) {
+        const parts = m[1]!.split(",").map((s) => s.trim());
+        if (parts.length === 4) alpha = Number.parseFloat(parts[3]!);
+      }
+      const ir = inner.getBoundingClientRect();
+      const samples = [
+        [0.2, 0.2],
+        [0.75, 0.45],
+        [0.35, 0.55],
+        [0.85, 0.85],
+      ].map(([fx, fy]) => {
+        const x = ir.left + ir.width * fx!;
+        const y = ir.top + ir.height * fy!;
+        const top = document.elementFromPoint(x, y);
+        return { x, y, onTop: !!(top && el.contains(top)) };
+      });
+      return {
+        alpha,
+        bg,
+        z: getComputedStyle(el).zIndex,
+        samples,
+        isSheet: el.classList.contains("sheet"),
+        hasScrim: !!el.querySelector(".dtp-scrim"),
+      };
+    });
+    expect(surface.alpha).toBe(1);
+    expect(surface.z === "auto" ? 0 : Number(surface.z)).toBeGreaterThanOrEqual(
+      80,
+    );
+    for (const s of surface.samples) {
+      expect(s.onTop).toBe(true);
+    }
+    if (width < 768) {
+      expect(surface.isSheet).toBe(true);
+      expect(surface.hasScrim).toBe(true);
+    }
   });
 }

@@ -535,11 +535,30 @@ export default function App() {
     let result = sections;
     if (view === "all" && todoGroupBy === "due") {
       const items = sections.flatMap((s) => s.items);
-      result = groupByDue(items, new Date()).map((g) => ({
-        key: g.key,
-        label: g.label,
-        items: g.items,
-      }));
+      const buckets = groupByDue(items, new Date());
+      const byKey = new Map<string, (typeof buckets)[number]>(
+        buckets.map((g) => [g.key, g]),
+      );
+      const serverCounts = inbox?.group_counts;
+      if (serverCounts && serverCounts.length > 0) {
+        // Headers use full-view server totals; rows are the loaded page only.
+        // Groups with count > 0 stay visible even when no rows are loaded yet.
+        result = serverCounts
+          .filter((c) => c.count > 0)
+          .map((c) => ({
+            key: c.key,
+            label: c.label,
+            items: byKey.get(c.key)?.items ?? [],
+            count: c.count,
+          }));
+      } else {
+        result = buckets.map((g) => ({
+          key: g.key,
+          label: g.label,
+          items: g.items,
+          count: g.items.length,
+        }));
+      }
     }
     if (import.meta.env.DEV && result.length > 0) {
       assertNoDuplicateIds(result, inboxView);
@@ -581,14 +600,18 @@ export default function App() {
   const filteredCount =
     view === "notes" ? filteredNotes.length : flatItems.length;
   const notesTotal = notes.length;
+  // Never paint «Todo · 0» while the first snapshot is still loading.
+  const inboxReady = Boolean(inbox) || Boolean(error);
   const headerCount =
     view === "notes"
       ? filtersActive
         ? `${filteredNotes.length} de ${notesTotal}`
         : String(notesTotal)
-      : filtersActive && baseUnfilteredCount > 0
-        ? `${flatItems.length} de ${baseUnfilteredCount}`
-        : String(baseUnfilteredCount || flatItems.length);
+      : !inboxReady
+        ? null
+        : filtersActive && baseUnfilteredCount > 0
+          ? `${flatItems.length} de ${baseUnfilteredCount}`
+          : String(baseUnfilteredCount || flatItems.length);
   const countLive =
     filtersActive
       ? `${filteredCount} resultados de ${
@@ -927,9 +950,11 @@ export default function App() {
         <header className="list-head">
           <div className="list-head-title">
             <h2>{title}</h2>
-            <span className="list-head-count mono" aria-hidden>
-              · {headerCount}
-            </span>
+            {headerCount !== null ? (
+              <span className="list-head-count mono" aria-hidden>
+                · {headerCount}
+              </span>
+            ) : null}
           </div>
           <div className="list-head-actions">
             {view === "all" ? (
@@ -1076,6 +1101,7 @@ relay web   →  http://127.0.0.1:7421`}</pre>
                   const mark = item
                     ? markForOwner(item, agents)
                     : { kind: "user" as const, name: "David", monogram: "D" };
+                  const title = r.title || item?.title || "Sin título";
                   return (
                     <div key={r.item_id} className="suggested-row" role="listitem">
                       <ActorMark
@@ -1085,9 +1111,7 @@ relay web   →  http://127.0.0.1:7421`}</pre>
                         size={20}
                       />
                       <div className="sug-text">
-                        <div className="sug-title">
-                          {item?.title ?? r.item_id}
-                        </div>
+                        <div className="sug-title">{title}</div>
                         <div className="sug-reason">{r.reason}</div>
                       </div>
                       <button

@@ -79,7 +79,8 @@
 }
 
 .dtp-popover {
-  z-index: 40;
+  /* Above detail-zone (40) / detail-scrim (30) / filter menus (40). */
+  z-index: 80;
   display: grid;
   animation: dtp-in var(--dur-fast) var(--ease-out);
   transform-origin: top right;
@@ -91,36 +92,88 @@
   display: flex;
   align-items: flex-end;
   animation: none;
+  z-index: 80;
 }
 
 .dtp-scrim {
   position: absolute;
   inset: 0;
   background: var(--scrim);
+  /* Opaque enough to dim the form; solid fallback if token missing. */
+  background-color: rgb(20 19 16 / 0.4);
+}
+
+.dark .dtp-scrim {
+  background-color: rgb(5 5 4 / 0.64);
 }
 
 .dtp-popover-inner {
   display: grid;
   gap: var(--space-3);
   padding: var(--space-3);
+  /* Solid elevated surface — never translucent over the detail panel. */
   background: var(--raised);
-  background-color: var(--raised);
+  background-color: #fffefd;
   background-image: none;
+  opacity: 1;
   border: 1px solid var(--line-strong);
   border-radius: var(--radius-md);
   box-shadow: var(--shadow-float);
   width: var(--picker-w);
   max-width: calc(100vw - 16px);
   isolation: isolate;
-  opacity: 1;
+  position: relative;
+  z-index: 1;
+}
+
+.dark .dtp-popover-inner {
+  background-color: #1b1916;
 }
 
 .dtp-popover-inner.sheet-inner {
   position: relative;
   width: 100%;
   max-width: none;
+  max-height: min(92dvh, 720px);
+  overflow: auto;
   border-radius: var(--radius-md) var(--radius-md) 0 0;
   animation: dtp-sheet var(--dur-overlay) var(--ease-out);
+  background-color: #fffefd;
+}
+
+.dark .dtp-popover-inner.sheet-inner {
+  background-color: #1b1916;
+}
+
+.dtp-sheet-handle {
+  width: 36px;
+  height: 4px;
+  border-radius: 2px;
+  background: var(--line-strong);
+  margin: 0 auto 4px;
+}
+
+.dtp-sheet-close {
+  position: absolute;
+  top: 8px;
+  right: 8px;
+  width: var(--control-h);
+  height: var(--control-h);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: var(--radius-sm);
+  color: var(--ink-2);
+  z-index: 2;
+}
+
+.dtp-sheet-close:hover {
+  background: var(--sunken);
+}
+
+.dtp-sheet-close:focus-visible {
+  outline: 2px solid var(--focus);
+  outline-offset: 2px;
 }
 
 @keyframes dtp-in {

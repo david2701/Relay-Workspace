@@ -58,6 +58,7 @@ export type LinkedNote = Note & { role: NoteRole };
 
 export type Recommendation = {
   item_id: string;
+  title: string;
   reason: string;
   score: number;
   kind: string;
@@ -87,6 +88,7 @@ export type InboxSyncDelta = {
   removed_ids: string[];
   counters: { needs_you: number };
   section_counts?: Record<string, number>;
+  group_counts?: Array<{ key: string; label: string; count: number }>;
   total_count?: number;
   sync_cursor: string;
   server_time?: string;

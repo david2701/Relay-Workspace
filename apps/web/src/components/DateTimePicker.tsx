@@ -201,21 +201,21 @@ export function DateTimePicker({
       const pickerW = Math.min(580, vw - 32);
       const spaceBelow = vh - r.bottom;
       // Spec §1.3.7: sheet when viewport < 768 or free width < picker + 2×space-4.
-      const isNarrow = vw < 768 || vw - 32 < pickerW + 32;
+      // Also sheet when the detail overlay is full-bleed (≤1023) and can't fit the popover.
+      const isNarrow =
+        vw < 768 || vw - 32 < pickerW + 32 || (vw <= 1023 && vw < pickerW + 48);
       setNarrow(isNarrow);
       if (isNarrow) {
         setPos(null);
         return;
       }
-      const top =
-        spaceBelow < 360 && r.top > spaceBelow
-          ? r.top - 8
-          : r.bottom + 4;
-      const left = Math.max(8, r.right - pickerW);
-      setPos({
-        top: spaceBelow < 360 && r.top > spaceBelow ? top : top,
-        left,
-      });
+      const openUp = spaceBelow < 360 && r.top > spaceBelow;
+      const top = openUp ? Math.max(8, r.top - 8) : r.bottom + 4;
+      // Anchor to trigger’s right edge; clamp so the popover stays in the viewport.
+      let left = r.right - pickerW;
+      left = Math.min(left, vw - pickerW - 8);
+      left = Math.max(8, left);
+      setPos({ top, left });
     }
     place();
     window.addEventListener("resize", place);
@@ -481,8 +481,30 @@ export function DateTimePicker({
         }
       }}
     >
-      {narrow ? <div className="dtp-scrim" aria-hidden /> : null}
+      {narrow ? (
+        <div
+          className="dtp-scrim"
+          aria-hidden
+          onMouseDown={(e) => {
+            e.preventDefault();
+            cancelClose();
+          }}
+        />
+      ) : null}
       <div className={`dtp-popover-inner${narrow ? " sheet-inner" : ""}`}>
+        {narrow ? (
+          <>
+            <div className="dtp-sheet-handle" aria-hidden />
+            <button
+              type="button"
+              className="dtp-sheet-close"
+              aria-label="Cerrar"
+              onClick={cancelClose}
+            >
+              ×
+            </button>
+          </>
+        ) : null}
         <div className="dtp-preview-block">
           <div
             id={previewId}

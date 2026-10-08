@@ -1,5 +1,6 @@
 export * from "./domain/context_pack.js";
 export * from "./domain/cursor.js";
+export * from "./domain/date_groups.js";
 export * from "./domain/errors.js";
 export * from "./domain/inbox_query.js";
 export * from "./domain/page.js";

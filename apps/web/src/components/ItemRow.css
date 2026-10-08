@@ -103,14 +103,14 @@
   display: flex;
   align-items: center;
   gap: 8px;
-  flex-shrink: 0;
+  flex-shrink: 1;
   min-width: 0;
-  max-width: min(42%, 380px);
+  max-width: min(36%, 320px);
   margin-left: 12px;
   justify-content: flex-end;
 }
 
-/* Prefer truncating the soft intent, never mid-glyph on the due chip. */
+/* Prefer dropping/soft-truncating intent; due chip stays whole glyphs. */
 .item-meta .reminder-chip .intent {
   overflow: hidden;
   text-overflow: ellipsis;
@@ -122,9 +122,9 @@
   font-variant-numeric: tabular-nums;
   color: var(--ink-muted);
   white-space: nowrap;
-  max-width: 9rem;
-  overflow: hidden;
-  text-overflow: ellipsis;
+  flex: 0 0 auto;
+  max-width: none;
+  overflow: visible;
 }
 
 .due-chip.tone-warn {
@@ -138,11 +138,12 @@
 .reminder-chip {
   font-size: var(--step-meta);
   color: var(--ink-muted);
-  max-width: 12rem;
+  max-width: 11rem;
   min-width: 0;
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
+  flex: 0 1 auto;
 }
 
 .reminder-chip .intent {

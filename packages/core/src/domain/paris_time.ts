@@ -137,3 +137,27 @@ export function parisWeekday(date: Date): number {
   };
   return map[short] ?? 0;
 }
+
+/** Monday 00:00 Europe/Paris of the week containing `date`. */
+export function startOfParisWeek(date: Date): Date {
+  const start = startOfParisDay(date);
+  const wd = parisWeekday(start);
+  const daysFromMonday = wd === 0 ? 6 : wd - 1;
+  return addParisDays(start, -daysFromMonday);
+}
+
+/** Sunday 23:59:59.999 of the Paris week containing `date`. */
+export function endOfParisWeek(date: Date): Date {
+  const monday = startOfParisWeek(date);
+  const nextMonday = addParisDays(monday, 7);
+  return new Date(nextMonday.getTime() - 1);
+}
+
+/** Whole calendar-day distance in Europe/Paris (due − now). */
+export function parisDayDiff(isoOrDate: string | Date, now = new Date()): number {
+  const that = startOfParisDay(
+    typeof isoOrDate === "string" ? new Date(isoOrDate) : isoOrDate,
+  );
+  const today = startOfParisDay(now);
+  return Math.round((that.getTime() - today.getTime()) / 86_400_000);
+}

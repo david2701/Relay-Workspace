@@ -5,6 +5,7 @@ import type {
 } from "../schemas/inbox.js";
 import type { WorkItem } from "../schemas/work_item.js";
 import { decodeCursor, encodeCursor } from "./cursor.js";
+import { countDueGroups } from "./date_groups.js";
 import {
   addParisDays,
   endOfParisDay,
@@ -212,7 +213,11 @@ function buildFullView(
       if (b.status === "inbox" && a.status !== "inbox") return 1;
       return b.updated_at.localeCompare(a.updated_at);
     });
-  return { items: filtered };
+  return {
+    items: filtered,
+    // Full-view date-group totals for Todo «Agrupar: Fecha» (page-independent).
+    group_counts: countDueGroups(filtered, now),
+  };
 }
 
 function resolveCursorId(cursor: string | undefined): string | null {
