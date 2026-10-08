@@ -29,7 +29,7 @@ function item(patch: Partial<WorkItem> & Pick<WorkItem, "id" | "title" | "status
 }
 
 describe("ballHolderId P3", () => {
-  it("needs_you maps to david even when assignee is an agent", () => {
+  it("needs_you maps to user even when assignee is an agent", () => {
     const i = item({
       id: "n1",
       title: "Decide",
@@ -37,7 +37,7 @@ describe("ballHolderId P3", () => {
       assignee_type: "agent",
       assignee_id: "grok-bot",
     });
-    expect(ballHolderId(i)).toBe("david");
+    expect(ballHolderId(i)).toBe("user");
   });
 
   it("assigned agent keeps agent as holder", () => {
@@ -75,7 +75,7 @@ describe("itemMatchesFacets", () => {
     expect(itemMatchesFacets(blockedQa, facets)).toBe(false);
   });
 
-  it("needs_you matches actor=david (P3)", () => {
+  it("needs_you matches actor=user (P3)", () => {
     const need = item({
       id: "n",
       title: "N",
@@ -83,7 +83,7 @@ describe("itemMatchesFacets", () => {
       assignee_id: "grok-bot",
     });
     expect(
-      itemMatchesFacets(need, { ...EMPTY_FACETS, actor: ["david"] }),
+      itemMatchesFacets(need, { ...EMPTY_FACETS, actor: ["user"] }),
     ).toBe(true);
     expect(
       itemMatchesFacets(need, { ...EMPTY_FACETS, actor: ["grok-bot"] }),

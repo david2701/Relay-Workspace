@@ -1,5 +1,6 @@
 import { MagnifyingGlass, X } from "@phosphor-icons/react";
 import { useEffect, useId, useRef, useState } from "react";
+import { useT } from "../i18n/I18nProvider";
 
 type Props = {
   value: string;
@@ -17,7 +18,7 @@ type Props = {
 
 export function SearchField({
   value,
-  placeholder = "Buscar en ítems y notas…",
+  placeholder,
   disabled,
   searching,
   error,
@@ -28,6 +29,8 @@ export function SearchField({
   onEscape,
   onArrowDown,
 }: Props) {
+  const t = useT();
+  const resolvedPlaceholder = placeholder ?? t("search.placeholderItems");
   const id = useId();
   const countId = `${id}-count`;
   const inputRef = useRef<HTMLInputElement>(null);
@@ -38,8 +41,8 @@ export function SearchField({
       setShowBar(false);
       return;
     }
-    const t = window.setTimeout(() => setShowBar(true), 300);
-    return () => window.clearTimeout(t);
+    const timer = window.setTimeout(() => setShowBar(true), 300);
+    return () => window.clearTimeout(timer);
   }, [searching]);
 
   return (
@@ -55,11 +58,11 @@ export function SearchField({
         type="search"
         role="searchbox"
         className="search-field-input"
-        placeholder={placeholder}
+        placeholder={resolvedPlaceholder}
         value={value}
         disabled={disabled}
-        title={disabled ? "Sin conexión con la API local" : undefined}
-        aria-label="Buscar en ítems y notas"
+        title={disabled ? t("offline.disabled") : undefined}
+        aria-label={t("search.defaultAria")}
         aria-keyshortcuts="/"
         aria-describedby={countText ? countId : undefined}
         aria-invalid={error ? true : undefined}
@@ -88,7 +91,7 @@ export function SearchField({
         <button
           type="button"
           className="search-field-clear"
-          aria-label="Borrar búsqueda"
+          aria-label={t("search.clearAria")}
           onClick={() => {
             onClear();
             inputRef.current?.focus();
@@ -106,7 +109,7 @@ export function SearchField({
         <p className="search-field-error" role="alert">
           {error}{" "}
           <button type="button" className="linkish" onClick={() => onChange(value)}>
-            Reintentar
+            {t("cta.retry")}
           </button>
         </p>
       ) : null}

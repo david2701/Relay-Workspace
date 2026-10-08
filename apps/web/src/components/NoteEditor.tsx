@@ -13,6 +13,7 @@ import {
   writeNoteDraft,
 } from "../lib/markdown";
 import type { Note } from "../lib/types";
+import { useI18n, useT } from "../i18n/I18nProvider";
 import { Markdown } from "./Markdown";
 import "./NoteEditor.css";
 
@@ -54,6 +55,8 @@ export function NoteEditor({
   onExit,
   onSaved,
 }: Props) {
+  const t = useT();
+  const { intlLocale } = useI18n();
   const statusId = useId();
   const taRef = useRef<HTMLTextAreaElement>(null);
   const [body, setBody] = useState(initialBody ?? note.body_md);
@@ -245,17 +248,17 @@ export function NoteEditor({
 
   const statusText =
     status === "saving"
-      ? "Guardando…"
+      ? t("note.saving")
       : status === "saved"
-        ? "Guardado"
+        ? t("detail.saved")
         : status === "error"
-          ? "No se guardó. Reintentar"
+          ? t("note.saveError")
           : "";
 
   return (
     <div className="note-editor">
       <div className="note-editor-bar">
-        <div className="note-mode-seg" role="tablist" aria-label="Modo">
+        <div className="note-mode-seg" role="tablist" aria-label={t("note.modeAria")}>
           <button
             type="button"
             role="tab"
@@ -263,7 +266,7 @@ export function NoteEditor({
             className={mode === "write" ? "on" : ""}
             onClick={() => setMode("write")}
           >
-            Escribir
+            {t("note.write")}
           </button>
           <button
             type="button"
@@ -272,7 +275,7 @@ export function NoteEditor({
             className={mode === "preview" ? "on" : ""}
             onClick={() => setMode("preview")}
           >
-            Vista previa
+            {t("note.preview")}
           </button>
           {status === "conflict" && serverBody !== null ? (
             <button
@@ -282,7 +285,7 @@ export function NoteEditor({
               className={mode === "theirs" ? "on" : ""}
               onClick={() => setMode("theirs")}
             >
-              Su versión
+              {t("note.theirsVersion")}
             </button>
           ) : null}
         </div>
@@ -303,19 +306,19 @@ export function NoteEditor({
                   void save().catch(() => undefined);
                 }}
               >
-                Reintentar
+                {t("cta.retry")}
               </button>
             </>
           ) : null}
         </span>
         <button type="button" className="btn-secondary note-done" onClick={() => void exit()}>
-          Listo
+          {t("picker.done")}
         </button>
       </div>
 
       {status === "conflict" ? (
         <div className="note-conflict" role="alert">
-          <span>Esta nota cambió mientras editabas.</span>
+          <span>{t("note.conflictBody")}</span>
           <span className="note-conflict-actions">
             <button
               type="button"
@@ -323,7 +326,7 @@ export function NoteEditor({
               onClick={() => setMode("theirs")}
               disabled={serverBody === null}
             >
-              Ver su versión
+              {t("note.viewTheirs")}
             </button>
             {" · "}
             <button
@@ -333,7 +336,7 @@ export function NoteEditor({
                 void save({ force: true }).catch(() => undefined);
               }}
             >
-              Mantener la mía
+              {t("note.keepMine")}
             </button>
           </span>
         </div>
@@ -341,7 +344,8 @@ export function NoteEditor({
 
       {body.length >= BODY_MD_WARN ? (
         <div className="note-limit mono">
-          {body.length.toLocaleString("es-ES")} / {BODY_MD_MAX.toLocaleString("es-ES")}
+          {body.length.toLocaleString(intlLocale)} /{" "}
+          {BODY_MD_MAX.toLocaleString(intlLocale)}
         </div>
       ) : null}
 
@@ -349,7 +353,7 @@ export function NoteEditor({
         <textarea
           ref={taRef}
           className="note-textarea"
-          aria-label="Cuerpo de la nota, markdown"
+          aria-label={t("note.bodyAria")}
           aria-describedby={statusId}
           value={body}
           onChange={onChange}

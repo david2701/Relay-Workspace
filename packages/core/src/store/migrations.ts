@@ -168,4 +168,21 @@ AFTER UPDATE ON notes BEGIN
 END;
 `,
   },
+  {
+    version: 4,
+    sql: `
+-- Human actor id: david → user (legacy alias kept in API/MCP/URL layer).
+UPDATE work_items SET assignee_id = 'user'
+  WHERE assignee_type = 'user' AND assignee_id = 'david';
+UPDATE work_items SET last_actor_id = 'user'
+  WHERE last_actor_type = 'user' AND last_actor_id = 'david';
+UPDATE work_items SET completed_by_id = 'user'
+  WHERE completed_by_type = 'user' AND completed_by_id = 'david';
+
+-- App settings (timezone + human display). Locale preference stays client-side.
+INSERT OR IGNORE INTO relay_meta(key, value) VALUES ('timezone', 'UTC');
+INSERT OR IGNORE INTO relay_meta(key, value) VALUES ('user_display_name', 'You');
+INSERT OR IGNORE INTO relay_meta(key, value) VALUES ('user_initial', 'Y');
+`,
+  },
 ];

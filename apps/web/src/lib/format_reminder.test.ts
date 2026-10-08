@@ -14,7 +14,7 @@ describe("formatReminder", () => {
 describe("formatDateTimeField date-only", () => {
   it("hides 23:59 Paris wall time", () => {
     const text = formatDateTimeField("2026-10-08T21:59:00.000Z");
-    expect(text).toBe("jue 8 oct 2026");
+    expect(text).toBe("jue, 8 oct 2026");
     expect(text).not.toMatch(/23:59/);
   });
 });

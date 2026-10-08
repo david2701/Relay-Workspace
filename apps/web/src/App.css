@@ -409,7 +409,8 @@
   place-items: center;
 }
 
-.shortcuts {
+.shortcuts,
+.settings-panel {
   background: var(--raised);
   border: 1px solid var(--line-strong);
   border-radius: var(--radius-md);
@@ -417,6 +418,39 @@
   width: min(420px, 92vw);
   box-shadow: var(--shadow-float);
 }
+
+.settings-panel h3 {
+  margin: 0 0 16px;
+  font-size: var(--step-title);
+}
+
+.settings-field {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin-bottom: 12px;
+  font-size: var(--step-data);
+  color: var(--ink-2);
+}
+
+.settings-field input,
+.settings-field select {
+  font: inherit;
+  padding: 8px 10px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-sm);
+  background: var(--paper);
+  color: var(--ink);
+}
+
+.settings-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+  margin-top: 16px;
+}
+
+.shortcuts {
 
 .shortcuts ul {
   padding-left: 18px;

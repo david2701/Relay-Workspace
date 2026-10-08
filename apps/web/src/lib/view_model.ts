@@ -1,8 +1,17 @@
+import type { MessageKey } from "../i18n/types";
 import { matchesQuery } from "./normalize";
 import type { InboxResult, InboxView, WorkItem } from "./types";
 
+const ATTENTION_LABEL_KEYS: Record<string, MessageKey> = {
+  needs_you: "section.needs_you",
+  blocked: "section.blocked",
+  today: "section.today",
+};
+
 export type ViewSection = {
   key: string;
+  /** i18n key when label is not server-supplied */
+  labelKey?: MessageKey;
   label: string;
   items: WorkItem[];
   /** Server section/group count when paginated (may exceed items.length). */
@@ -105,14 +114,11 @@ export function buildViewSections(args: {
         (i) => passesFilter(i, filter, allowedIds),
       );
       const serverCount = args.inbox?.section_counts?.[section.key];
+      const labelKey = ATTENTION_LABEL_KEYS[section.key];
       return {
         key: section.key,
-        label:
-          section.key === "needs_you"
-            ? "Te necesita"
-            : section.key === "blocked"
-              ? "Atascado"
-              : "Para hoy",
+        ...(labelKey ? { labelKey } : {}),
+        label: "",
         items,
         count: serverCount ?? items.length,
       };

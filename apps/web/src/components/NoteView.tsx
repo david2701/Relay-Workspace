@@ -8,6 +8,7 @@ import {
 } from "../lib/markdown";
 import { formatNoteMetaLine } from "../lib/note_meta";
 import type { Note } from "../lib/types";
+import { useT } from "../i18n/I18nProvider";
 import { Markdown } from "./Markdown";
 import { NoteEditor } from "./NoteEditor";
 import "./NoteView.css";
@@ -28,6 +29,7 @@ export function NoteView({
   onBack,
   onNoteChange,
 }: Props) {
+  const t = useT();
   const titleId = useId();
   const [note, setNote] = useState<Note | null>(null);
   const [linkCount, setLinkCount] = useState(0);
@@ -139,9 +141,9 @@ export function NoteView({
     return (
       <aside className="detail-zone note-view">
         <p className="note-error">
-          No se pudo cargar la nota.{" "}
+          {t("note.loadError")}{" "}
           <button type="button" className="linkish" onClick={() => void load()}>
-            Reintentar
+            {t("cta.retry")}
           </button>
         </p>
       </aside>
@@ -153,7 +155,7 @@ export function NoteView({
       <aside className="detail-zone note-view is-editing">
         <header className="note-view-head">
           <button type="button" className="linkish" onClick={onBack}>
-            {returnLabel ?? "← Cerrar"}
+            {returnLabel ?? t("note.close")}
           </button>
         </header>
         <h2 id={titleId} className="note-title">
@@ -187,7 +189,7 @@ export function NoteView({
     <aside className="detail-zone note-view">
       <header className="note-view-head">
         <button type="button" className="linkish" onClick={onBack}>
-          {returnLabel ?? "← Cerrar"}
+          {returnLabel ?? t("note.close")}
         </button>
         <div className="note-view-actions">
           <button
@@ -199,7 +201,7 @@ export function NoteView({
               setEditing(true);
             }}
           >
-            Editar <kbd className="mono">E</kbd>
+            {t("note.edit")} <kbd className="mono">E</kbd>
           </button>
         </div>
       </header>
@@ -210,12 +212,12 @@ export function NoteView({
         </h2>
         {/* §6 P2: Note has no authorship — date only, never ActorMark */}
         <p className="note-meta mono">
-          {formatNoteMetaLine(note.updated_at, linkCount)}
+          {formatNoteMetaLine(t, note.updated_at, linkCount)}
         </p>
 
         {draftPrompt !== null ? (
           <div className="note-draft-banner">
-            Hay cambios sin guardar de antes.{" "}
+            {t("note.draftUnsaved")}{" "}
             <button
               type="button"
               className="linkish"
@@ -225,7 +227,7 @@ export function NoteView({
                 setEditing(true);
               }}
             >
-              Recuperar
+              {t("note.recoverDraft")}
             </button>
             {" · "}
             <button
@@ -236,13 +238,13 @@ export function NoteView({
                 setDraftPrompt(null);
               }}
             >
-              Descartar
+              {t("note.discardDraft")}
             </button>
           </div>
         ) : null}
 
         {empty ? (
-          <p className="note-empty">Esta nota está vacía. Escribe con E.</p>
+          <p className="note-empty">{t("note.empty")}</p>
         ) : (
           <div
             onDoubleClick={() => {

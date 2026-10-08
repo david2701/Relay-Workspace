@@ -1,74 +1,120 @@
+import type { MessageKey } from "../i18n/types";
+import { translate } from "../i18n/translate";
+import type { LocaleCode } from "../i18n/types";
+import { getDisplayContext } from "./display_context";
 import {
-  addParisDays,
-  fromParisWall,
-  isDateOnly,
-  parisDayDiff,
-  parisWeekday,
-  startOfParisDay,
-  toParisParts,
-} from "./paris_time";
+  addZoneDays,
+  fromZoneWall,
+  isDateOnlyInZone,
+  startOfZoneDay,
+  toZoneParts,
+  zoneDayDiff,
+  zoneWeekday,
+} from "./zone_time";
 
-const MONTHS = [
-  "ene",
-  "feb",
-  "mar",
-  "abr",
-  "may",
-  "jun",
-  "jul",
-  "ago",
-  "sep",
-  "oct",
-  "nov",
-  "dic",
-] as const;
+function tz(): string {
+  return getDisplayContext().timezone;
+}
 
-const DAYS = ["dom", "lun", "mar", "mié", "jue", "vie", "sáb"] as const;
+function intlLocale(): string {
+  return getDisplayContext().intlLocale;
+}
 
-/** Display timezone for absolute dates (specs: es-ES, Europe/Paris). */
-export const DISPLAY_TZ = "Europe/Paris";
+function locale(): LocaleCode {
+  return getDisplayContext().locale;
+}
+
+function t(key: MessageKey, vars?: Record<string, string | number>): string {
+  return translate(locale(), key, vars ?? {});
+}
 
 function pad(n: number): string {
   return String(n).padStart(2, "0");
 }
 
 function partsInTz(iso: string) {
-  return toParisParts(new Date(iso));
+  return toZoneParts(new Date(iso), tz());
 }
+
+const dateFmt = () =>
+  new Intl.DateTimeFormat(intlLocale(), {
+    timeZone: tz(),
+    day: "numeric",
+    month: "short",
+  });
+
+const dateYearFmt = () =>
+  new Intl.DateTimeFormat(intlLocale(), {
+    timeZone: tz(),
+    weekday: "short",
+    day: "numeric",
+    month: "short",
+    year: "numeric",
+  });
+
+const weekdayTimeFmt = () =>
+  new Intl.DateTimeFormat(intlLocale(), {
+    timeZone: tz(),
+    weekday: "short",
+    hour: "2-digit",
+    minute: "2-digit",
+    hourCycle: "h23",
+  });
+
+const timeFmt = () =>
+  new Intl.DateTimeFormat(intlLocale(), {
+    timeZone: tz(),
+    hour: "2-digit",
+    minute: "2-digit",
+    hourCycle: "h23",
+  });
+
+const longDateFmt = () =>
+  new Intl.DateTimeFormat(intlLocale(), {
+    timeZone: tz(),
+    weekday: "long",
+    day: "numeric",
+    month: "long",
+    year: "numeric",
+  });
 
 export function formatRelative(iso: string, now = new Date()): string {
   const d = new Date(iso);
   const diffMs = now.getTime() - d.getTime();
   const mins = Math.floor(diffMs / 60_000);
-  if (mins < 1) return "ahora";
-  if (mins < 60) return `hace ${mins} min`;
+  if (mins < 1) return t("relative.now");
+  if (mins < 60) return t("relative.minutes", { n: mins });
   const hours = Math.floor(mins / 60);
-  if (hours < 24) return `hace ${hours} h`;
-  const p = partsInTz(iso);
-  const hm = `${pad(p.hh)}:${pad(p.mm)}`;
-  const today = startOfParisDay(now);
-  const that = startOfParisDay(d);
+  if (hours < 24) return t("relative.hours", { n: hours });
+  const hm = timeFmt().format(d);
+  const today = startOfZoneDay(now, tz());
+  const that = startOfZoneDay(d, tz());
   const dayDiff = Math.round((today.getTime() - that.getTime()) / 86_400_000);
-  if (dayDiff === 1) return `ayer ${hm}`;
-  if (dayDiff < 7) return `${DAYS[parisWeekday(d)]} ${hm}`;
-  if (p.y === toParisParts(now).y) {
-    return `${p.d} ${MONTHS[p.m - 1]}`;
-  }
-  return `${p.d} ${MONTHS[p.m - 1]} ${p.y}`;
+  if (dayDiff === 1) return t("relative.yesterday", { time: hm });
+  if (dayDiff < 7) return weekdayTimeFmt().format(d);
+  const p = partsInTz(iso);
+  const nowP = toZoneParts(now, tz());
+  if (p.y === nowP.y) return dateFmt().format(d);
+  return dateYearFmt().format(d);
 }
 
-function pastAgo(iso: string, now: Date, verb: "Venció" | "Avisó"): string {
+function pastAgo(
+  iso: string,
+  now: Date,
+  verbKey: "due.overdueVerb" | "due.remindedVerb",
+): string {
   const d = new Date(iso);
+  const verb = t(verbKey);
   const diffMs = now.getTime() - d.getTime();
   const mins = Math.floor(diffMs / 60_000);
-  if (mins < 1) return `${verb} hace un momento`;
-  if (mins < 60) return `${verb} hace ${mins} min`;
+  if (mins < 1) return t("due.agoMoment", { verb });
+  if (mins < 60) return t("due.agoMinutes", { verb, n: mins });
   const hours = Math.floor(mins / 60);
-  if (hours < 24) return `${verb} hace ${hours} h`;
+  if (hours < 24) return t("due.agoHours", { verb, n: hours });
   const days = Math.floor(hours / 24);
-  if (days < 7) return `${verb} hace ${days} d`;
-  const p = partsInTz(iso);
-  return `${verb} el ${p.d} ${MONTHS[p.m - 1]}`;
+  if (days < 7) return t("due.agoDays", { verb, n: days });
+  const dateStr = dateFmt().format(d);
+  return t("due.agoDate", { verb, date: dateStr });
 }
 
 export function formatDue(
@@ -79,138 +125,122 @@ export function formatDue(
   tone: "muted" | "warn" | "crit";
 } {
   const d = new Date(iso);
-  const p = partsInTz(iso);
-  const dateOnly = isDateOnly(iso);
-  const hm = `${pad(p.hh)}:${pad(p.mm)}`;
-  const dayDiff = parisDayDiff(iso, now);
+  const dateOnly = isDateOnlyInZone(iso, tz());
+  const hm = timeFmt().format(d);
+  const dayDiff = zoneDayDiff(iso, tz(), now);
 
   if (d.getTime() < now.getTime()) {
-    return { text: pastAgo(iso, now, "Venció"), tone: "crit" };
+    return { text: pastAgo(iso, now, "due.overdueVerb"), tone: "crit" };
   }
   if (dayDiff === 0) {
     const hoursLeft = (d.getTime() - now.getTime()) / 3_600_000;
     return {
-      text: dateOnly ? "Hoy" : `Hoy ${hm}`,
+      text: dateOnly ? t("due.today") : t("due.todayAt", { time: hm }),
       tone: hoursLeft < 4 && !dateOnly ? "warn" : "muted",
     };
   }
   if (dayDiff === 1) {
-    return { text: dateOnly ? "Mañana" : `Mañana ${hm}`, tone: "muted" };
-  }
-  if (dayDiff < 7) {
-    const wd = DAYS[parisWeekday(d)];
     return {
-      text: dateOnly ? `${wd}` : `${wd} ${hm}`,
+      text: dateOnly ? t("due.tomorrow") : t("due.tomorrowAt", { time: hm }),
       tone: "muted",
     };
   }
+  if (dayDiff < 7) {
+    const wd = new Intl.DateTimeFormat(intlLocale(), {
+      timeZone: tz(),
+      weekday: "short",
+    }).format(d);
+    return {
+      text: dateOnly ? wd : `${wd} ${hm}`,
+      tone: "muted",
+    };
+  }
+  const datePart = dateFmt().format(d);
   return {
-    text: dateOnly
-      ? `${p.d} ${MONTHS[p.m - 1]}`
-      : `${p.d} ${MONTHS[p.m - 1]} ${hm}`,
+    text: dateOnly ? datePart : `${datePart} ${hm}`,
     tone: "muted",
   };
 }
 
-/** Compact due text depending on date group (§1.8). */
 export function formatDueForGroup(
   iso: string,
   groupKey: string,
   now = new Date(),
 ): { text: string; tone: "muted" | "warn" | "crit" } {
-  const p = partsInTz(iso);
-  const dateOnly = isDateOnly(iso);
-  const hm = `${pad(p.hh)}:${pad(p.mm)}`;
+  const dateOnly = isDateOnlyInZone(iso, tz());
+  const hm = timeFmt().format(new Date(iso));
   const d = new Date(iso);
 
   if (groupKey === "overdue") {
-    return { text: pastAgo(iso, now, "Venció"), tone: "crit" };
+    return { text: pastAgo(iso, now, "due.overdueVerb"), tone: "crit" };
   }
   if (groupKey === "today" || groupKey === "tomorrow") {
     return { text: dateOnly ? "" : hm, tone: "muted" };
   }
   if (groupKey === "week") {
-    const wd = DAYS[parisWeekday(d)];
+    const wd = new Intl.DateTimeFormat(intlLocale(), {
+      timeZone: tz(),
+      weekday: "short",
+    }).format(d);
     return {
-      text: dateOnly ? `${wd}` : `${wd} ${hm}`,
+      text: dateOnly ? wd : `${wd} ${hm}`,
       tone: "muted",
     };
   }
   if (groupKey === "later") {
-    return { text: `${p.d} ${MONTHS[p.m - 1]}`, tone: "muted" };
+    return { text: dateFmt().format(d), tone: "muted" };
   }
   return formatDue(iso, now);
 }
 
-/** Reminder chip: past → «Avisó hace…», never «Venció…». */
 export function formatReminder(
   iso: string,
   now = new Date(),
 ): { text: string; tone: "muted" | "warn" | "crit" } {
   const d = new Date(iso);
   if (d.getTime() < now.getTime()) {
-    return { text: pastAgo(iso, now, "Avisó"), tone: "muted" };
+    return { text: pastAgo(iso, now, "due.remindedVerb"), tone: "muted" };
   }
   const due = formatDue(iso, now);
+  const todayPrefix = `${t("due.today")} `;
+  const tomorrowPrefix = `${t("due.tomorrow")} `;
   return {
-    text: due.text.replace(/^Hoy /, "").replace(/^Mañana /, "Mañ "),
+    text: due.text
+      .replace(todayPrefix, "")
+      .replace(tomorrowPrefix, `${t("due.tomorrow").slice(0, 4)} `),
     tone: due.tone,
   };
 }
 
-/** Absolute display: «6 oct, 09:23» (Europe/Paris, 24 h). */
 export function formatAbsolute(iso: string): string {
-  const p = partsInTz(iso);
-  if (isDateOnly(iso)) return `${p.d} ${MONTHS[p.m - 1]}`;
-  return `${p.d} ${MONTHS[p.m - 1]}, ${pad(p.hh)}:${pad(p.mm)}`;
+  const d = new Date(iso);
+  if (isDateOnlyInZone(iso, tz())) return dateFmt().format(d);
+  const datePart = dateFmt().format(d);
+  return `${datePart}, ${timeFmt().format(d)}`;
 }
 
-/** Trigger display: «vie 9 oct 2026 · 09:00» or without time when date-only. */
 export function formatDateTimeField(iso: string): string {
-  const p = partsInTz(iso);
-  const wd = DAYS[parisWeekday(new Date(iso))];
-  const datePart = `${wd} ${p.d} ${MONTHS[p.m - 1]} ${p.y}`;
-  if (isDateOnly(iso)) return datePart;
-  return `${datePart} · ${pad(p.hh)}:${pad(p.mm)}`;
+  const d = new Date(iso);
+  const datePart = dateYearFmt().format(d);
+  if (isDateOnlyInZone(iso, tz())) return datePart;
+  return `${datePart} · ${timeFmt().format(d)}`;
 }
 
-/** Long accessible name for a value. */
-export function formatDateTimeAccessible(iso: string | null, empty: string): string {
+export function formatDateTimeAccessible(
+  iso: string | null,
+  empty: string,
+): string {
   if (!iso) return empty;
-  const p = partsInTz(iso);
-  const longDays = [
-    "domingo",
-    "lunes",
-    "martes",
-    "miércoles",
-    "jueves",
-    "viernes",
-    "sábado",
-  ];
-  const longMonths = [
-    "enero",
-    "febrero",
-    "marzo",
-    "abril",
-    "mayo",
-    "junio",
-    "julio",
-    "agosto",
-    "septiembre",
-    "octubre",
-    "noviembre",
-    "diciembre",
-  ];
-  const wd = longDays[parisWeekday(new Date(iso))];
-  const base = `${wd} ${p.d} de ${longMonths[p.m - 1]} de ${p.y}`;
-  if (isDateOnly(iso)) return `${base}, sin hora`;
-  return `${base}, ${pad(p.hh)}:${pad(p.mm)}`;
+  const d = new Date(iso);
+  const base = longDateFmt().format(d);
+  if (isDateOnlyInZone(iso, tz())) return `${base}, ${t("picker.noTime")}`;
+  return `${base}, ${timeFmt().format(d)}`;
 }
 
-/** Parse «d mon yyyy, HH:mm» or «dd/mm/yyyy HH:mm» in Europe/Paris wall time → ISO. */
 export function parseDateTimeField(value: string): string | null {
   const trimmed = value.trim();
   if (!trimmed) return null;
+  const timeZone = tz();
   const slash = trimmed.match(
     /^(\d{1,2})\/(\d{1,2})\/(\d{4})(?:[ T](\d{1,2}):(\d{2}))?$/,
   );
@@ -220,28 +250,10 @@ export function parseDateTimeField(value: string): string | null {
     const year = Number(slash[3]);
     const hour = Number(slash[4] ?? "0");
     const minute = Number(slash[5] ?? "0");
-    return fromParisWall({
-      y: year,
-      m: month,
-      d: day,
-      hh: hour,
-      mm: minute,
-    }).toISOString();
-  }
-  const named = trimmed.match(
-    /^(\d{1,2})\s+([a-záéíóú]{3})\s+(\d{4}),?\s+(\d{1,2}):(\d{2})$/i,
-  );
-  if (named) {
-    const mon = named[2]?.toLowerCase() ?? "";
-    const month = MONTHS.indexOf(mon as (typeof MONTHS)[number]) + 1;
-    if (month < 1) return null;
-    return fromParisWall({
-      y: Number(named[3]),
-      m: month,
-      d: Number(named[1]),
-      hh: Number(named[4]),
-      mm: Number(named[5]),
-    }).toISOString();
+    return fromZoneWall(
+      { y: year, m: month, d: day, hh: hour, mm: minute },
+      timeZone,
+    ).toISOString();
   }
   return null;
 }
@@ -253,13 +265,10 @@ export function wallParisToIso(
   hour: number,
   minute: number,
 ): string {
-  return fromParisWall({
-    y: year,
-    m: month,
-    d: day,
-    hh: hour,
-    mm: minute,
-  }).toISOString();
+  return fromZoneWall(
+    { y: year, m: month, d: day, hh: hour, mm: minute },
+    tz(),
+  ).toISOString();
 }
 
 export function toDateInputValue(iso: string | null): string {
@@ -270,7 +279,7 @@ export function toDateInputValue(iso: string | null): string {
 
 export function toTimeInputValue(iso: string | null): string {
   if (!iso) return "";
-  if (isDateOnly(iso)) return "";
+  if (isDateOnlyInZone(iso, tz())) return "";
   const p = partsInTz(iso);
   return `${pad(p.hh)}:${pad(p.mm)}`;
 }
@@ -287,4 +296,13 @@ export function hoursSince(iso: string, now = new Date()): number {
   return (now.getTime() - new Date(iso).getTime()) / 3_600_000;
 }
 
-export { addParisDays, isDateOnly };
+export function isDateOnly(iso: string): boolean {
+  return isDateOnlyInZone(iso, tz());
+}
+
+export function addParisDays(date: Date, days: number): Date {
+  return addZoneDays(date, days, tz());
+}
+
+/** @deprecated use getDisplayContext().timezone */
+export const DISPLAY_TZ = "Europe/Paris";

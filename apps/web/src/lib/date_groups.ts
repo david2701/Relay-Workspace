@@ -1,12 +1,14 @@
-import {
-  addParisDays,
-  endOfParisWeek,
-  isDateOnly,
-  parisDayDiff,
-  parisWeekday,
-  startOfParisDay,
-} from "./paris_time";
+import { getDisplayContext } from "./display_context";
+import type { MessageKey } from "../i18n/types";
 import type { WorkItem } from "./types";
+import {
+  addZoneDays,
+  endOfZoneWeek,
+  isDateOnlyInZone,
+  startOfZoneDay,
+  zoneDayDiff,
+  zoneWeekday,
+} from "./zone_time";
 
 export type DateGroupKey =
   | "overdue"
@@ -18,17 +20,17 @@ export type DateGroupKey =
 
 export type DateGroup = {
   key: DateGroupKey;
-  label: string;
+  labelKey: MessageKey;
   items: WorkItem[];
 };
 
-export const DATE_GROUP_LABELS: Record<DateGroupKey, string> = {
-  overdue: "Vencidas",
-  today: "Hoy",
-  tomorrow: "Mañana",
-  week: "Esta semana",
-  later: "Más adelante",
-  none: "Sin fecha",
+export const DATE_GROUP_LABEL_KEYS: Record<DateGroupKey, MessageKey> = {
+  overdue: "group.overdue",
+  today: "group.today",
+  tomorrow: "group.tomorrow",
+  week: "group.week",
+  later: "group.later",
+  none: "group.none",
 };
 
 const GROUP_ORDER: DateGroupKey[] = [
@@ -40,6 +42,10 @@ const GROUP_ORDER: DateGroupKey[] = [
   "none",
 ];
 
+function tz(): string {
+  return getDisplayContext().timezone;
+}
+
 function isOpen(item: WorkItem): boolean {
   return item.status !== "done" && item.status !== "cancelled";
 }
@@ -49,22 +55,21 @@ export function classifyDue(
   status: WorkItem["status"],
   now = new Date(),
 ): DateGroupKey {
+  const timeZone = tz();
   if (!dueAt) return "none";
   const due = new Date(dueAt);
   const open = status !== "done" && status !== "cancelled";
   if (due.getTime() < now.getTime() && open) return "overdue";
 
-  const dayDiff = parisDayDiff(dueAt, now);
+  const dayDiff = zoneDayDiff(dueAt, timeZone, now);
   if (dayDiff === 0) return "today";
   if (dayDiff === 1) return "tomorrow";
 
-  // "Esta semana": from day-after-tomorrow through this Sunday.
-  // Hidden when tomorrow is already Monday (today is Sunday).
-  const tomorrow = addParisDays(startOfParisDay(now), 1);
-  const tomorrowIsMonday = parisWeekday(tomorrow) === 1;
+  const tomorrow = addZoneDays(startOfZoneDay(now, timeZone), 1, timeZone);
+  const tomorrowIsMonday = zoneWeekday(tomorrow, timeZone) === 1;
 
   if (!tomorrowIsMonday && dayDiff >= 2) {
-    const weekEnd = endOfParisWeek(now);
+    const weekEnd = endOfZoneWeek(now, timeZone);
     if (due.getTime() <= weekEnd.getTime()) return "week";
   }
   return "later";
@@ -82,54 +87,43 @@ function sortWithin(key: DateGroupKey, items: WorkItem[]): WorkItem[] {
   if (key === "overdue") {
     copy.sort(
       (a, b) =>
-        new Date(a.due_at!).getTime() - new Date(b.due_at!).getTime(),
+        new Date(a.due_at ?? 0).getTime() - new Date(b.due_at ?? 0).getTime(),
     );
     return copy;
   }
-  if (key === "today" || key === "tomorrow") {
+  if (key === "later") {
     copy.sort((a, b) => {
-      const aOnly = isDateOnly(a.due_at!);
-      const bOnly = isDateOnly(b.due_at!);
-      if (aOnly !== bOnly) return aOnly ? 1 : -1;
-      return new Date(a.due_at!).getTime() - new Date(b.due_at!).getTime();
+      const da = a.due_at ? new Date(a.due_at).getTime() : 0;
+      const db = b.due_at ? new Date(b.due_at).getTime() : 0;
+      return da - db;
     });
     return copy;
   }
   copy.sort(
-    (a, b) => new Date(a.due_at!).getTime() - new Date(b.due_at!).getTime(),
+    (a, b) =>
+      new Date(a.due_at ?? 0).getTime() - new Date(b.due_at ?? 0).getTime(),
   );
   return copy;
 }
 
-/** Group open Todo items by due_at frontiers in Europe/Paris. */
-export function groupByDue(items: readonly WorkItem[], now = new Date()): DateGroup[] {
+export function groupByDue(
+  items: WorkItem[],
+  now = new Date(),
+): DateGroup[] {
   const buckets = new Map<DateGroupKey, WorkItem[]>();
   for (const key of GROUP_ORDER) buckets.set(key, []);
-
   for (const item of items) {
+    if (!isOpen(item) && !item.due_at) continue;
     const key = classifyDue(item.due_at, item.status, now);
-    buckets.get(key)!.push(item);
+    buckets.get(key)?.push(item);
   }
-
-  // Drop "week" entirely when tomorrow is Monday
-  const tomorrow = addParisDays(startOfParisDay(now), 1);
-  if (parisWeekday(tomorrow) === 1) {
-    const weekItems = buckets.get("week") ?? [];
-    if (weekItems.length) {
-      buckets.get("later")!.push(...weekItems);
-      buckets.set("week", []);
-    }
-  }
-
-  const out: DateGroup[] = [];
-  for (const key of GROUP_ORDER) {
-    const list = sortWithin(key, buckets.get(key) ?? []);
-    if (list.length === 0) continue;
-    out.push({ key, label: DATE_GROUP_LABELS[key], items: list });
-  }
-  return out;
+  return GROUP_ORDER.map((key) => ({
+    key,
+    labelKey: DATE_GROUP_LABEL_KEYS[key],
+    items: sortWithin(key, buckets.get(key) ?? []),
+  })).filter((g) => g.items.length > 0);
 }
 
-export function isOpenItem(item: WorkItem): boolean {
-  return isOpen(item);
+export function isDateOnly(iso: string): boolean {
+  return isDateOnlyInZone(iso, tz());
 }

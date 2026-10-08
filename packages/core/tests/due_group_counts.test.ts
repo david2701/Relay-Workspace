@@ -70,13 +70,15 @@ describe("Todo due group_counts (server totals)", () => {
     const all = svc.listItems({ limit: 200 }).items.filter(
       (i) => i.status !== "done" && i.status !== "cancelled",
     );
-    const sqlish = countDueGroups(all, now);
+    const sqlish = countDueGroups(all, now, svc.getSettings().timezone);
     expect(sqlish).toEqual(page.group_counts);
 
     // Items with due_at never classify as none.
     for (const item of all) {
       if (item.due_at) {
-        expect(classifyDue(item.due_at, item.status, now)).not.toBe("none");
+        expect(
+          classifyDue(item.due_at, item.status, now, svc.getSettings().timezone),
+        ).not.toBe("none");
       }
     }
   });

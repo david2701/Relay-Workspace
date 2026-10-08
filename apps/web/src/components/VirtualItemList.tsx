@@ -8,6 +8,7 @@ import {
 } from "react";
 import type { DateGroupKey } from "../lib/date_groups";
 import type { Agent, SearchMatch, WorkItem } from "../lib/types";
+import { useT } from "../i18n/I18nProvider";
 import type { ViewSection } from "../lib/view_model";
 import { DateGroupHeader } from "./DateGroupHeader";
 import { ItemRow } from "./ItemRow";
@@ -51,14 +52,20 @@ function sectionCount(section: ViewSection): number {
 export function flattenSections(
   sections: ViewSection[],
   collapsedKeys?: ReadonlySet<string>,
+  resolveLabel?: (section: ViewSection) => string,
 ): VirtualRow[] {
   const rows: VirtualRow[] = [];
   for (const section of sections) {
-    if (section.label) {
+    const headerLabel = resolveLabel
+      ? resolveLabel(section)
+      : section.labelKey
+        ? ""
+        : section.label;
+    if (headerLabel) {
       rows.push({
         type: "header",
         key: `hdr:${section.key}`,
-        label: section.label,
+        label: headerLabel,
         count: sectionCount(section),
         sectionKey: section.key,
       });
@@ -153,9 +160,13 @@ export function VirtualItemList({
   onLoadMore,
   hasMore,
 }: Props) {
+  const t = useT();
   const rows = useMemo(
-    () => flattenSections(sections, collapsedKeys),
-    [sections, collapsedKeys],
+    () =>
+      flattenSections(sections, collapsedKeys, (s) =>
+        s.labelKey ? t(s.labelKey) : s.label,
+      ),
+    [sections, collapsedKeys, t],
   );
   const useVirtual = rows.length > VIRTUALIZE_THRESHOLD;
   // Fixed-size estimates only — no measureElement (avoids ResizeObserver thrash).

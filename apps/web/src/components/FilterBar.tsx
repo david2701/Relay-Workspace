@@ -1,6 +1,10 @@
 import { type RefObject, useRef, useState } from "react";
+import { useT } from "../i18n/I18nProvider";
+import type { MessageKey } from "../i18n/types";
+import { statusLabel, dueFacetLabel } from "../lib/copy";
+import { USER_ACTOR_ID } from "../lib/url_state";
+import { useActorLabels } from "../hooks/useActorLabels";
 import { markForActor } from "../lib/actor_mark";
-import { copy } from "../lib/copy";
 import type { Agent } from "../lib/types";
 import {
   facetCount,
@@ -8,7 +12,7 @@ import {
   type UrlFacets,
 } from "../lib/url_state";
 import { ActorMark } from "./ActorMark";
-import { DUE_LABELS, FacetMenu } from "./FacetMenu";
+import { dueLabels, FacetMenu } from "./FacetMenu";
 import { FilterChip } from "./FilterChip";
 import { SearchField } from "./SearchField";
 import "./FilterBar.css";
@@ -50,6 +54,10 @@ export function FilterBar({
   facetsOpen: controlledOpen,
   onFacetsOpenChange,
 }: Props) {
+  const t = useT();
+  const actorLabels = useActorLabels();
+  const DUE_LABELS = dueLabels(t);
+  const sl = (s: import("../lib/types").Status) => statusLabel(t, s);
   const btnRef = useRef<HTMLButtonElement>(null);
   const [internalOpen, setInternalOpen] = useState(false);
   const open = controlledOpen ?? internalOpen;
@@ -89,7 +97,7 @@ export function FilterBar({
             aria-keyshortcuts="F"
             onClick={() => setOpen(!open)}
           >
-            {n > 0 ? `Filtros · ${n}` : "Filtros"}
+            {n > 0 ? t("filter.titleCount", { n }) : t("filter.title")}
             <kbd className="filter-btn-kbd" aria-hidden>
               F
             </kbd>
@@ -101,26 +109,28 @@ export function FilterBar({
         <div
           className="filter-chips"
           role="group"
-          aria-label="Filtros activos"
+          aria-label={t("filter.active")}
         >
           {facets.status.length > 0 ? (
             <FilterChip
-              label="Estado"
-              values={facets.status.map((s) => copy.statusLabel[s]).join(", ")}
-              ariaRemove={`Quitar filtro: Estado ${facets.status.map((s) => copy.statusLabel[s]).join(", ")}`}
+              label={t("facet.status")}
+              values={facets.status.map((s) => sl(s)).join(", ")}
+              ariaRemove={t("facet.removeFilter", {
+                label: `${t("facet.status")} ${facets.status.map((s) => sl(s)).join(", ")}`,
+              })}
               onRemove={() => onFacetsChange({ ...facets, status: [] })}
             />
           ) : null}
           {facets.actor.length > 0 && !hideOwner ? (
             <FilterChip
-              label="Dueño"
+              label={t("facet.owner")}
               values={
                 <span className="chip-actors">
                   {facets.actor.map((id) => {
                     const mark =
-                      id === "david"
-                        ? markForActor("user", "david", agents)
-                        : markForActor("agent", id, agents);
+                      id === USER_ACTOR_ID
+                        ? markForActor("user", USER_ACTOR_ID, agents, actorLabels)
+                        : markForActor("agent", id, agents, actorLabels);
                     return (
                       <span key={id} className="chip-actor">
                         <ActorMark
@@ -135,19 +145,23 @@ export function FilterBar({
                   })}
                 </span>
               }
-              ariaRemove={`Quitar filtro: Dueño ${facets.actor.join(", ")}`}
+              ariaRemove={t("facet.removeFilter", {
+                label: `${t("facet.owner")} ${facets.actor.join(", ")}`,
+              })}
               onRemove={() => onFacetsChange({ ...facets, actor: [] })}
             />
           ) : null}
           {facets.due ? (
             <FilterChip
-              label="Vence"
+              label={t("facet.due")}
               values={
                 facets.due === "range" && (facets.from || facets.to)
                   ? `${facets.from ?? "…"} → ${facets.to ?? "…"}`
                   : DUE_LABELS[facets.due]
               }
-              ariaRemove={`Quitar filtro: Vence ${DUE_LABELS[facets.due]}`}
+              ariaRemove={t("facet.removeFilter", {
+                label: `${t("facet.due")} ${DUE_LABELS[facets.due]}`,
+              })}
               onRemove={() =>
                 onFacetsChange({
                   ...facets,
@@ -159,7 +173,7 @@ export function FilterBar({
             />
           ) : null}
           <button type="button" className="linkish filter-clear" onClick={onClear}>
-            Limpiar
+            {t("facet.clear")}
           </button>
         </div>
       ) : null}

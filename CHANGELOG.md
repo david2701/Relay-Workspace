@@ -13,8 +13,9 @@ Heading toward **0.3.0** («Enseñable»).
 
 - Clean-clone DX: root `pnpm build:core` so `typecheck` / `test` / `test:e2e` / `seed` work after `pnpm install` without a pre-built `packages/core/dist`.
 - CI pipeline definition for Origin via Depot (`.depot/workflows/ci.yml`) plus a GitHub Actions–compatible twin (`.github/workflows/ci.yml`) and local `pnpm verify` / `scripts/ci.sh`.
-- Placeholder `check:i18n-missing-keys` step (block 2 will replace the no-op).
 - `contrast` gate in `scripts/ci.sh` and both workflow files (same order as README Verify).
+- i18n base (EN/FR/ES): typed JSON locale files, Intl formats, language detection + selector, configurable timezone, non-hardcoded human user.
+- Real `check:i18n-missing-keys` and `check:hardcoded-strings` CI gates (AC3-L2 / AC3-L3).
 
 ### Changed
 

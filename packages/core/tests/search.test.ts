@@ -84,6 +84,7 @@ describe("FTS5 search", () => {
 
   it("due facet uses Paris day bounds", () => {
     const actor = { type: "user" as const, id: USER_ACTOR_ID };
+    svc.updateSettings({ timezone: "Europe/Paris" });
     const now = new Date("2026-10-08T07:19:00.000Z");
     const today = svc.createItem(
       { title: "Due today", due_at: dateOnlyParisIso(2026, 10, 8) },

@@ -1,37 +1,13 @@
 import { CaretLeft, CaretRight } from "@phosphor-icons/react";
-import { type KeyboardEvent, useEffect, useId, useRef } from "react";
+import { type KeyboardEvent, useEffect, useId, useMemo, useRef } from "react";
+import { useI18n, useT } from "../i18n/I18nProvider";
 import {
-  addParisDays,
-  fromParisWall,
-  startOfParisDay,
-  toParisParts,
-} from "../lib/paris_time";
-
-const MONTHS = [
-  "enero",
-  "febrero",
-  "marzo",
-  "abril",
-  "mayo",
-  "junio",
-  "julio",
-  "agosto",
-  "septiembre",
-  "octubre",
-  "noviembre",
-  "diciembre",
-] as const;
-
-const DOW_SHORT = ["L", "M", "X", "J", "V", "S", "D"] as const;
-const DOW_LONG = [
-  "lunes",
-  "martes",
-  "miércoles",
-  "jueves",
-  "viernes",
-  "sábado",
-  "domingo",
-] as const;
+  addActiveDays,
+  activeTimezone,
+  fromActiveWall,
+  startOfActiveDay,
+  toActiveParts,
+} from "../lib/active_zone";
 
 type Props = {
   viewYear: number;
@@ -50,9 +26,10 @@ function daysInMonth(y: number, m: number): number {
 
 function mondayOffset(y: number, m: number): number {
   // weekday of the 1st: Sun=0…Sat=6 → Mon-based 0…6
-  const first = fromParisWall({ y, m, d: 1, hh: 12, mm: 0 });
+  const first = fromActiveWall({ y, m, d: 1, hh: 12, mm: 0 });
+  // en-US labels only — grid layout math, not user-facing copy (TZ = settings).
   const sunBased = new Intl.DateTimeFormat("en-US", {
-    timeZone: "Europe/Paris",
+    timeZone: activeTimezone(),
     weekday: "short",
   }).format(first);
   const map: Record<string, number> = {
@@ -77,11 +54,55 @@ export function CalendarGrid({
   onSelectDay,
   onFocusDay,
 }: Props) {
+  const t = useT();
+  const { intlLocale } = useI18n();
   const labelId = useId();
   const gridRef = useRef<HTMLDivElement>(null);
-  const today = toParisParts(now);
+  const today = toActiveParts(now);
   const dim = daysInMonth(viewYear, viewMonth);
   const offset = mondayOffset(viewYear, viewMonth);
+
+  const monthFmt = useMemo(
+    () =>
+      new Intl.DateTimeFormat(intlLocale, {
+        timeZone: activeTimezone(),
+        month: "long",
+        year: "numeric",
+      }),
+    [intlLocale],
+  );
+
+  const monthLabel = monthFmt.format(
+    fromActiveWall({ y: viewYear, m: viewMonth, d: 1, hh: 12, mm: 0 }),
+  );
+
+  const dowHeaders = useMemo(() => {
+    const base = fromActiveWall({ y: 2024, m: 1, d: 1, hh: 12, mm: 0 }); // Monday
+    const narrow = new Intl.DateTimeFormat(intlLocale, {
+      timeZone: activeTimezone(),
+      weekday: "narrow",
+    });
+    const long = new Intl.DateTimeFormat(intlLocale, {
+      timeZone: activeTimezone(),
+      weekday: "long",
+    });
+    return Array.from({ length: 7 }, (_, i) => {
+      const d = addActiveDays(startOfActiveDay(base), i);
+      return { short: narrow.format(d), long: long.format(d) };
+    });
+  }, [intlLocale]);
+
+  const dayAriaFmt = useMemo(
+    () =>
+      new Intl.DateTimeFormat(intlLocale, {
+        timeZone: activeTimezone(),
+        weekday: "long",
+        year: "numeric",
+        month: "long",
+        day: "numeric",
+      }),
+    [intlLocale],
+  );
 
   useEffect(() => {
     const btn = gridRef.current?.querySelector<HTMLButtonElement>(
@@ -109,15 +130,15 @@ export function CalendarGrid({
   }
 
   function moveFocus(deltaDays: number) {
-    const cur = fromParisWall({
+    const cur = fromActiveWall({
       y: focusDay.y,
       m: focusDay.m,
       d: focusDay.d,
       hh: 12,
       mm: 0,
     });
-    const next = addParisDays(startOfParisDay(cur), deltaDays);
-    const p = toParisParts(next);
+    const next = addActiveDays(startOfActiveDay(cur), deltaDays);
+    const p = toActiveParts(next);
     onFocusDay(p.y, p.m, p.d);
     if (p.y !== viewYear || p.m !== viewMonth) onViewChange(p.y, p.m);
   }
@@ -139,7 +160,7 @@ export function CalendarGrid({
     } else if (key === "Home") {
       e.preventDefault();
       // Monday of this week
-      const cur = fromParisWall({
+      const cur = fromActiveWall({
         y: focusDay.y,
         m: focusDay.m,
         d: focusDay.d,
@@ -147,7 +168,7 @@ export function CalendarGrid({
         mm: 0,
       });
       const sunBased = new Intl.DateTimeFormat("en-US", {
-        timeZone: "Europe/Paris",
+        timeZone: activeTimezone(),
         weekday: "short",
       }).format(cur);
       const fromMon: Record<string, number> = {
@@ -162,7 +183,7 @@ export function CalendarGrid({
       moveFocus(-(fromMon[sunBased] ?? 0));
     } else if (key === "End") {
       e.preventDefault();
-      const cur = fromParisWall({
+      const cur = fromActiveWall({
         y: focusDay.y,
         m: focusDay.m,
         d: focusDay.d,
@@ -170,7 +191,7 @@ export function CalendarGrid({
         mm: 0,
       });
       const sunBased = new Intl.DateTimeFormat("en-US", {
-        timeZone: "Europe/Paris",
+        timeZone: activeTimezone(),
         weekday: "short",
       }).format(cur);
       const fromMon: Record<string, number> = {
@@ -218,18 +239,18 @@ export function CalendarGrid({
         <button
           type="button"
           className="dtp-icon-btn"
-          aria-label="Mes anterior"
+          aria-label={t("calendar.prevMonth")}
           onClick={() => shiftMonth(-1)}
         >
           <CaretLeft size={16} />
         </button>
         <div id={labelId} className="dtp-cal-label" aria-live="polite">
-          {MONTHS[viewMonth - 1]} {viewYear}
+          {monthLabel}
         </div>
         <button
           type="button"
           className="dtp-icon-btn"
-          aria-label="Mes siguiente"
+          aria-label={t("calendar.nextMonth")}
           onClick={() => shiftMonth(1)}
         >
           <CaretRight size={16} />
@@ -243,15 +264,15 @@ export function CalendarGrid({
         onKeyDown={onGridKey}
       >
         <div role="row" className="dtp-dow">
-          {DOW_SHORT.map((d, i) => (
+          {dowHeaders.map((d) => (
             <div
-              key={d}
+              key={d.long}
               role="columnheader"
-              aria-label={DOW_LONG[i]}
-              title={DOW_LONG[i]}
+              aria-label={d.long}
+              title={d.long}
               className="label-caps"
             >
-              {d}
+              {d.short}
             </div>
           ))}
         </div>
@@ -279,7 +300,7 @@ export function CalendarGrid({
                 focusDay.y === viewYear &&
                 focusDay.m === viewMonth &&
                 focusDay.d === cell.d;
-              const cellDate = fromParisWall({
+              const cellDate = fromActiveWall({
                 y: viewYear,
                 m: viewMonth,
                 d: cell.d,
@@ -287,10 +308,11 @@ export function CalendarGrid({
                 mm: 0,
               });
               const past =
-                startOfParisDay(cellDate).getTime() <
-                startOfParisDay(now).getTime();
-              const longMonths = MONTHS;
-              const aria = `${DOW_LONG[col]}, ${cell.d} de ${longMonths[viewMonth - 1]} de ${viewYear}${past ? ", ya pasó" : ""}`;
+                startOfActiveDay(cellDate).getTime() <
+                startOfActiveDay(now).getTime();
+              const aria =
+                dayAriaFmt.format(cellDate) +
+                (past ? t("picker.pastDay") : "");
               return (
                 <div key={cell.d} role="gridcell" className="dtp-day-cell">
                   <button

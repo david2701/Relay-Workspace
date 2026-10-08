@@ -1,3 +1,7 @@
+/**
+ * Wall-clock helpers. Day boundaries belong in {@link ./zone_time.js} with an
+ * explicit IANA timezone (Relay settings); Paris wrappers are test-only.
+ */
 import {
   addParisDays,
   endOfParisDay,

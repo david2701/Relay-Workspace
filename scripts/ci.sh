@@ -32,6 +32,7 @@ step "playwright-install" pnpm exec playwright install --with-deps chromium
 step "test:e2e" pnpm test:e2e
 step "check:mcp-docs" pnpm check:mcp-docs
 step "check:i18n-missing-keys" pnpm run check:i18n-missing-keys
+step "check:hardcoded-strings" pnpm run check:hardcoded-strings
 
 echo ""
 echo "CI OK — all steps exit 0"

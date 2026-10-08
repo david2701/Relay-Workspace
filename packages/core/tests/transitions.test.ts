@@ -6,6 +6,7 @@ import {
   completeItem,
   reopenItem,
 } from "../src/domain/transitions.js";
+import { USER_ACTOR_ID } from "../src/schemas/enums.js";
 import type { WorkItem } from "../src/schemas/work_item.js";
 
 function baseItem(overrides: Partial<WorkItem> = {}): WorkItem {
@@ -37,7 +38,7 @@ function baseItem(overrides: Partial<WorkItem> = {}): WorkItem {
 }
 
 const agent = { type: "agent" as const, id: "grok-bot" };
-const user = { type: "user" as const, id: "david" };
+const user = { type: "user" as const, id: USER_ACTOR_ID };
 
 describe("status transitions", () => {
   it("requires blocked_reason", () => {
@@ -99,7 +100,7 @@ describe("status transitions", () => {
     expect(next.completed_at).toBeNull();
     expect(next.completed_by_type).toBeNull();
     expect(next.completed_by_id).toBeNull();
-    expect(next.last_actor_id).toBe("david");
+    expect(next.last_actor_id).toBe(USER_ACTOR_ID);
     expect(next.assignee_id).toBe("grok-bot");
   });
 

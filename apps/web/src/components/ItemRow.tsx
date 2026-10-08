@@ -1,13 +1,16 @@
 import { memo } from "react";
+import { useT } from "../i18n/I18nProvider";
+import type { MessageKey } from "../i18n/types";
+import { useActorLabels } from "../hooks/useActorLabels";
 import { markForCompleter, markForWitness } from "../lib/actor_mark";
-import { copy } from "../lib/copy";
+import { statusLabel } from "../lib/copy";
 import {
   formatDue,
   formatDueForGroup,
   formatRelative,
   formatReminder,
 } from "../lib/format";
-import type { Agent, SearchMatch, WorkItem } from "../lib/types";
+import type { Agent, SearchMatch, Status, WorkItem } from "../lib/types";
 import { ActorMark, isStaleWorking, isWorking } from "./ActorMark";
 import { MatchSnippet } from "./MatchSnippet";
 import { StatusGlyph } from "./StatusGlyph";
@@ -19,7 +22,6 @@ function truncateIntent(intent: string | null | undefined): string | null {
   if (t.length <= 24) return t;
   const slice = t.slice(0, 24);
   const sp = slice.lastIndexOf(" ");
-  // Prefer a word boundary whenever one exists in the window.
   const cut = sp >= 4 ? slice.slice(0, sp) : slice;
   return `${cut}…`;
 }
@@ -31,7 +33,6 @@ type Props = {
   flash?: boolean;
   showChatBadge?: boolean;
   showCompletedBy?: boolean;
-  /** When grouped by due date, compact the due chip (§1.8). */
   dueGroupKey?: string | undefined;
   match?: SearchMatch | undefined;
   onSelect: (id: string) => void;
@@ -48,14 +49,17 @@ export const ItemRow = memo(function ItemRow({
   match,
   onSelect,
 }: Props) {
-  const witness = markForWitness(item, agents);
+  const t = useT();
+  const actorLabels = useActorLabels();
+  const witness = markForWitness(item, agents, actorLabels);
   const working = isWorking(item.status, item.assignee_type, item.updated_at);
   const stale = isStaleWorking(item.status, item.assignee_type, item.updated_at);
+  const sl = (s: Status) => statusLabel(t, s);
   const reasonLine =
     item.status === "needs_you" && item.needs_you_reason
-      ? `${agents.find((a) => a.id === item.last_actor_id)?.display_name ?? "Agente"}: ${item.needs_you_reason}`
+      ? `${agents.find((a) => a.id === item.last_actor_id)?.display_name ?? actorLabels.agentFallback}: ${item.needs_you_reason}`
       : item.status === "blocked" && item.blocked_reason
-        ? `Atascado: ${item.blocked_reason}`
+        ? `${t("item.blockedPrefix")}${item.blocked_reason}`
         : null;
   const reminderRaw =
     item.reminder_at && item.status !== "done" && item.status !== "cancelled"
@@ -64,8 +68,6 @@ export const ItemRow = memo(function ItemRow({
           intent: item.reminder_intent,
         }
       : null;
-  // Fecha groups: header owns the day. Show at most one schedule chip
-  // (reminder preferred) so meta never mid-word-squeezes due+reminder.
   let due: { text: string; tone: "muted" | "warn" | "crit" } | null = null;
   if (item.due_at && item.status !== "done" && item.status !== "cancelled") {
     if (!dueGroupKey) {
@@ -77,16 +79,14 @@ export const ItemRow = memo(function ItemRow({
   const reminder = reminderRaw
     ? {
         time: reminderRaw.time,
-        intent: due?.text
-          ? null
-          : truncateIntent(reminderRaw.intent),
+        intent: due?.text ? null : truncateIntent(reminderRaw.intent),
       }
     : null;
 
   const showSnippet = match && match.field !== "title";
   const aria = [
     item.title,
-    copy.statusLabel[item.status],
+    sl(item.status),
     reasonLine,
     showSnippet ? match.snippet : null,
     witness.name,
@@ -117,12 +117,12 @@ export const ItemRow = memo(function ItemRow({
       tabIndex={-1}
     >
       <span className="testigo-rule" aria-hidden />
-      <StatusGlyph status={item.status} label={copy.statusLabel[item.status]} />
+      <StatusGlyph status={item.status} label={sl(item.status)} />
       <div className="item-main">
         <div className="item-title-line">
           <span className="item-title">{item.title}</span>
           {showChatBadge && item.source === "mcp" ? (
-            <span className="chat-badge mono" title="Creado desde el chat">
+            <span className="chat-badge mono" title={t("item.chatBadge")}>
               chat
             </span>
           ) : null}
@@ -133,8 +133,11 @@ export const ItemRow = memo(function ItemRow({
         (item.status === "done" || item.status === "cancelled") ? (
           <div className="item-reason completed-by-line">
             {(() => {
-              const completer = markForCompleter(item, agents);
+              const completer = markForCompleter(item, agents, actorLabels);
               if (!completer) return null;
+              const rel = formatRelative(
+                item.completed_at ?? item.updated_at,
+              );
               return (
                 <>
                   <ActorMark
@@ -145,8 +148,11 @@ export const ItemRow = memo(function ItemRow({
                   />
                   <span>
                     {completer.kind === "user"
-                      ? `Completado por ti · ${formatRelative(item.completed_at ?? item.updated_at)}`
-                      : `Completado por ${completer.name} · ${formatRelative(item.completed_at ?? item.updated_at)}`}
+                      ? t("item.completedByYou", { time: rel })
+                      : t("item.completedBy", {
+                          name: completer.name,
+                          time: rel,
+                        })}
                   </span>
                 </>
               );
@@ -176,11 +182,11 @@ export const ItemRow = memo(function ItemRow({
           </span>
         ) : null}
         {item.priority === "high" ? (
-          <span className="prio" aria-label="Prioridad alta">
+          <span className="prio" aria-label={t("item.priorityHigh")}>
             ▲
           </span>
         ) : item.priority === "medium" ? (
-          <span className="prio hollow" aria-label="Prioridad media">
+          <span className="prio hollow" aria-label={t("item.priorityMedium")}>
             △
           </span>
         ) : null}

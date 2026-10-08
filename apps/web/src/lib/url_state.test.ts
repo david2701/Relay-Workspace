@@ -13,7 +13,7 @@ describe("url_state round-trip", () => {
       q: "demo",
       facets: {
         status: ["needs_you", "blocked"],
-        actor: ["dev-senior", "david"],
+        actor: ["dev-senior", "user"],
         due: "week",
         from: null,
         to: null,
@@ -24,15 +24,15 @@ describe("url_state round-trip", () => {
     };
     const url = serializeUrlState(state);
     expect(url).toBe(
-      "/all?q=demo&status=blocked,needs_you&actor=david,dev-senior&due=week&item=itm_abc",
+      "/all?q=demo&status=blocked,needs_you&actor=user,dev-senior&due=week&item=itm_abc",
     );
     const { state: parsed, dirty } = parseUrlState(
       "/all",
-      "?q=demo&status=blocked,needs_you&actor=david,dev-senior&due=week&item=itm_abc",
+      "?q=demo&status=blocked,needs_you&actor=user,dev-senior&due=week&item=itm_abc",
     );
     expect(dirty).toBe(false);
     expect(parsed.facets.status).toEqual(["blocked", "needs_you"]);
-    expect(parsed.facets.actor).toEqual(["david", "dev-senior"]);
+    expect(parsed.facets.actor).toEqual(["user", "dev-senior"]);
     expect(serializeUrlState(parsed)).toBe(url);
   });
 
@@ -82,7 +82,7 @@ describe("url_state round-trip", () => {
       known,
     );
     expect(dirty).toBe(true);
-    expect(state.facets.actor).toEqual(["david", "dev-senior"]);
+    expect(state.facets.actor).toEqual(["user", "dev-senior"]);
   });
 
   it("facet combinations AND in URL (status + actor)", () => {

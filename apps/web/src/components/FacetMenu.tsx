@@ -10,26 +10,31 @@ import {
   useState,
 } from "react";
 import { createPortal } from "react-dom";
+import { useT } from "../i18n/I18nProvider";
+import { useActorLabels } from "../hooks/useActorLabels";
 import { markForActor } from "../lib/actor_mark";
-import { copy } from "../lib/copy";
+import { dueFacetLabel, statusLabel } from "../lib/copy";
 import type { Agent, Status } from "../lib/types";
 import {
   DUE_VALUES,
   type DueFacet,
   STATUS_ORDER,
+  USER_ACTOR_ID,
   type UrlFacets,
 } from "../lib/url_state";
 import { ActorMark } from "./ActorMark";
 
 export type FacetKey = "status" | "actor" | "due";
 
-const DUE_LABELS: Record<DueFacet, string> = {
-  overdue: "Vencidas",
-  today: "Hoy",
-  week: "Esta semana",
-  none: "Sin fecha",
-  range: "Entre fechas…",
-};
+export function dueLabels(t: ReturnType<typeof useT>): Record<DueFacet, string> {
+  return {
+    overdue: dueFacetLabel(t, "overdue"),
+    today: dueFacetLabel(t, "today"),
+    week: dueFacetLabel(t, "week"),
+    none: dueFacetLabel(t, "none"),
+    range: dueFacetLabel(t, "range"),
+  };
+}
 
 type Props = {
   open: boolean;
@@ -50,6 +55,9 @@ export function FacetMenu({
   onClose,
   onChange,
 }: Props) {
+  const t = useT();
+  const actorLabels = useActorLabels();
+  const DUE_LABELS = useMemo(() => dueLabels(t), [t]);
   const menuId = useId();
   const rootRef = useRef<HTMLDivElement>(null);
   const [submenu, setSubmenu] = useState<FacetKey | null>(null);
@@ -59,12 +67,12 @@ export function FacetMenu({
 
   const topItems = useMemo(() => {
     const items: { key: FacetKey; label: string }[] = [
-      { key: "status", label: "Estado" },
+      { key: "status", label: t("facet.status") },
     ];
-    if (!hideOwner) items.push({ key: "actor", label: "Dueño" });
-    items.push({ key: "due", label: "Vence" });
+    if (!hideOwner) items.push({ key: "actor", label: t("facet.owner") });
+    items.push({ key: "due", label: t("facet.due") });
     return items;
-  }, [hideOwner]);
+  }, [hideOwner, t]);
 
   useLayoutEffect(() => {
     if (!open || !anchorRef.current) return;
@@ -134,11 +142,12 @@ export function FacetMenu({
 
   const norm = filterText.trim().toLowerCase();
 
+  const sl = (s: Status) => statusLabel(t, s);
   const statusOptions = STATUS_ORDER.filter((s) =>
-    norm ? copy.statusLabel[s].toLowerCase().includes(norm) : true,
+    norm ? sl(s).toLowerCase().includes(norm) : true,
   );
   const actorOptions = [
-    { id: "david", label: "Tú" },
+    { id: USER_ACTOR_ID, label: t("facet.you") },
     ...agents.map((a) => ({ id: a.id, label: a.display_name })),
   ].filter((a) => (norm ? a.label.toLowerCase().includes(norm) : true));
   const dueOptions = DUE_VALUES.filter((d) =>
@@ -230,7 +239,7 @@ export function FacetMenu({
       id={menuId}
       className="facet-menu"
       role="menu"
-      aria-label="Filtros"
+      aria-label={t("facet.filters")}
       style={{ top: pos.top, left: pos.left }}
       onKeyDown={onKeyDown}
     >
@@ -275,7 +284,7 @@ export function FacetMenu({
                 <span className="facet-check">
                   {checked ? <Check size={14} weight="bold" /> : null}
                 </span>
-                <span>{copy.statusLabel[s]}</span>
+                <span>{sl(s)}</span>
               </button>
             );
           })
@@ -285,9 +294,9 @@ export function FacetMenu({
         ? actorOptions.map((a, i) => {
             const checked = facets.actor.includes(a.id);
             const mark =
-              a.id === "david"
-                ? markForActor("user", "david", agents)
-                : markForActor("agent", a.id, agents);
+              a.id === USER_ACTOR_ID
+                ? markForActor("user", USER_ACTOR_ID, agents, actorLabels)
+                : markForActor("agent", a.id, agents, actorLabels);
             return (
               <button
                 key={a.id}
@@ -340,9 +349,9 @@ export function FacetMenu({
         : null}
 
       {submenu === "due" && facets.due === "range" ? (
-        <div className="facet-range" role="group" aria-label="Entre fechas">
+        <div className="facet-range" role="group" aria-label={t("facet.rangeGroupAria")}>
           <label>
-            Desde
+            {t("facet.rangeFrom")}
             <input
               type="date"
               value={facets.from ?? ""}
@@ -352,7 +361,7 @@ export function FacetMenu({
             />
           </label>
           <label>
-            Hasta
+            {t("facet.rangeTo")}
             <input
               type="date"
               value={facets.to ?? ""}
@@ -374,4 +383,3 @@ export function FacetMenu({
   );
 }
 
-export { DUE_LABELS };

@@ -24,7 +24,7 @@ export function seedDatabase(dbPath: string = resolvedDb): {
 } {
   const svc = new RelayService({ dbPath });
   svc.resetData();
-  const david = { type: "user" as const, id: USER_ACTOR_ID };
+  const user = { type: "user" as const, id: USER_ACTOR_ID };
   const grok = { type: "agent" as const, id: "grok-bot" };
   const ds = { type: "agent" as const, id: "dev-senior" };
 
@@ -37,16 +37,16 @@ export function seedDatabase(dbPath: string = resolvedDb): {
       reminder_at: hoursFromNow(1),
       reminder_intent: "Revisar el borrador antes de la demo",
     },
-    david,
+    user,
     "ui",
   );
-  svc.delegate(demo.id, "grok-bot", david, "ui");
+  svc.delegate(demo.id, "grok-bot", user, "ui");
   svc.setStatus(demo.id, { status: "in_progress" }, grok, "mcp");
 
   const titular = svc.createItem(
     {
       title: "Elegir titular del post de lanzamiento",
-      goal: "Post publicado en el blog con titular aprobado por David",
+      goal: "Post publicado en el blog con titular aprobado",
       due_at: hoursFromNow(18),
       reminder_at: hoursFromNow(4),
       reminder_intent: "Revisar el borrador antes de la demo",
@@ -54,7 +54,7 @@ export function seedDatabase(dbPath: string = resolvedDb): {
     grok,
     "mcp",
   );
-  svc.delegate(titular.id, "grok-bot", david, "ui");
+  svc.delegate(titular.id, "grok-bot", user, "ui");
   svc.askUser(
     titular.id,
     "¿Publico la versión A («Relay») o la B («Relevo»)? El post sale mañana a las 9:00.",
@@ -71,10 +71,10 @@ export function seedDatabase(dbPath: string = resolvedDb): {
       goal: "Todas las notas de /archive indexadas en Relay",
       priority: "medium",
     },
-    david,
+    user,
     "ui",
   );
-  svc.delegate(migrate.id, "dev-senior", david, "ui");
+  svc.delegate(migrate.id, "dev-senior", user, "ui");
   svc.setStatus(
     migrate.id,
     {
@@ -91,16 +91,16 @@ export function seedDatabase(dbPath: string = resolvedDb): {
       reminder_at: hoursFromNow(18),
       reminder_intent: "Llamar antes de firmar",
     },
-    david,
+    user,
     "ui",
   );
   svc.updateItem(
     hosting.id,
     { assignee_type: "user", assignee_id: USER_ACTOR_ID },
-    david,
+    user,
   );
 
-  svc.createItem({ title: "Comprar dominio relay.dev" }, david, "ui");
+  svc.createItem({ title: "Comprar dominio relay.dev" }, user, "ui");
 
   const brief = svc.createNote({
     title: "Brief de lanzamiento",
@@ -121,10 +121,10 @@ export function seedDatabase(dbPath: string = resolvedDb): {
       title: "Redactar changelog de la semana",
       goal: "Changelog publicado en el canal interno",
     },
-    david,
+    user,
     "ui",
   );
-  svc.delegate(done.id, "redactor", david, "ui");
+  svc.delegate(done.id, "redactor", user, "ui");
   svc.complete(done.id, { type: "agent", id: "redactor" }, "mcp");
 
   const result = {
