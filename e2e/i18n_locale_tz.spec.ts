@@ -49,29 +49,6 @@ async function chooseLanguage(page: Page, endonym: string): Promise<void> {
     .click();
 }
 
-async function saveTimezone(page: Page, tz: string): Promise<void> {
-  await openSettings(page);
-  await selectSettingsSection(page, /Timezone|Zona horaria|Fuseau/i);
-  const combo = page.getByRole("dialog").getByRole("combobox");
-  await combo.click();
-  await combo.fill(tz);
-  const option = page
-    .getByRole("dialog")
-    .locator(".settings-tz-list button")
-    .filter({ hasText: new RegExp(`^${tz}$`) });
-  await expect(option.first()).toBeVisible();
-  await Promise.all([
-    page.waitForResponse(
-      (r) =>
-        r.url().includes("/api/settings") &&
-        r.request().method() === "PUT" &&
-        r.ok(),
-    ),
-    option.first().click(),
-  ]);
-  await closeSettings(page);
-}
-
 async function putSettings(
   request: APIRequestContext,
   patch: Record<string, string>,
