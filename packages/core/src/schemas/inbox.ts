@@ -3,10 +3,28 @@ import { InboxViewSchema, StatusSchema } from "./enums.js";
 import { ItemIdSchema, NoteIdSchema } from "./ids.js";
 import { WorkItemSchema } from "./work_item.js";
 
+/** Stable i18n reason codes (UI translates via locale keys; MCP stays locale-invariant). */
+export const RecommendationReasonCodeSchema = z.enum([
+  "rec.needs_you_waiting",
+  "rec.blocked",
+  "rec.due_soon.today",
+  "rec.due_soon.tomorrow",
+  "rec.overdue.today",
+  "rec.overdue.yesterday",
+  "rec.overdue.ago",
+  "rec.reminder_soon",
+  "rec.reminder_soon_no_intent",
+  "rec.stale_wip",
+]);
+export type RecommendationReasonCode = z.infer<
+  typeof RecommendationReasonCodeSchema
+>;
+
 export const RecommendationSchema = z.object({
   item_id: ItemIdSchema,
   title: z.string().min(1),
-  reason: z.string().min(1),
+  reason_code: RecommendationReasonCodeSchema,
+  reason_params: z.record(z.union([z.string(), z.number()])),
   score: z.number(),
   kind: z.enum([
     "needs_you_waiting",
@@ -33,7 +51,10 @@ export const InboxQueryResultSchema = z.object({
     .array(
       z.object({
         key: z.string(),
+        /** Stable group code (same as key); UI translates — never localized prose. */
         label: z.string(),
+        /** ISO instant when key is a weekday bucket (`dow-*`); UI formats via Intl. */
+        date: z.string().datetime({ offset: true }).optional(),
         items: z.array(WorkItemSchema),
       }),
     )
@@ -56,6 +77,7 @@ export const InboxQueryResultSchema = z.object({
       z.object({
         key: z.string(),
         label: z.string(),
+        date: z.string().datetime({ offset: true }).optional(),
         count: z.number().int().nonnegative(),
       }),
     )
@@ -85,6 +107,7 @@ export const InboxSyncResultSchema = z.object({
       z.object({
         key: z.string(),
         label: z.string(),
+        date: z.string().datetime({ offset: true }).optional(),
         count: z.number().int().nonnegative(),
       }),
     )

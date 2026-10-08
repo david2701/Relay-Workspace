@@ -59,20 +59,35 @@ export type LinkedNote = Note & { role: NoteRole };
 export type Recommendation = {
   item_id: string;
   title: string;
-  reason: string;
+  reason_code: string;
+  reason_params: Record<string, string | number>;
   score: number;
   kind: string;
+};
+
+export type InboxGroup = {
+  key: string;
+  label: string;
+  date?: string;
+  items: WorkItem[];
+};
+
+export type InboxGroupCount = {
+  key: string;
+  label: string;
+  date?: string;
+  count: number;
 };
 
 export type InboxResult = {
   view: InboxView;
   items: WorkItem[];
   sections?: { key: "needs_you" | "blocked" | "today"; items: WorkItem[] }[];
-  groups?: { key: string; label: string; items: WorkItem[] }[];
+  groups?: InboxGroup[];
   counters: { needs_you: number };
   total_count?: number;
   section_counts?: Record<string, number>;
-  group_counts?: Array<{ key: string; label: string; count: number }>;
+  group_counts?: InboxGroupCount[];
   sync_cursor?: string;
   server_time?: string;
   next_cursor?: string | null;
@@ -88,7 +103,7 @@ export type InboxSyncDelta = {
   removed_ids: string[];
   counters: { needs_you: number };
   section_counts?: Record<string, number>;
-  group_counts?: Array<{ key: string; label: string; count: number }>;
+  group_counts?: InboxGroupCount[];
   total_count?: number;
   sync_cursor: string;
   server_time?: string;

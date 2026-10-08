@@ -4,10 +4,11 @@ import type { WorkItem } from "../schemas/work_item.js";
 import { hoursBetween, THRESHOLDS } from "./time.js";
 
 function agentName(agents: readonly Agent[], id: string | null): string {
-  if (!id) return "el agente";
+  if (!id) return "";
   return agents.find((a) => a.id === id)?.display_name ?? id;
 }
 
+/** Compact duration token for UI/MCP (`3 h`, `2 d`) — locale-neutral. */
 function formatHours(hours: number): string {
   const h = Math.max(1, Math.round(hours));
   if (h < 48) return `${h} h`;
@@ -59,7 +60,8 @@ export function recommendInbox(args: RecommendArgs): Recommendation[] {
         push(item, {
           kind: "needs_you_waiting",
           score: 100 + waiting,
-          reason: `Te espera desde hace ${formatHours(waiting)}`,
+          reason_code: "rec.needs_you_waiting",
+          reason_params: { rel: formatHours(waiting) },
         });
       }
     }
@@ -67,7 +69,8 @@ export function recommendInbox(args: RecommendArgs): Recommendation[] {
       push(item, {
         kind: "blocked",
         score: 90,
-        reason: `Atascado: ${item.blocked_reason}`,
+        reason_code: "rec.blocked",
+        reason_params: { reason: item.blocked_reason },
       });
     }
     if (item.due_at) {
@@ -75,23 +78,35 @@ export function recommendInbox(args: RecommendArgs): Recommendation[] {
       const hours = hoursBetween(now, due);
       if (hours < 0) {
         const overdueHours = -hours;
-        const dayLabel =
-          overdueHours < 24 && isSameLocalDay(due, now)
-            ? `hoy a las ${formatTime(item.due_at)}`
-            : overdueHours < 48
-              ? "ayer"
-              : `hace ${formatHours(overdueHours)}`;
-        push(item, {
-          kind: "overdue",
-          score: 95 + overdueHours,
-          reason: `Venció ${dayLabel}`,
-        });
+        if (overdueHours < 24 && isSameLocalDay(due, now)) {
+          push(item, {
+            kind: "overdue",
+            score: 95 + overdueHours,
+            reason_code: "rec.overdue.today",
+            reason_params: { time: formatTime(item.due_at) },
+          });
+        } else if (overdueHours < 48) {
+          push(item, {
+            kind: "overdue",
+            score: 95 + overdueHours,
+            reason_code: "rec.overdue.yesterday",
+            reason_params: {},
+          });
+        } else {
+          push(item, {
+            kind: "overdue",
+            score: 95 + overdueHours,
+            reason_code: "rec.overdue.ago",
+            reason_params: { rel: formatHours(overdueHours) },
+          });
+        }
       } else if (hours <= THRESHOLDS.dueSoonHours) {
-        const when = isSameLocalDay(due, now) ? "hoy" : "mañana";
+        const sameDay = isSameLocalDay(due, now);
         push(item, {
           kind: "due_soon",
           score: 80 - hours,
-          reason: `Vence ${when} a las ${formatTime(item.due_at)}`,
+          reason_code: sameDay ? "rec.due_soon.today" : "rec.due_soon.tomorrow",
+          reason_params: { time: formatTime(item.due_at) },
         });
       }
     }
@@ -105,9 +120,10 @@ export function recommendInbox(args: RecommendArgs): Recommendation[] {
         push(item, {
           kind: "reminder_soon",
           score: 85 - hours,
-          reason: intent
-            ? `Aviso en ${rel}: ${intent}`
-            : `Aviso en ${rel}`,
+          reason_code: intent
+            ? "rec.reminder_soon"
+            : "rec.reminder_soon_no_intent",
+          reason_params: intent ? { rel, intent } : { rel },
         });
       }
     }
@@ -121,7 +137,11 @@ export function recommendInbox(args: RecommendArgs): Recommendation[] {
         push(item, {
           kind: "stale_wip",
           score: 70 + stale,
-          reason: `Sin avances de ${agentName(args.agents, item.assignee_id)} desde hace ${formatHours(stale)}`,
+          reason_code: "rec.stale_wip",
+          reason_params: {
+            agent: agentName(args.agents, item.assignee_id),
+            rel: formatHours(stale),
+          },
         });
       }
     }

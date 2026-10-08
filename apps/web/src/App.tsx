@@ -23,8 +23,9 @@ import { useI18n, useT } from "./i18n/I18nProvider";
 import type { MessageKey } from "./i18n/types";
 import { markForOwner, markForUser } from "./lib/actor_mark";
 import { api, type RelaySettings } from "./lib/api";
-import { DATE_GROUP_LABEL_KEYS, groupByDue } from "./lib/date_groups";
+import { groupByDue } from "./lib/date_groups";
 import { setDisplayContext } from "./lib/display_context";
+import { formatGroupLabel } from "./lib/group_label";
 import { itemMatchesFacets } from "./lib/facet_filter";
 import {
   applyInboxDelta,
@@ -607,7 +608,12 @@ export default function App() {
           .filter((c) => c.count > 0)
           .map((c) => ({
             key: c.key,
-            label: c.label,
+            label: formatGroupLabel(c.key, {
+              t,
+              intlLocale,
+              date: c.date,
+              timeZone: settings.timezone,
+            }),
             items: byKey.get(c.key)?.items ?? [],
             count: c.count,
           }));
@@ -620,6 +626,20 @@ export default function App() {
           count: g.items.length,
         }));
       }
+    } else if (view === "upcoming" || view === "done") {
+      // Server sends stable codes — localize here (never use English label prose).
+      result = result.map((s) => {
+        if (s.labelKey || s.label) return s;
+        return {
+          ...s,
+          label: formatGroupLabel(s.key, {
+            t,
+            intlLocale,
+            date: s.date,
+            timeZone: settings.timezone,
+          }),
+        };
+      });
     }
     if (import.meta.env.DEV && result.length > 0) {
       assertNoDuplicateIds(result, inboxView);
@@ -638,6 +658,8 @@ export default function App() {
     view,
     todoGroupBy,
     t,
+    intlLocale,
+    settings.timezone,
   ]);
 
   const flatItems = useMemo(() => {
@@ -1194,7 +1216,12 @@ relay web   →  http://127.0.0.1:7421`}</pre>
                       />
                       <div className="sug-text">
                         <div className="sug-title">{title}</div>
-                        <div className="sug-reason">{r.reason}</div>
+                        <div className="sug-reason">
+                          {t(
+                            r.reason_code as MessageKey,
+                            r.reason_params ?? {},
+                          )}
+                        </div>
                       </div>
                       <button
                         type="button"

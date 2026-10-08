@@ -116,6 +116,8 @@ describe("recommend heuristics", () => {
     expect(kinds).toContain("due_soon");
     expect(kinds).toContain("reminder_soon");
     expect(kinds).toContain("stale_wip");
-    expect(recs.find((r) => r.kind === "blocked")?.reason).toContain("falta acceso");
+    const blocked = recs.find((r) => r.kind === "blocked");
+    expect(blocked?.reason_code).toBe("rec.blocked");
+    expect(blocked?.reason_params.reason).toBe("falta acceso");
   });
 });
