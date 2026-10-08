@@ -119,7 +119,7 @@ pnpm lint
 pnpm test        # builds @relay/core, then unit tests
 pnpm contrast
 pnpm test:e2e    # builds @relay/core, then Playwright
-pnpm ci          # full gate pipeline (install → build → … → i18n placeholder)
+pnpm verify      # full gate pipeline (install → build → … → i18n placeholder)
 ```
 
 ## CI (Origin)
@@ -135,10 +135,11 @@ This repo defines the gate pipeline as:
 
 - [`.depot/workflows/ci.yml`](.depot/workflows/ci.yml) — Depot CI (active once Depot is installed on the codebase)
 - [`.github/workflows/ci.yml`](.github/workflows/ci.yml) — same steps in GitHub Actions form (Depot migrate source / twin)
+- `pnpm verify` / `scripts/ci.sh` — local mirror of the same gates
 
 Pipeline (clean checkout): `pnpm install --frozen-lockfile` → `build` → `typecheck` →
-`lint` → `test` → Playwright browsers → `test:e2e` → `check:mcp-docs` →
-`check:i18n-missing-keys` (placeholder until v0.3 block 2).
+`lint` → `test` → `contrast` → Playwright browsers (`--with-deps`) → `test:e2e` →
+`check:mcp-docs` → `check:i18n-missing-keys` (placeholder until v0.3 block 2).
 
 Version while Enseñable is open: **`0.3.0-dev`** (see [`CHANGELOG.md`](CHANGELOG.md)).
 No `v0.3.0` tag until the round closes.

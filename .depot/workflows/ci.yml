@@ -4,6 +4,7 @@
 #
 # Requires the Depot app installed on the Origin codebase (Settings → Apps).
 # Origin has no native workflow runner; Depot (or Buildkite) posts checks to the PR.
+# Local mirror: `pnpm verify` → scripts/ci.sh (same step order).
 
 name: ci
 
@@ -46,6 +47,9 @@ jobs:
 
       - name: test
         run: pnpm test
+
+      - name: contrast
+        run: pnpm contrast
 
       - name: Install Playwright Chromium
         run: pnpm exec playwright install --with-deps chromium

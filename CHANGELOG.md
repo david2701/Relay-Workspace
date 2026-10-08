@@ -12,9 +12,13 @@ Heading toward **0.3.0** («Enseñable»).
 ### Added
 
 - Clean-clone DX: root `pnpm build:core` so `typecheck` / `test` / `test:e2e` / `seed` work after `pnpm install` without a pre-built `packages/core/dist`.
-- CI pipeline definition for Origin via Depot (`.depot/workflows/ci.yml`) plus a GitHub Actions–compatible twin (`.github/workflows/ci.yml`) and local `pnpm ci` / `scripts/ci.sh`.
+- CI pipeline definition for Origin via Depot (`.depot/workflows/ci.yml`) plus a GitHub Actions–compatible twin (`.github/workflows/ci.yml`) and local `pnpm verify` / `scripts/ci.sh`.
 - Placeholder `check:i18n-missing-keys` step (block 2 will replace the no-op).
+- `contrast` gate in `scripts/ci.sh` and both workflow files (same order as README Verify).
 
 ### Changed
 
 - Package versions set to `0.3.0-dev` while the Enseñable round is open (no `v0.3.0` tag until the round closes).
+- Renamed the local gate script entry to `pnpm verify` (previous script name collided with a pnpm built-in and never ran `scripts/ci.sh`).
+- MCP server `version` is read from `@relay/server` `package.json` (no hardcoded drift).
+- List-row title truncates instead of painting over DueChip/meta at narrow widths; DatePicker e2e waits for fonts and settled layout.

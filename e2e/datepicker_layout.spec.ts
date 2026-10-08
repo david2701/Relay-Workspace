@@ -1,8 +1,35 @@
 import { expect, type Page, test } from "@playwright/test";
 
+/** Fixed wall clock so shortcut preview strings (and widths) stay stable. */
+const FROZEN_NOW = new Date("2026-10-08T12:00:00.000Z");
+
+async function freezeClock(page: Page): Promise<void> {
+  await page.clock.install({ time: FROZEN_NOW });
+}
+
+async function waitFontsAndLayout(page: Page): Promise<void> {
+  await page.evaluate(async () => {
+    if (document.fonts?.ready) {
+      await document.fonts.ready;
+    }
+  });
+  // Settle sheet/popover enter animations (--dur-overlay ≤ 240ms) + a paint.
+  await page.evaluate(
+    () =>
+      new Promise<void>((resolve) => {
+        requestAnimationFrame(() => {
+          requestAnimationFrame(() => resolve());
+        });
+      }),
+  );
+  await page.waitForTimeout(300);
+}
+
 async function openDuePicker(page: Page) {
+  await freezeClock(page);
   await page.goto("/all");
   await page.locator('[data-inbox-view="all"]').waitFor({ timeout: 30_000 });
+  await waitFontsAndLayout(page);
   const option = page.getByRole("option").first();
   await option.waitFor({ state: "visible", timeout: 30_000 });
   const id = await option.getAttribute("id");
@@ -11,6 +38,7 @@ async function openDuePicker(page: Page) {
   // Deep-link selection (reliable at narrow widths where the detail sheet covers the list).
   await page.goto(`/all?item=${itemId}`);
   await page.locator('[data-inbox-view="all"]').waitFor({ timeout: 30_000 });
+  await waitFontsAndLayout(page);
   await expect(page.locator(`#row-${itemId}`)).toHaveAttribute(
     "aria-selected",
     "true",
@@ -21,6 +49,7 @@ async function openDuePicker(page: Page) {
   await trigger.click({ force: true });
   const dialog = page.getByRole("dialog");
   await expect(dialog).toBeVisible({ timeout: 10_000 });
+  await waitFontsAndLayout(page);
   return dialog;
 }
 

@@ -1,6 +1,7 @@
 # GitHub Actions–compatible source for the same gate pipeline.
 # On Origin-hosted repos, CI runs via Depot (see .depot/workflows/ci.yml).
 # Docs: https://cursor.com/docs/origin/apps · https://depot.dev/docs/ci/integrations/origin
+# Local mirror: `pnpm verify` → scripts/ci.sh (same step order).
 
 name: ci
 
@@ -43,6 +44,9 @@ jobs:
 
       - name: test
         run: pnpm test
+
+      - name: contrast
+        run: pnpm contrast
 
       - name: Install Playwright Chromium
         run: pnpm exec playwright install --with-deps chromium

@@ -1,5 +1,6 @@
 #!/usr/bin/env bash
 # Local / agent mirror of .depot/workflows/ci.yml gates.
+# Invoked as `pnpm verify`.
 # Runs from a clean checkout after install. Prints EXIT:<step>=<code> for each step.
 set -u
 cd "$(dirname "$0")/.."
@@ -25,7 +26,9 @@ step "build" pnpm build
 step "typecheck" pnpm typecheck
 step "lint" pnpm lint
 step "test" pnpm test
-step "playwright-install" pnpm exec playwright install chromium
+step "contrast" pnpm contrast
+# Match Depot/GHA: --with-deps installs OS libs Chromium needs on bare Linux images.
+step "playwright-install" pnpm exec playwright install --with-deps chromium
 step "test:e2e" pnpm test:e2e
 step "check:mcp-docs" pnpm check:mcp-docs
 step "check:i18n-missing-keys" pnpm run check:i18n-missing-keys
