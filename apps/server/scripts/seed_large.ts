@@ -19,7 +19,7 @@ const AGENTS = [
   "agent-research",
   "agent-writing",
   "agent-data",
-]] as const;
+] as const;
 
 const VERBS = [
   "Revisar",

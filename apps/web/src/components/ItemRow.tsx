@@ -1,7 +1,7 @@
 import { memo } from "react";
+import { useActorLabels } from "../hooks/useActorLabels";
 import { useT } from "../i18n/I18nProvider";
 import type { MessageKey } from "../i18n/types";
-import { useActorLabels } from "../hooks/useActorLabels";
 import { markForCompleter, markForWitness } from "../lib/actor_mark";
 import { statusLabel } from "../lib/copy";
 import {

@@ -15,7 +15,7 @@
  *
  * Denylist (case-insensitive whole-phrase / whole-word as noted):
  */
-import { readFileSync, readdirSync, statSync } from "node:fs";
+import { readdirSync, readFileSync, statSync } from "node:fs";
 import { dirname, join, relative, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 

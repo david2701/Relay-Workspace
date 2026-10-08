@@ -5,6 +5,7 @@ import {
   useRef,
   useState,
 } from "react";
+import { useI18n, useT } from "../i18n/I18nProvider";
 import { ApiError, api } from "../lib/api";
 import {
   BODY_MD_MAX,
@@ -13,7 +14,6 @@ import {
   writeNoteDraft,
 } from "../lib/markdown";
 import type { Note } from "../lib/types";
-import { useI18n, useT } from "../i18n/I18nProvider";
 import { Markdown } from "./Markdown";
 import "./NoteEditor.css";
 

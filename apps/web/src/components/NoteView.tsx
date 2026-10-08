@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useId, useRef, useState } from "react";
+import { useT } from "../i18n/I18nProvider";
 import { api } from "../lib/api";
 import {
   clearNoteDraft,
@@ -8,7 +9,6 @@ import {
 } from "../lib/markdown";
 import { formatNoteMetaLine } from "../lib/note_meta";
 import type { Note } from "../lib/types";
-import { useT } from "../i18n/I18nProvider";
 import { Markdown } from "./Markdown";
 import { NoteEditor } from "./NoteEditor";
 import "./NoteView.css";

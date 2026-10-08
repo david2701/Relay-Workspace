@@ -1,10 +1,10 @@
 import {
   createContext,
+  type ReactNode,
   useContext,
   useEffect,
   useMemo,
   useState,
-  type ReactNode,
 } from "react";
 import { resolveInitialLocale, storeLocale } from "./detect";
 import { resolveFormatLocale } from "./format_locale";

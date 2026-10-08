@@ -6,9 +6,9 @@ import {
   useMemo,
   useRef,
 } from "react";
+import { useT } from "../i18n/I18nProvider";
 import type { DateGroupKey } from "../lib/date_groups";
 import type { Agent, SearchMatch, WorkItem } from "../lib/types";
-import { useT } from "../i18n/I18nProvider";
 import type { ViewSection } from "../lib/view_model";
 import { DateGroupHeader } from "./DateGroupHeader";
 import { ItemRow } from "./ItemRow";

@@ -12,6 +12,7 @@ import { FilterBar } from "./components/FilterBar";
 import { ItemRow } from "./components/ItemRow";
 import { NoteView } from "./components/NoteView";
 import { focusSearchField } from "./components/SearchField";
+import { SettingsPanel } from "./components/SettingsPanel";
 import { ThemeSwitch } from "./components/ThemeSwitch";
 import { VirtualItemList } from "./components/VirtualItemList";
 import { useActorLabels } from "./hooks/useActorLabels";
@@ -20,12 +21,10 @@ import { useTheme } from "./hooks/useTheme";
 import { useUrlState } from "./hooks/useUrlState";
 import { useI18n, useT } from "./i18n/I18nProvider";
 import type { MessageKey } from "./i18n/types";
-import { SettingsPanel } from "./components/SettingsPanel";
 import { markForOwner, markForUser } from "./lib/actor_mark";
 import { api, type RelaySettings } from "./lib/api";
-import { setDisplayContext } from "./lib/display_context";
-import { setUserProfile } from "./lib/user_profile";
 import { DATE_GROUP_LABEL_KEYS, groupByDue } from "./lib/date_groups";
+import { setDisplayContext } from "./lib/display_context";
 import { itemMatchesFacets } from "./lib/facet_filter";
 import {
   applyInboxDelta,
@@ -58,6 +57,7 @@ import {
   hasActiveFacets,
   USER_ACTOR_ID,
 } from "./lib/url_state";
+import { setUserProfile } from "./lib/user_profile";
 import {
   assertNoDuplicateIds,
   buildViewSections,

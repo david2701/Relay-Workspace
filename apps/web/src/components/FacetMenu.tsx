@@ -10,8 +10,8 @@ import {
   useState,
 } from "react";
 import { createPortal } from "react-dom";
-import { useT } from "../i18n/I18nProvider";
 import { useActorLabels } from "../hooks/useActorLabels";
+import { useT } from "../i18n/I18nProvider";
 import { markForActor } from "../lib/actor_mark";
 import { dueFacetLabel, statusLabel } from "../lib/copy";
 import type { Agent, Status } from "../lib/types";
@@ -19,8 +19,8 @@ import {
   DUE_VALUES,
   type DueFacet,
   STATUS_ORDER,
-  USER_ACTOR_ID,
   type UrlFacets,
+  USER_ACTOR_ID,
 } from "../lib/url_state";
 import { ActorMark } from "./ActorMark";
 

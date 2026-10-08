@@ -4,7 +4,7 @@
  *
  * Allowlist entries must include a reason comment (non-visible / brand / technical).
  */
-import { readFileSync, readdirSync, statSync } from "node:fs";
+import { readdirSync, readFileSync, statSync } from "node:fs";
 import { dirname, join, relative, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 

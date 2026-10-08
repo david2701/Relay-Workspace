@@ -1,4 +1,4 @@
-import en from "./locales/en.json";
+import type en from "./locales/en.json";
 
 /** Keys are derived from the English source-of-truth locale file. */
 export type MessageKey = keyof typeof en;

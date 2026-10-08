@@ -2,8 +2,8 @@ import { CaretLeft, CaretRight } from "@phosphor-icons/react";
 import { type KeyboardEvent, useEffect, useId, useMemo, useRef } from "react";
 import { useI18n, useT } from "../i18n/I18nProvider";
 import {
-  addActiveDays,
   activeTimezone,
+  addActiveDays,
   fromActiveWall,
   startOfActiveDay,
   toActiveParts,

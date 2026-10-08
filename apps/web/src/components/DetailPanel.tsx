@@ -1,16 +1,15 @@
 import { Bell, CalendarBlank, LinkSimple, X } from "@phosphor-icons/react";
 import { useEffect, useMemo, useState } from "react";
+import { useActorLabels } from "../hooks/useActorLabels";
 import { useT } from "../i18n/I18nProvider";
 import type { MessageKey } from "../i18n/types";
-import { statusLabel, dueFacetLabel } from "../lib/copy";
-import { USER_ACTOR_ID } from "../lib/url_state";
-import { useActorLabels } from "../hooks/useActorLabels";
 import {
   markForActor,
   markForCompleter,
   markForOwner,
 } from "../lib/actor_mark";
 import { api } from "../lib/api";
+import { dueFacetLabel, statusLabel } from "../lib/copy";
 import { formatAbsolute, formatRelative } from "../lib/format";
 import { toPlainText } from "../lib/markdown";
 import type {
@@ -21,6 +20,7 @@ import type {
   Status,
   WorkItem,
 } from "../lib/types";
+import { USER_ACTOR_ID } from "../lib/url_state";
 import { ActorMark, isStaleWorking, isWorking } from "./ActorMark";
 import { DateTimePicker } from "./DateTimePicker";
 import { StatusGlyph } from "./StatusGlyph";

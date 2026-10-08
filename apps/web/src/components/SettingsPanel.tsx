@@ -3,8 +3,8 @@
  * Autosave on change; no Save button. PROVISIONAL shell until onboarding lands.
  */
 import { useEffect, useMemo, useRef, useState } from "react";
-import { useI18n } from "../i18n/I18nProvider";
 import { formatLocaleDisplayName } from "../i18n/format_locale";
+import { useI18n } from "../i18n/I18nProvider";
 import type { LocaleCode, MessageKey } from "../i18n/types";
 import { SUPPORTED_LOCALES } from "../i18n/types";
 import type { RelaySettings } from "../lib/api";

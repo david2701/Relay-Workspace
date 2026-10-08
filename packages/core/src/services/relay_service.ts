@@ -27,13 +27,6 @@ import {
   type Source,
   USER_ACTOR_ID,
 } from "../schemas/enums.js";
-import {
-  DEFAULT_SETTINGS,
-  SettingsSchema,
-  type RelaySettings,
-  UpdateSettingsSchema,
-  type UpdateSettingsInput,
-} from "../schemas/settings.js";
 import { createId } from "../schemas/ids.js";
 import type {
   ContextPack,
@@ -50,6 +43,13 @@ import type {
   NoteRole,
   UpdateNoteInput,
 } from "../schemas/note.js";
+import {
+  DEFAULT_SETTINGS,
+  type RelaySettings,
+  SettingsSchema,
+  type UpdateSettingsInput,
+  UpdateSettingsSchema,
+} from "../schemas/settings.js";
 import type {
   Actor,
   CreateItemInput,

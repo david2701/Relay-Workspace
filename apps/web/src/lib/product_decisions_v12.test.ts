@@ -3,14 +3,14 @@
  * Confirmation of assumptions already shipped; these tests lock the ACs.
  */
 import { describe, expect, it } from "vitest";
+import { translate } from "../i18n/translate";
+import type { MessageKey } from "../i18n/types";
 import { ballHolderId, itemMatchesFacets } from "./facet_filter";
 import {
   formatDateTimeField,
   formatDue,
   formatDueForGroup,
 } from "./format";
-import { translate } from "../i18n/translate";
-import type { MessageKey } from "../i18n/types";
 import {
   formatNoteMetaLine,
   noteMetaHasAuthorship,
@@ -22,6 +22,7 @@ function esT(
 ): string {
   return translate("es", key, params);
 }
+
 import { dateOnlyParisIso, fromParisWall, isDateOnly } from "./paris_time";
 import {
   readTodoGroupBy,

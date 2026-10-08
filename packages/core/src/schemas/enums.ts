@@ -36,12 +36,10 @@ export const InboxViewSchema = z.enum([
 export type InboxView = z.infer<typeof InboxViewSchema>;
 
 /** @deprecated Import from `./settings.js` — kept for transitional re-exports. */
-export { USER_ACTOR_ID } from "./settings.js";
-export {
+export { 
   DEFAULT_SETTINGS,
   isUserActorId,
-  normalizeUserActorId,
-  USER_ACTOR_LEGACY_ALIASES,
-} from "./settings.js";
+  normalizeUserActorId,USER_ACTOR_ID, 
+  USER_ACTOR_LEGACY_ALIASES,} from "./settings.js";
 /** Default display name before settings are loaded (locale supplies second-person). */
 export const USER_DISPLAY_NAME = "You" as const;

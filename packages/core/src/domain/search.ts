@@ -1,4 +1,4 @@
-import { USER_ACTOR_ID, normalizeUserActorId } from "../schemas/enums.js";
+import { normalizeUserActorId, USER_ACTOR_ID } from "../schemas/enums.js";
 import type {
   SearchMatch,
   SearchMatchField,

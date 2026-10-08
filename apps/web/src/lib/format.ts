@@ -1,6 +1,5 @@
-import type { MessageKey } from "../i18n/types";
 import { translate } from "../i18n/translate";
-import type { LocaleCode } from "../i18n/types";
+import type { LocaleCode, MessageKey } from "../i18n/types";
 import { getDisplayContext } from "./display_context";
 import {
   addZoneDays,

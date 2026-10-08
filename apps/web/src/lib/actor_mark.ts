@@ -1,6 +1,6 @@
 import type { ActorType, Agent, AssigneeType, WorkItem } from "./types";
-import { getUserProfile } from "./user_profile";
 import { USER_ACTOR_ID } from "./url_state";
+import { getUserProfile } from "./user_profile";
 
 export type ActorMarkModel = {
   kind: "user" | "agent" | "unassigned" | "system";

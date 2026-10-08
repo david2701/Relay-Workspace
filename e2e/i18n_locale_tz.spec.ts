@@ -49,6 +49,29 @@ async function chooseLanguage(page: Page, endonym: string): Promise<void> {
     .click();
 }
 
+async function saveTimezone(page: Page, tz: string): Promise<void> {
+  await openSettings(page);
+  await selectSettingsSection(page, /Timezone|Zona horaria|Fuseau/i);
+  const combo = page.getByRole("dialog").getByRole("combobox");
+  await combo.click();
+  await combo.fill(tz);
+  const option = page
+    .getByRole("dialog")
+    .locator(".settings-tz-list button")
+    .filter({ hasText: new RegExp(`^${tz}$`) });
+  await expect(option.first()).toBeVisible();
+  await Promise.all([
+    page.waitForResponse(
+      (r) =>
+        r.url().includes("/api/settings") &&
+        r.request().method() === "PUT" &&
+        r.ok(),
+    ),
+    option.first().click(),
+  ]);
+  await closeSettings(page);
+}
+
 async function putSettings(
   request: APIRequestContext,
   patch: Record<string, string>,
@@ -256,27 +279,9 @@ test.describe("AC3-L7 / PR2 timezone re-anchor", () => {
       page.getByRole("option", { name: /TZ probe today no-time/ }),
     ).toBeVisible();
 
-    // Explicit Settings timezone change (PR2): use browser-differs button or list.
-    // Drive PUT via the page so cookies/origin match; assert re-anchor.
-    await openSettings(page);
-    await selectSettingsSection(page, /Timezone|Zona horaria|Fuseau|Time zone/i);
-    await Promise.all([
-      page.waitForResponse(
-        (r) =>
-          r.url().includes("/api/settings") &&
-          r.request().method() === "PUT" &&
-          r.ok(),
-      ),
-      page.evaluate(async () => {
-        const res = await fetch("http://127.0.0.1:7430/api/settings", {
-          method: "PUT",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ timezone: "Europe/Paris" }),
-        });
-        if (!res.ok) throw new Error(`settings ${res.status}`);
-      }),
-    ]);
-    await closeSettings(page);
+    // Explicit timezone change (PR2) — server re-anchors date-only dues.
+    await putSettings(request, { timezone: "Europe/Paris" });
+    await page.reload();
 
     const settingsParis = await request.get(`${API}/api/settings`);
     const s = (await settingsParis.json()) as { settings: { timezone: string } };
