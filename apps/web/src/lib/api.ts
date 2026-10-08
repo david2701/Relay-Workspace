@@ -2,6 +2,7 @@ import type {
   Agent,
   ContextPack,
   InboxResult,
+  InboxSyncDelta,
   InboxView,
   LinkedNote,
   Note,
@@ -32,7 +33,16 @@ export const api = {
   base: BASE,
   health: () => request<{ ok: boolean }>("/api/health"),
   agents: () => request<{ agents: Agent[] }>("/api/agents"),
-  inbox: (view: InboxView) => request<InboxResult>(`/api/inbox?view=${view}`),
+  inbox: (
+    view: InboxView,
+    opts?: { since?: string; limit?: number; cursor?: string },
+  ) => {
+    const params = new URLSearchParams({ view });
+    if (opts?.since) params.set("since", opts.since);
+    if (opts?.limit != null) params.set("limit", String(opts.limit));
+    if (opts?.cursor) params.set("cursor", opts.cursor);
+    return request<InboxResult | InboxSyncDelta>(`/api/inbox?${params}`);
+  },
   recommend: () =>
     request<{ recommendations: Recommendation[] }>("/api/inbox/recommend"),
   getItem: (id: string) => request<{ item: WorkItem }>(`/api/items/${id}`),

@@ -1,6 +1,4 @@
 import {
-  Children,
-  type ReactNode,
   useCallback,
   useEffect,
   useMemo,
@@ -11,11 +9,13 @@ import { ActorMark } from "./components/ActorMark";
 import { DetailPanel } from "./components/DetailPanel";
 import { ItemRow } from "./components/ItemRow";
 import { ThemeSwitch } from "./components/ThemeSwitch";
+import { VirtualItemList } from "./components/VirtualItemList";
 import { usePoll } from "./hooks/usePoll";
 import { useTheme } from "./hooks/useTheme";
 import { markForOwner } from "./lib/actor_mark";
 import { api } from "./lib/api";
 import { copy } from "./lib/copy";
+import { applyInboxDelta, isInboxDelta } from "./lib/inbox_merge";
 import type {
   Agent,
   AppView,
@@ -71,12 +71,15 @@ export default function App() {
   const [filter, setFilter] = useState("");
   const [gPending, setGPending] = useState(false);
   const captureRef = useRef<HTMLInputElement>(null);
+  const listRef = useRef<HTMLDivElement>(null);
   const prevUpdated = useRef<Map<string, string>>(new Map());
   const prevItems = useRef<Map<string, WorkItem>>(new Map());
   const prevView = useRef<InboxView>("attention");
   const viewEpoch = useRef(0);
   const hydratedView = useRef<InboxView | null>(null);
   const syncAge = useRef(0);
+  const syncCursorRef = useRef<string | null>(null);
+  const inboxStateRef = useRef<InboxResult | null>(null);
   const [tick, setTick] = useState(0);
 
   const selectView = useCallback((next: AppView) => {
@@ -97,17 +100,61 @@ export default function App() {
 
   const inboxView: InboxView = view === "notes" ? "attention" : view;
 
+  // Reset incremental sync when the lens changes (usePoll also clears data).
+  useEffect(() => {
+    syncCursorRef.current = null;
+    inboxStateRef.current = null;
+  }, [inboxView]);
+
   const {
     data: inboxRaw,
     error,
     offline,
     lastOkAt,
-    setData: setInbox,
+    setData: setInboxRaw,
     reload,
   } = usePoll<InboxResult>(
-    () => api.inbox(inboxView),
+    async () => {
+      if (syncCursorRef.current && inboxStateRef.current) {
+        try {
+          const payload = await api.inbox(inboxView, {
+            since: syncCursorRef.current,
+          });
+          if (isInboxDelta(payload)) {
+            const merged = applyInboxDelta(inboxStateRef.current, payload);
+            syncCursorRef.current = payload.sync_cursor;
+            inboxStateRef.current = merged;
+            return merged;
+          }
+          // Server returned a full snapshot (or pre-delta shape) — adopt it.
+          const snap = payload as InboxResult;
+          syncCursorRef.current = snap.sync_cursor ?? null;
+          inboxStateRef.current = snap;
+          return snap;
+        } catch {
+          // Fall through to full snapshot on delta errors.
+        }
+      }
+      const snap = (await api.inbox(inboxView)) as InboxResult;
+      syncCursorRef.current = snap.sync_cursor ?? null;
+      inboxStateRef.current = snap;
+      return snap;
+    },
     [inboxView],
   );
+
+  const setInbox = useCallback(
+    (updater: ((prev: InboxResult | null) => InboxResult | null) | InboxResult | null) => {
+      setInboxRaw((prev) => {
+        const next =
+          typeof updater === "function" ? updater(prev) : updater;
+        if (next) inboxStateRef.current = next;
+        return next;
+      });
+    },
+    [setInboxRaw],
+  );
+
   // Ignore a previous view's payload while the matching fetch is in flight.
   const inbox =
     inboxRaw && inboxRaw.view === inboxView ? inboxRaw : null;
@@ -647,6 +694,7 @@ relay web   →  http://127.0.0.1:7421`}</pre>
           </div>
         ) : (
           <div
+            ref={listRef}
             className="item-list"
             role="listbox"
             tabIndex={0}
@@ -654,41 +702,18 @@ relay web   →  http://127.0.0.1:7421`}</pre>
             aria-activedescendant={selectedId ? `row-${selectedId}` : undefined}
           >
             {!inbox && !error ? <Skeleton /> : null}
-            {inbox
-              ? viewSections.map((section) =>
-                  section.label ? (
-                    <Section key={section.key} label={section.label}>
-                      {section.items.map((item) => (
-                        <ItemRow
-                          key={item.id}
-                          item={item}
-                          agents={agents}
-                          selected={selectedId === item.id}
-                          flash={flashIds.has(item.id)}
-                          showChatBadge={view === "all"}
-                          showCompletedBy={view === "done"}
-                          onSelect={() => setSelectedId(item.id)}
-                        />
-                      ))}
-                    </Section>
-                  ) : (
-                    <div key={section.key || "all"}>
-                      {section.items.map((item) => (
-                        <ItemRow
-                          key={item.id}
-                          item={item}
-                          agents={agents}
-                          selected={selectedId === item.id}
-                          flash={flashIds.has(item.id)}
-                          showChatBadge={view === "all"}
-                          showCompletedBy={view === "done"}
-                          onSelect={() => setSelectedId(item.id)}
-                        />
-                      ))}
-                    </div>
-                  ),
-                )
-              : null}
+            {inbox ? (
+              <VirtualItemList
+                scrollRef={listRef}
+                sections={viewSections}
+                agents={agents}
+                selectedId={selectedId}
+                flashIds={flashIds}
+                showChatBadge={view === "all"}
+                showCompletedBy={view === "done"}
+                onSelect={setSelectedId}
+              />
+            ) : null}
             {inbox && flatItems.length === 0 ? (
               view === "attention" ? (
                 <Empty
@@ -797,37 +822,6 @@ relay web   →  http://127.0.0.1:7421`}</pre>
           ? `Hay ${needsYouCount} ítems que te necesitan`
           : ""}
       </div>
-    </div>
-  );
-}
-
-function Section({
-  label,
-  children,
-}: {
-  label: string;
-  children: ReactNode;
-}) {
-  // Count is derived from the same children painted below — never a
-  // separate poll/state (V1).
-  const count = Children.toArray(children).filter(Boolean).length;
-  if (!label && count === 0) return <>{children}</>;
-  return (
-    <div
-      role="group"
-      aria-label={label || undefined}
-      data-section-count={count}
-    >
-      {label ? (
-        <div className="section-label label-caps">
-          {label}
-          <span className="mono" data-section-count-text>
-            {" "}
-            · {count}
-          </span>
-        </div>
-      ) : null}
-      {children}
     </div>
   );
 }

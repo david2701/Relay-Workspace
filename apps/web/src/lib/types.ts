@@ -69,6 +69,27 @@ export type InboxResult = {
   sections?: { key: "needs_you" | "blocked" | "today"; items: WorkItem[] }[];
   groups?: { key: string; label: string; items: WorkItem[] }[];
   counters: { needs_you: number };
+  total_count?: number;
+  section_counts?: Record<string, number>;
+  group_counts?: Record<string, number>;
+  sync_cursor?: string;
+  server_time?: string;
+  next_cursor?: string;
+  has_more?: boolean;
+  mode?: "snapshot";
+};
+
+/** Incremental inbox poll payload (GET /api/inbox?view=X&since=…). */
+export type InboxSyncDelta = {
+  mode: "delta";
+  view?: InboxView;
+  upserts: WorkItem[];
+  removed_ids: string[];
+  counters: { needs_you: number };
+  section_counts?: Record<string, number>;
+  total_count?: number;
+  sync_cursor: string;
+  server_time?: string;
 };
 
 export type ContextPack = {
