@@ -8,7 +8,6 @@ import {
   startOfZoneDay,
   toZoneParts,
   zoneDayDiff,
-  zoneWeekday,
 } from "./zone_time";
 
 function tz(): string {

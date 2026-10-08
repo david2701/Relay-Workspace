@@ -40,9 +40,9 @@ async function mcp(name, args) {
 }
 
 async function seedRowTimesItem() {
-  const title = "Choose the launch post headline";
-  // Prefer existing seed needs_you; else create L29 pair on first item via update
-  const created = await mcp("items_create", { title: `QA row times ${Date.now()}` });
+  const created = await mcp("items_create", {
+    title: `QA row times ${Date.now()}`,
+  });
   const id = created.item.id;
   await mcp("items_delegate", { id, agent_id: "agent-code" });
   await mcp("items_ask_user", { id, reason: "Publish A or B?" });
