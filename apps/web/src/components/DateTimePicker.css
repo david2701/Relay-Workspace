@@ -185,8 +185,9 @@
 
 .dtp-body {
   display: grid;
-  grid-template-columns: 160px 1fr;
+  grid-template-columns: minmax(220px, max-content) 1fr;
   gap: var(--space-3);
+  align-items: start;
 }
 
 .dtp-popover.sheet .dtp-body {
@@ -199,25 +200,35 @@
   gap: 2px;
   max-height: 280px;
   overflow: auto;
+  min-width: 220px;
 }
 
 .dtp-popover.sheet .dtp-shortcuts {
   display: grid;
-  grid-template-columns: 1fr 1fr;
+  grid-template-columns: 1fr;
   max-height: none;
+  min-width: 0;
 }
 
 .dtp-shortcut {
-  display: flex;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
   align-items: center;
-  justify-content: space-between;
-  gap: 8px;
+  column-gap: 12px;
   height: var(--control-h);
   padding: 0 8px;
   border-radius: var(--radius-sm);
   text-align: left;
   font-size: var(--step-meta);
   color: var(--ink);
+  min-width: 0;
+}
+
+.dtp-shortcut-name {
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  min-width: 0;
 }
 
 .dtp-shortcut:hover,
@@ -229,6 +240,7 @@
   color: var(--ink-muted);
   font-size: var(--step-data);
   white-space: nowrap;
+  flex-shrink: 0;
 }
 
 .dtp-cal {
@@ -361,9 +373,42 @@
   display: flex;
   flex-wrap: wrap;
   align-items: center;
-  gap: 10px;
+  justify-content: space-between;
+  gap: 12px;
   border-top: 1px solid var(--line);
   padding-top: var(--space-3);
+  min-height: calc(var(--control-h) + var(--space-3));
+}
+
+.dtp-foot-left,
+.dtp-foot-right {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-height: var(--control-h);
+}
+
+.dtp-foot-right {
+  margin-left: auto;
+}
+
+.dtp-clear {
+  height: var(--control-h);
+  padding: 0 4px;
+  color: var(--crit);
+  font-size: var(--step-meta);
+  background: transparent;
+  border: 0;
+}
+
+.dtp-clear:hover {
+  text-decoration: underline;
+}
+
+.dtp-clear:focus-visible {
+  outline: 2px solid var(--focus);
+  outline-offset: 2px;
+  border-radius: var(--radius-xs);
 }
 
 .dtp-time {
@@ -438,10 +483,6 @@
 }
 
 .dtp-foot .btn-secondary {
-  margin-left: auto;
-}
-
-.dtp-foot .linkish {
-  color: var(--ink-2);
-  font-size: var(--step-meta);
+  height: var(--control-h);
+  min-height: var(--control-h);
 }

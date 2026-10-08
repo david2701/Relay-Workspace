@@ -44,6 +44,10 @@ function hasSnippet(
   return !!m && m.field !== "title";
 }
 
+function sectionCount(section: ViewSection): number {
+  return section.count ?? section.items.length;
+}
+
 export function flattenSections(
   sections: ViewSection[],
   collapsedKeys?: ReadonlySet<string>,
@@ -55,7 +59,7 @@ export function flattenSections(
         type: "header",
         key: `hdr:${section.key}`,
         label: section.label,
-        count: section.items.length,
+        count: sectionCount(section),
         sectionKey: section.key,
       });
     }
@@ -94,6 +98,9 @@ type Props = {
   dueGroupMode?: boolean | undefined;
   matches?: ReadonlyMap<string, SearchMatch> | undefined;
   onSelect: (id: string) => void;
+  /** Near-end scroll → load next cursor page. */
+  onLoadMore?: (() => void) | undefined;
+  hasMore?: boolean | undefined;
 };
 
 type ItemRowRenderProps = {
@@ -125,7 +132,7 @@ function renderItemRow(item: WorkItem, props: ItemRowRenderProps): ReactNode {
       {...(props.matches?.get(item.id)
         ? { match: props.matches.get(item.id) }
         : {})}
-      onSelect={() => props.onSelect(item.id)}
+      onSelect={props.onSelect}
     />
   );
 }
@@ -143,17 +150,21 @@ export function VirtualItemList({
   dueGroupMode,
   matches,
   onSelect,
+  onLoadMore,
+  hasMore,
 }: Props) {
   const rows = useMemo(
     () => flattenSections(sections, collapsedKeys),
     [sections, collapsedKeys],
   );
   const useVirtual = rows.length > VIRTUALIZE_THRESHOLD;
+  // Fixed-size estimates only — no measureElement (avoids ResizeObserver thrash).
   const virtualizer = useVirtualizer({
     count: useVirtual ? rows.length : 0,
     getScrollElement: () => scrollRef.current,
     estimateSize: (index) => estimateSize(rows[index]!, matches),
-    overscan: 8,
+    overscan: 12,
+    getItemKey: (index) => rows[index]?.key ?? index,
   });
   const seenFlash = useRef<Set<string>>(new Set());
   useEffect(() => {
@@ -166,11 +177,25 @@ export function VirtualItemList({
         virtualizer.scrollToIndex(index, { align: "center" });
       }
     }
-    // Drop ids no longer flashing so a later re-flash can scroll again.
     for (const id of [...seenFlash.current]) {
       if (!flashIds.has(id)) seenFlash.current.delete(id);
     }
   }, [flashIds, rows, useVirtual, virtualizer]);
+
+  // Infinite scroll: request next page when near the end of loaded rows.
+  useEffect(() => {
+    if (!onLoadMore || !hasMore) return;
+    const el = scrollRef.current;
+    if (!el) return;
+    const onScroll = () => {
+      const remaining = el.scrollHeight - el.scrollTop - el.clientHeight;
+      if (remaining < 600) onLoadMore();
+    };
+    el.addEventListener("scroll", onScroll, { passive: true });
+    onScroll();
+    return () => el.removeEventListener("scroll", onScroll);
+  }, [onLoadMore, hasMore, scrollRef, rows.length]);
+
   const itemProps = {
     agents,
     selectedId,
@@ -188,6 +213,7 @@ export function VirtualItemList({
         {sections.map((section) => {
           const collapsed = !!collapsedKeys?.has(section.key);
           const items = collapsed ? [] : section.items;
+          const count = sectionCount(section);
           if (!section.label) {
             return (
               <div key={section.key || "all"}>
@@ -208,7 +234,7 @@ export function VirtualItemList({
                 <DateGroupHeader
                   groupKey={section.key as DateGroupKey}
                   label={section.label}
-                  count={section.items.length}
+                  count={count}
                   collapsed={collapsed}
                   onToggle={() => onToggleGroup(section.key)}
                 />
@@ -227,7 +253,7 @@ export function VirtualItemList({
             <Section
               key={section.key}
               label={section.label}
-              count={section.items.length}
+              count={count}
             >
               {items.map((item) =>
                 renderItemRow(item, {
@@ -242,6 +268,7 @@ export function VirtualItemList({
     );
   }
 
+  const vItems = virtualizer.getVirtualItems();
   return (
     <div
       className="virtual-list"
@@ -250,22 +277,24 @@ export function VirtualItemList({
         height: virtualizer.getTotalSize(),
         width: "100%",
         position: "relative",
+        contain: "content",
       }}
     >
-      {virtualizer.getVirtualItems().map((vRow) => {
+      {vItems.map((vRow) => {
         const row = rows[vRow.index]!;
         return (
           <div
             key={row.key}
             data-index={vRow.index}
-            ref={virtualizer.measureElement}
             className="virtual-row"
             style={{
               position: "absolute",
               top: 0,
               left: 0,
               width: "100%",
+              height: vRow.size,
               transform: `translateY(${vRow.start}px)`,
+              contain: "layout style",
             }}
           >
             {row.type === "header" ? (

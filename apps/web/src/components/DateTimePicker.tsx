@@ -198,8 +198,9 @@ export function DateTimePicker({
       const r = trig.getBoundingClientRect();
       const vw = window.innerWidth;
       const vh = window.innerHeight;
-      const pickerW = Math.min(420, vw - 32);
+      const pickerW = Math.min(520, vw - 32);
       const spaceBelow = vh - r.bottom;
+      // Spec §1.4: sheet when viewport < 768 or not enough free width for the popover.
       const isNarrow = vw < 768 || vw - 32 < pickerW + 32;
       setNarrow(isNarrow);
       if (isNarrow) {
@@ -240,6 +241,38 @@ export function DateTimePicker({
     document.addEventListener("mousedown", onDoc);
     return () => document.removeEventListener("mousedown", onDoc);
   }, [open, draft, noTime, inputText]);
+
+  // Bottom sheet: trap Tab within the dialog (V12-D16).
+  useEffect(() => {
+    if (!open || !narrow) return;
+    const root = popoverRef.current;
+    if (!root) return;
+    const focusable = () =>
+      [
+        ...root.querySelectorAll<HTMLElement>(
+          'button:not([disabled]), input:not([disabled]), [tabindex]:not([tabindex="-1"])',
+        ),
+      ].filter((el) => el.offsetParent !== null || el === document.activeElement);
+    const first = focusable()[0];
+    first?.focus();
+    function onKey(e: KeyboardEvent) {
+      if (e.key !== "Tab") return;
+      const nodes = focusable();
+      if (nodes.length === 0) return;
+      const i = nodes.indexOf(document.activeElement as HTMLElement);
+      if (e.shiftKey) {
+        if (i <= 0) {
+          e.preventDefault();
+          nodes[nodes.length - 1]?.focus();
+        }
+      } else if (i === nodes.length - 1 || i < 0) {
+        e.preventDefault();
+        nodes[0]?.focus();
+      }
+    }
+    root.addEventListener("keydown", onKey);
+    return () => root.removeEventListener("keydown", onKey);
+  }, [open, narrow]);
 
   function openPicker() {
     if (disabled || readOnly) return;
@@ -512,40 +545,44 @@ export function DateTimePicker({
         </div>
 
         <div className="dtp-foot">
-          <TimeCombobox
-            value={
-              draft && !noTime
-                ? `${pad(toParisParts(new Date(draft)).hh)}:${pad(toParisParts(new Date(draft)).mm)}`
-                : ""
-            }
-            disabled={noTime && allowDateOnly}
-            onChange={setTime}
-            onConfirm={() => void confirmDraft()}
-          />
-          {allowDateOnly ? (
-            <label className="dtp-notime">
-              <input
-                type="checkbox"
-                checked={noTime}
-                onChange={(e) => toggleNoTime(e.target.checked)}
-              />
-              Sin hora
-            </label>
-          ) : null}
-          <button
-            type="button"
-            className="linkish"
-            onClick={() => void commit(null)}
-          >
-            {kind === "due" ? "Quitar fecha" : "Quitar aviso"}
-          </button>
-          <button
-            type="button"
-            className="btn-secondary"
-            onClick={() => void confirmDraft()}
-          >
-            Listo
-          </button>
+          <div className="dtp-foot-left">
+            <TimeCombobox
+              value={
+                draft && !noTime
+                  ? `${pad(toParisParts(new Date(draft)).hh)}:${pad(toParisParts(new Date(draft)).mm)}`
+                  : ""
+              }
+              disabled={noTime && allowDateOnly}
+              onChange={setTime}
+              onConfirm={() => void confirmDraft()}
+            />
+            {allowDateOnly ? (
+              <label className="dtp-notime">
+                <input
+                  type="checkbox"
+                  checked={noTime}
+                  onChange={(e) => toggleNoTime(e.target.checked)}
+                />
+                Sin hora
+              </label>
+            ) : null}
+          </div>
+          <div className="dtp-foot-right">
+            <button
+              type="button"
+              className="dtp-clear"
+              onClick={() => void commit(null)}
+            >
+              {kind === "due" ? "Quitar fecha" : "Quitar aviso"}
+            </button>
+            <button
+              type="button"
+              className="btn-secondary"
+              onClick={() => void confirmDraft()}
+            >
+              Listo
+            </button>
+          </div>
         </div>
       </div>
     </div>

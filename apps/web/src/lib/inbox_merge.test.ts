@@ -60,7 +60,8 @@ describe("rebuildAttentionSections", () => {
       "blocked",
       "today",
     ]);
-    expect(sections[0]!.items.map((i) => i.id)).toEqual(["a", "b"]);
+    // Oldest first (b @11:00, then a @13:00) per v1.1 Atención order.
+    expect(sections[0]!.items.map((i) => i.id)).toEqual(["b", "a"]);
     expect(sections[1]!.items.map((i) => i.id)).toEqual(["c"]);
     expect(sections[2]!.items.map((i) => i.id)).toEqual(["d"]);
   });

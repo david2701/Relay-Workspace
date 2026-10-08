@@ -43,39 +43,35 @@ function percentile(sorted, p) {
 
 async function waitOptionVisible(page, title, timeout, section) {
   const deadline = Date.now() + timeout;
-  const re = new RegExp(title);
-  // Cache Te necesita count while its header is mounted (top of list).
-  let needsYouCount = 80;
-  if (section === "blocked") {
-    await page.evaluate(() => {
-      const el = document.querySelector(".item-list");
-      if (el) el.scrollTop = 0;
-    });
-    await page.waitForTimeout(50);
-    const te = page.locator('[role="group"][aria-label="Te necesita"]');
-    if ((await te.count()) > 0) {
-      needsYouCount = Number(
-        (await te.first().getAttribute("data-section-count")) ?? needsYouCount,
-      );
-    }
-  }
+  const re = new RegExp(title.replace(/[.*+?^${}()|[\]\\]/g, "\\$&"));
+  // Spec order: oldest-first → fresh MCP mutations land at the *end* of
+  // their section. Prefer the app's flash→scrollToIndex; fall back to
+  // seeking near the section end using server section counts.
   while (Date.now() < deadline) {
-    if (section === "blocked") {
-      await page.evaluate((n) => {
-        const el = document.querySelector(".item-list");
-        if (el) el.scrollTop = Math.max(0, (n + 1) * 52);
-      }, needsYouCount);
-    } else {
-      await page.evaluate(() => {
-        const el = document.querySelector(".item-list");
-        if (el) el.scrollTop = 0;
-      });
-    }
     const opt = page.getByRole("option", { name: re });
     if ((await opt.count()) > 0) {
       await opt.first().scrollIntoViewIfNeeded().catch(() => {});
       if (await opt.first().isVisible().catch(() => false)) return;
     }
+    await page.evaluate((sec) => {
+      const el = document.querySelector(".item-list");
+      if (!el) return;
+      const te = document.querySelector(
+        '[role="group"][aria-label="Te necesita"]',
+      );
+      const bl = document.querySelector(
+        '[role="group"][aria-label="Atascado"]',
+      );
+      const needsYou = Number(te?.getAttribute("data-section-count") ?? 80);
+      const blocked = Number(bl?.getAttribute("data-section-count") ?? 120);
+      const row = 52;
+      if (sec === "needs_you") {
+        // End of Te necesita (newest / just-mutated).
+        el.scrollTop = Math.max(0, (needsYou - 2) * row);
+      } else if (sec === "blocked") {
+        el.scrollTop = Math.max(0, (needsYou + blocked - 2) * row);
+      }
+    }, section);
     await page.waitForTimeout(80);
   }
   throw new Error(`Option not visible within ${timeout}ms: ${title}`);

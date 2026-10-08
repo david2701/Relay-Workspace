@@ -23,6 +23,7 @@ import { copy } from "./lib/copy";
 import { groupByDue } from "./lib/date_groups";
 import { itemMatchesFacets } from "./lib/facet_filter";
 import { applyInboxDelta, isInboxDelta } from "./lib/inbox_merge";
+import { appendInboxPage, INBOX_PAGE_SIZE } from "./lib/inbox_page";
 import { toPlainText } from "./lib/markdown";
 import { matchesQuery } from "./lib/normalize";
 import {
@@ -182,11 +183,13 @@ export default function App() {
   }, []);
 
   const inboxView: InboxView = view === "notes" ? "attention" : view;
+  const loadingMoreRef = useRef(false);
 
   // Reset incremental sync when the lens changes (usePoll also clears data).
   useEffect(() => {
     syncCursorRef.current = null;
     inboxStateRef.current = null;
+    loadingMoreRef.current = false;
   }, [inboxView]);
 
   const {
@@ -209,22 +212,44 @@ export default function App() {
             inboxStateRef.current = merged;
             return merged;
           }
-          // Server returned a full snapshot (or pre-delta shape) — adopt it.
-          const snap = payload as InboxResult;
-          syncCursorRef.current = snap.sync_cursor ?? null;
-          inboxStateRef.current = snap;
-          return snap;
+          // Non-delta response: re-fetch a bounded first page (never adopt a
+          // multi-MB full snapshot into the web client).
         } catch {
-          // Fall through to full snapshot on delta errors.
+          // Fall through to paged snapshot on delta errors.
         }
       }
-      const snap = (await api.inbox(inboxView)) as InboxResult;
+      const snap = (await api.inbox(inboxView, {
+        limit: INBOX_PAGE_SIZE,
+      })) as InboxResult;
       syncCursorRef.current = snap.sync_cursor ?? null;
       inboxStateRef.current = snap;
       return snap;
     },
     [inboxView],
   );
+
+  const loadMoreInbox = useCallback(async () => {
+    const cur = inboxStateRef.current;
+    if (!cur || !cur.has_more || !cur.next_cursor || loadingMoreRef.current) {
+      return;
+    }
+    loadingMoreRef.current = true;
+    try {
+      const page = (await api.inbox(inboxView, {
+        limit: INBOX_PAGE_SIZE,
+        cursor: cur.next_cursor,
+      })) as InboxResult;
+      const merged = appendInboxPage(cur, page);
+      // Preserve the live sync cursor from the previous state.
+      if (cur.sync_cursor) merged.sync_cursor = cur.sync_cursor;
+      inboxStateRef.current = merged;
+      setInboxRaw(merged);
+    } catch {
+      // Ignore; next scroll will retry.
+    } finally {
+      loadingMoreRef.current = false;
+    }
+  }, [inboxView, setInboxRaw]);
 
   const setInbox = useCallback(
     (updater: ((prev: InboxResult | null) => InboxResult | null) | InboxResult | null) => {
@@ -459,6 +484,10 @@ export default function App() {
 
   const baseUnfilteredCount = useMemo(() => {
     if (!inbox) return 0;
+    if (typeof inbox.total_count === "number") return inbox.total_count;
+    if (inbox.section_counts) {
+      return Object.values(inbox.section_counts).reduce((n, c) => n + c, 0);
+    }
     return buildViewSections({
       inbox,
       inboxView,
@@ -466,7 +495,7 @@ export default function App() {
       pendingRows,
       filter: "",
       now: Date.now(),
-    }).reduce((n, s) => n + s.items.length, 0);
+    }).reduce((n, s) => n + (s.count ?? s.items.length), 0);
   }, [inbox, inboxView, lingerRows, pendingRows, tick]);
 
   const viewSections = useMemo(() => {
@@ -1136,6 +1165,10 @@ relay web   →  http://127.0.0.1:7421`}</pre>
                     }
                   : {})}
                 onSelect={setSelectedId}
+                hasMore={!!inbox.has_more}
+                onLoadMore={() => {
+                  void loadMoreInbox();
+                }}
               />
             ) : null}
             {inbox && flatItems.length === 0 ? (
@@ -1194,7 +1227,7 @@ relay web   →  http://127.0.0.1:7421`}</pre>
                     agents={agents}
                     selected={selectedId === item.id}
                     flash={flashIds.has(item.id)}
-                    onSelect={() => setSelectedId(item.id)}
+                    onSelect={setSelectedId}
                   />
                   {view !== "all" ? (
                     <div className="elsewhere mono">

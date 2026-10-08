@@ -5,6 +5,8 @@ export type ViewSection = {
   key: string;
   label: string;
   items: WorkItem[];
+  /** Server section/group count when paginated (may exceed items.length). */
+  count?: number;
 };
 
 export type LingerRow = {
@@ -102,6 +104,7 @@ export function buildViewSections(args: {
       const items = dedupeItems([...lingerInSection, ...section.items]).filter(
         (i) => passesFilter(i, filter, allowedIds),
       );
+      const serverCount = args.inbox?.section_counts?.[section.key];
       return {
         key: section.key,
         label:
@@ -111,6 +114,7 @@ export function buildViewSections(args: {
               ? "Atascado"
               : "Para hoy",
         items,
+        count: serverCount ?? items.length,
       };
     });
   }
@@ -128,18 +132,32 @@ export function buildViewSections(args: {
         }
         return true;
       });
+    const groupCountMap = new Map(
+      (args.inbox.group_counts ?? []).map((g) => [g.key, g.count]),
+    );
     return args.inbox.groups.map((group, index) => {
       const items = dedupeItems([
         ...(index === 0 ? orphanLinger : []),
         ...group.items,
       ]).filter((i) => passesFilter(i, filter, allowedIds));
+      const serverCount = groupCountMap.get(group.key);
       if (args.inboxView === "done") {
         const terminal = items.filter(
           (i) => i.status === "done" || i.status === "cancelled",
         );
-        return { key: group.key, label: group.label, items: terminal };
+        return {
+          key: group.key,
+          label: group.label,
+          items: terminal,
+          count: serverCount ?? terminal.length,
+        };
       }
-      return { key: group.key, label: group.label, items };
+      return {
+        key: group.key,
+        label: group.label,
+        items,
+        count: serverCount ?? items.length,
+      };
     });
   }
   // Flat views: agent_wip / all
@@ -162,5 +180,12 @@ export function buildViewSections(args: {
   const items = dedupeItems([...lingerItems, ...pending, ...base]).filter((i) =>
     passesFilter(i, filter, allowedIds),
   );
-  return [{ key: "all", label: "", items }];
+  return [
+    {
+      key: "all",
+      label: "",
+      items,
+      count: args.inbox.total_count ?? items.length,
+    },
+  ];
 }

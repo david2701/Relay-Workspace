@@ -227,18 +227,20 @@ export function PickerShortcuts({
           s.iso === null
             ? s.label
             : `${s.label}, ${formatParsePreview(s.iso, s.dateOnly).replace(" · ", ", ")}`;
+        // Compact right column (v1.2 §1 anatomy): «vie 9 · 09:00», no year.
         let right = "";
         if (s.iso) {
-          const parts = formatParsePreview(s.iso, s.dateOnly).split(" · ");
           const pp = toParisParts(new Date(s.iso));
+          const wd = DAYS[parisWeekday(new Date(s.iso))];
+          const hm = `${String(pp.hh).padStart(2, "0")}:${String(pp.mm).padStart(2, "0")}`;
           if (s.id === "today") {
-            right = `${DAYS[parisWeekday(new Date(s.iso))]} ${pp.d}`;
+            right = `${wd} ${pp.d}`;
           } else if (s.id === "afternoon" || s.id === "in1h") {
-            right = parts[1] ?? "";
+            right = hm;
+          } else if (s.dateOnly) {
+            right = `${wd} ${pp.d}`;
           } else {
-            const time = parts[1];
-            const dayBit = parts[0]?.replace(/\s+\d{4}$/, "") ?? "";
-            right = time ? `${dayBit} ${time}` : dayBit;
+            right = `${wd} ${pp.d} · ${hm}`;
           }
         }
         return (

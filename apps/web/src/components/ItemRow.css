@@ -102,9 +102,12 @@
 .item-meta {
   display: flex;
   align-items: center;
-  gap: 10px;
-  flex-shrink: 0;
+  gap: 8px;
+  flex-shrink: 1;
+  min-width: 0;
+  max-width: min(46%, 420px);
   margin-left: 12px;
+  justify-content: flex-end;
 }
 
 .due-chip {
@@ -113,6 +116,9 @@
   font-variant-numeric: tabular-nums;
   color: var(--ink-muted);
   white-space: nowrap;
+  max-width: 9rem;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 .due-chip.tone-warn {
@@ -126,7 +132,8 @@
 .reminder-chip {
   font-size: var(--step-meta);
   color: var(--ink-muted);
-  max-width: 160px;
+  max-width: 12rem;
+  min-width: 0;
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;

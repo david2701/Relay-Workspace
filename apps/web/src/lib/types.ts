@@ -71,10 +71,10 @@ export type InboxResult = {
   counters: { needs_you: number };
   total_count?: number;
   section_counts?: Record<string, number>;
-  group_counts?: Record<string, number>;
+  group_counts?: Array<{ key: string; label: string; count: number }>;
   sync_cursor?: string;
   server_time?: string;
-  next_cursor?: string;
+  next_cursor?: string | null;
   has_more?: boolean;
   mode?: "snapshot";
 };

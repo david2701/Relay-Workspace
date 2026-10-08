@@ -1,0 +1,114 @@
+import type { InboxResult, WorkItem } from "./types";
+
+/** First-page size for web inbox fetches (keeps payload ≪ 200 KB at 10k). */
+export const INBOX_PAGE_SIZE = 50;
+
+/** Append a cursor page onto an existing snapshot without duplicating ids. */
+export function appendInboxPage(
+  prev: InboxResult,
+  page: InboxResult,
+): InboxResult {
+  const seen = new Set(prev.items.map((i) => i.id));
+  const additions = page.items.filter((i) => !seen.has(i.id));
+  const items = [...prev.items, ...additions];
+
+  const next: InboxResult = {
+    ...prev,
+    items,
+    next_cursor: page.next_cursor ?? null,
+    has_more: Boolean(page.has_more),
+  };
+  if (page.total_count !== undefined) next.total_count = page.total_count;
+  if (page.counters) next.counters = page.counters;
+  if (page.section_counts) next.section_counts = page.section_counts;
+  if (page.group_counts) next.group_counts = page.group_counts;
+  if (page.sync_cursor) next.sync_cursor = page.sync_cursor;
+  if (page.server_time) next.server_time = page.server_time;
+
+  if (prev.view === "attention" || prev.sections || page.sections) {
+    next.sections = mergeAttentionSections(prev.sections, page.sections, items);
+  }
+  if (prev.groups || page.groups) {
+    next.groups = mergeFlatGroups(prev.groups, page.groups, additions);
+  }
+  return next;
+}
+
+function mergeAttentionSections(
+  prev: InboxResult["sections"],
+  page: InboxResult["sections"],
+  allItems: WorkItem[],
+): NonNullable<InboxResult["sections"]> {
+  const keys: Array<"needs_you" | "blocked" | "today"> = [
+    "needs_you",
+    "blocked",
+    "today",
+  ];
+  return keys.map((key) => {
+    const prevItems = prev?.find((s) => s.key === key)?.items ?? [];
+    const pageItems = page?.find((s) => s.key === key)?.items ?? [];
+    const seen = new Set(prevItems.map((i) => i.id));
+    const merged = [...prevItems];
+    for (const item of pageItems) {
+      if (seen.has(item.id)) continue;
+      merged.push(item);
+      seen.add(item.id);
+    }
+    // Prefer membership from the flat merged list when available.
+    if (allItems.length > 0 && key !== "today") {
+      const fromFlat = allItems.filter((i) =>
+        key === "needs_you"
+          ? i.status === "needs_you"
+          : i.status === "blocked",
+      );
+      if (fromFlat.length >= merged.length) {
+        return { key, items: fromFlat };
+      }
+    }
+    if (key === "today" && allItems.length > 0) {
+      const fromFlat = allItems.filter(
+        (i) => i.status !== "needs_you" && i.status !== "blocked",
+      );
+      if (fromFlat.length >= merged.length) {
+        return { key, items: fromFlat };
+      }
+    }
+    return { key, items: merged };
+  });
+}
+
+function mergeFlatGroups(
+  prev: InboxResult["groups"],
+  page: InboxResult["groups"],
+  additions: WorkItem[],
+): NonNullable<InboxResult["groups"]> {
+  if (!prev?.length && !page?.length) return [];
+  if (!prev?.length) return page ?? [];
+  if (!page?.length) return prev;
+  const byKey = new Map(prev.map((g) => [g.key, { ...g, items: [...g.items] }]));
+  for (const group of page) {
+    const existing = byKey.get(group.key);
+    if (!existing) {
+      byKey.set(group.key, { ...group, items: [...group.items] });
+      continue;
+    }
+    const seen = new Set(existing.items.map((i) => i.id));
+    for (const item of group.items) {
+      if (seen.has(item.id)) continue;
+      existing.items.push(item);
+      seen.add(item.id);
+    }
+  }
+  // Orphan additions (no group key from page) go into the first group.
+  if (additions.length > 0) {
+    const covered = new Set(
+      [...byKey.values()].flatMap((g) => g.items.map((i) => i.id)),
+    );
+    const orphans = additions.filter((a) => !covered.has(a.id));
+    const first = byKey.values().next().value;
+    if (orphans.length > 0 && first) {
+      first.items = [...orphans, ...first.items];
+    }
+  }
+  return [...byKey.values()];
+}

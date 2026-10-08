@@ -60,13 +60,13 @@ type AttentionBuckets = {
 };
 
 function buildAttention(items: readonly WorkItem[], now: Date): AttentionBuckets {
-  // Newest first: keeps MCP→UI mutations inside the virtualized window at 10k.
+  // Spec order (v1.1 §1.2): needs_you / blocked oldest-first; today by schedule.
   const needsYou = items
     .filter((i) => i.status === "needs_you")
-    .sort((a, b) => b.updated_at.localeCompare(a.updated_at));
+    .sort((a, b) => a.updated_at.localeCompare(b.updated_at));
   const blocked = items
     .filter((i) => i.status === "blocked")
-    .sort((a, b) => b.updated_at.localeCompare(a.updated_at));
+    .sort((a, b) => a.updated_at.localeCompare(b.updated_at));
   const endToday = endOfParisDay(now);
   const today = items
     .filter((i) => {

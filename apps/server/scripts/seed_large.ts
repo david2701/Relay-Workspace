@@ -169,11 +169,18 @@ type StatusPlan = {
   weight: number;
 };
 
+/**
+ * Exact status counts (weights sum to ITEM_COUNT = 10_000):
+ *   inbox 2200 · assigned 2000 · in_progress 2000 · blocked 120 ·
+ *   needs_you 80 · done 2600 · cancelled 1000
+ * Todo (`view=all`) is non-terminal only → 6400 rows (excludes done+cancelled).
+ * Atención is intentionally modest (~80 Te necesita / ~120 Atascado) plus
+ * schedule-driven «Para hoy»; not a 700+/2k stress of those sections.
+ */
 const STATUS_PLAN: readonly StatusPlan[] = [
   { status: "inbox", weight: 2200 },
   { status: "assigned", weight: 2000 },
   { status: "in_progress", weight: 2000 },
-  // Keep Atención sections modest so MCP→UI rows stay near the virtual window.
   { status: "blocked", weight: 120 },
   { status: "needs_you", weight: 80 },
   { status: "done", weight: 2600 },

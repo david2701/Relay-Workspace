@@ -1,3 +1,4 @@
+import { memo } from "react";
 import { markForCompleter, markForWitness } from "../lib/actor_mark";
 import { copy } from "../lib/copy";
 import {
@@ -22,10 +23,10 @@ type Props = {
   /** When grouped by due date, compact the due chip (§1.8). */
   dueGroupKey?: string | undefined;
   match?: SearchMatch | undefined;
-  onSelect: () => void;
+  onSelect: (id: string) => void;
 };
 
-export function ItemRow({
+export const ItemRow = memo(function ItemRow({
   item,
   agents,
   selected,
@@ -88,7 +89,7 @@ export function ItemRow({
       ]
         .filter(Boolean)
         .join(" ")}
-      onClick={onSelect}
+      onClick={() => onSelect(item.id)}
       tabIndex={-1}
     >
       <span className="testigo-rule" aria-hidden />
@@ -138,15 +139,15 @@ export function ItemRow({
         {reminder ? (
           <span
             className="reminder-chip"
-            title={reminder.intent ?? undefined}
+            title={
+              reminder.intent
+                ? `${reminder.time} · ${reminder.intent}`
+                : reminder.time
+            }
           >
             <span className="mono">{reminder.time}</span>
             {reminder.intent ? (
-              <span className="intent">
-                {" "}
-                · {reminder.intent.slice(0, 24)}
-                {reminder.intent.length > 24 ? "…" : ""}
-              </span>
+              <span className="intent"> · {reminder.intent}</span>
             ) : null}
           </span>
         ) : null}
@@ -171,4 +172,4 @@ export function ItemRow({
       </div>
     </div>
   );
-}
+});
