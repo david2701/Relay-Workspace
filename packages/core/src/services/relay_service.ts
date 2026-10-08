@@ -8,7 +8,6 @@ import type { PageParams } from "../domain/page.js";
 import { recommendInbox } from "../domain/recommend.js";
 import { type SearchDeps, searchItems, searchNotes } from "../domain/search.js";
 import { nowIso } from "../domain/time.js";
-import { readSqliteDataVersion } from "../store/db.js";
 import {
   applyStatusChange,
   askUser,
@@ -46,7 +45,7 @@ import type {
   UpdateItemInput,
   WorkItem,
 } from "../schemas/work_item.js";
-import { openDatabase, type RelayDb } from "../store/db.js";
+import { openDatabase, type RelayDb, readSqliteDataVersion } from "../store/db.js";
 import type { ListPageResult } from "../store/repositories.js";
 import {
   AgentRepository,

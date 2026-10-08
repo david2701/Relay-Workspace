@@ -69,55 +69,55 @@
   },
   "after": {
     "phase": "after",
-    "measured_at": "2026-10-08T11:39:59.213Z",
-    "item_total_hint": 6460,
+    "measured_at": "2026-10-08T13:18:52.131Z",
+    "item_total_hint": 6481,
     "ui_method": "cold_cache",
     "api": {
       "inbox_attention": {
         "path": "/api/inbox?view=attention",
         "samples": 20,
-        "p50_ms": 22.51,
-        "p95_ms": 28.52,
-        "mean_ms": 23.35,
-        "payload_bytes": 2503971
+        "p50_ms": 24.38,
+        "p95_ms": 29.72,
+        "mean_ms": 25.41,
+        "payload_bytes": 2525411
       },
       "inbox_attention_page": {
         "path": "/api/inbox?view=attention&limit=200",
         "samples": 20,
-        "p50_ms": 13.9,
-        "p95_ms": 15.86,
-        "mean_ms": 14.27,
-        "payload_bytes": 113663
+        "p50_ms": 14.51,
+        "p95_ms": 17.86,
+        "mean_ms": 15.07,
+        "payload_bytes": 113317
       },
       "inbox_all": {
         "path": "/api/inbox?view=all",
         "samples": 20,
-        "p50_ms": 17.93,
-        "p95_ms": 20.68,
-        "mean_ms": 17.92,
-        "payload_bytes": 3767206
+        "p50_ms": 20.89,
+        "p95_ms": 28.74,
+        "mean_ms": 21.92,
+        "payload_bytes": 3778426
       },
       "inbox_all_page": {
         "path": "/api/inbox?view=all&limit=50",
         "samples": 20,
-        "p50_ms": 2.89,
-        "p95_ms": 3.2,
-        "mean_ms": 3.11,
-        "payload_bytes": 26537
+        "p50_ms": 3.12,
+        "p95_ms": 6.4,
+        "mean_ms": 3.74,
+        "payload_bytes": 26476
       }
     },
     "mcp": {
       "inbox_query": {
         "tool": "inbox_query",
         "samples": 20,
-        "p50_ms": 22.88,
-        "p95_ms": 25.3,
-        "mean_ms": 23.05,
-        "payload_bytes": 2503982
+        "p50_ms": 25.43,
+        "p95_ms": 39.65,
+        "mean_ms": 27.66,
+        "payload_bytes": 2525422
       }
     },
     "poll": {
-      "initial_bytes": 113663,
+      "initial_bytes": 113317,
       "steady_bytes": 257,
       "mode": "delta"
     },
@@ -125,67 +125,67 @@
       "attention": {
         "view": "attention",
         "method": "cold_cache",
-        "to_first_row_ms": 135.08,
-        "to_interactive_ms": 154.23
+        "to_first_row_ms": 118.68,
+        "to_interactive_ms": 136.4
       },
       "all": {
         "view": "all",
         "method": "cold_cache",
-        "to_first_row_ms": 86.66,
-        "to_interactive_ms": 102.88
+        "to_first_row_ms": 90.31,
+        "to_interactive_ms": 107.17
       },
       "scroll_attention": {
         "view": "attention",
         "method": "mouse.wheel",
         "scroll_distance_px": 4000,
         "frames": 172,
-        "avg_frame_ms": 16.65,
-        "fps": 60.07,
-        "p95_frame_ms": 16.8,
-        "long_frames_over_16_7ms": 42,
+        "avg_frame_ms": 16.62,
+        "fps": 60.16,
+        "p95_frame_ms": 16.7,
+        "long_frames_over_16_7ms": 38,
         "long_frames_over_32ms": 0,
         "cdp_metrics": {
           "LayoutCount": 40,
-          "LayoutDuration": 0.009554,
+          "LayoutDuration": 0.011066,
           "RecalcStyleCount": 169,
-          "RecalcStyleDuration": 0.01343,
-          "ScriptDuration": 0.241173
+          "RecalcStyleDuration": 0.014461,
+          "ScriptDuration": 0.269411
         }
       },
       "scroll_all": {
         "view": "all",
         "method": "mouse.wheel",
         "scroll_distance_px": 4000,
-        "frames": 183,
-        "avg_frame_ms": 16.57,
-        "fps": 60.34,
+        "frames": 199,
+        "avg_frame_ms": 16.61,
+        "fps": 60.22,
         "p95_frame_ms": 16.7,
-        "long_frames_over_16_7ms": 27,
+        "long_frames_over_16_7ms": 52,
         "long_frames_over_32ms": 0,
         "cdp_metrics": {
-          "LayoutCount": 2,
-          "LayoutDuration": 0.002823,
-          "RecalcStyleCount": 79,
-          "RecalcStyleDuration": 0.016089,
-          "ScriptDuration": 0.211339
+          "LayoutCount": 33,
+          "LayoutDuration": 0.010802,
+          "RecalcStyleCount": 221,
+          "RecalcStyleDuration": 0.039667,
+          "ScriptDuration": 0.423886
         }
       },
       "scroll": {
         "view": "all",
         "method": "mouse.wheel",
         "scroll_distance_px": 4000,
-        "frames": 183,
-        "avg_frame_ms": 16.57,
-        "fps": 60.34,
+        "frames": 199,
+        "avg_frame_ms": 16.61,
+        "fps": 60.22,
         "p95_frame_ms": 16.7,
-        "long_frames_over_16_7ms": 27,
+        "long_frames_over_16_7ms": 52,
         "long_frames_over_32ms": 0,
         "cdp_metrics": {
-          "LayoutCount": 2,
-          "LayoutDuration": 0.002823,
-          "RecalcStyleCount": 79,
-          "RecalcStyleDuration": 0.016089,
-          "ScriptDuration": 0.211339
+          "LayoutCount": 33,
+          "LayoutDuration": 0.010802,
+          "RecalcStyleCount": 221,
+          "RecalcStyleDuration": 0.039667,
+          "ScriptDuration": 0.423886
         }
       }
     }

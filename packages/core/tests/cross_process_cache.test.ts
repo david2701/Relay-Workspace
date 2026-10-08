@@ -3,9 +3,9 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { DatabaseSync } from "node:sqlite";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
-import { readSqliteDataVersion } from "../src/store/db.js";
 import { USER_ACTOR_ID } from "../src/schemas/enums.js";
 import { RelayService } from "../src/services/relay_service.js";
+import { readSqliteDataVersion } from "../src/store/db.js";
 
 /**
  * Simulates HTTP server + mcp:stdio / raw SQL on the same RELAY_DB:

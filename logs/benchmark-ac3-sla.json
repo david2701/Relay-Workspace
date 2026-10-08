@@ -8,181 +8,181 @@
       "variant": "needs_you",
       "samples": [
         {
-          "mcpReturnMs": 14,
-          "uiMs": 278,
-          "totalMs": 292
+          "mcpReturnMs": 11,
+          "uiMs": 700,
+          "totalMs": 711
         },
         {
-          "mcpReturnMs": 14,
-          "uiMs": 628,
-          "totalMs": 642
-        },
-        {
-          "mcpReturnMs": 14,
-          "uiMs": 636,
-          "totalMs": 650
+          "mcpReturnMs": 10,
+          "uiMs": 618,
+          "totalMs": 628
         },
         {
           "mcpReturnMs": 13,
-          "uiMs": 673,
+          "uiMs": 676,
+          "totalMs": 689
+        },
+        {
+          "mcpReturnMs": 8,
+          "uiMs": 685,
+          "totalMs": 693
+        },
+        {
+          "mcpReturnMs": 14,
+          "uiMs": 687,
+          "totalMs": 701
+        },
+        {
+          "mcpReturnMs": 12,
+          "uiMs": 678,
+          "totalMs": 690
+        },
+        {
+          "mcpReturnMs": 10,
+          "uiMs": 664,
+          "totalMs": 674
+        },
+        {
+          "mcpReturnMs": 12,
+          "uiMs": 674,
           "totalMs": 686
         },
         {
-          "mcpReturnMs": 14,
-          "uiMs": 676,
-          "totalMs": 690
+          "mcpReturnMs": 10,
+          "uiMs": 666,
+          "totalMs": 676
         },
         {
-          "mcpReturnMs": 13,
-          "uiMs": 674,
-          "totalMs": 687
-        },
-        {
-          "mcpReturnMs": 9,
-          "uiMs": 685,
-          "totalMs": 694
-        },
-        {
-          "mcpReturnMs": 14,
-          "uiMs": 671,
-          "totalMs": 685
-        },
-        {
-          "mcpReturnMs": 14,
-          "uiMs": 673,
-          "totalMs": 687
-        },
-        {
-          "mcpReturnMs": 19,
-          "uiMs": 671,
+          "mcpReturnMs": 12,
+          "uiMs": 678,
           "totalMs": 690
         }
       ],
-      "p50": 671,
-      "p95": 685,
-      "max": 685
+      "p50": 676,
+      "p95": 700,
+      "max": 700
     },
     {
       "variant": "blocked",
       "samples": [
         {
-          "mcpReturnMs": 14,
-          "uiMs": 725,
-          "totalMs": 739
-        },
-        {
-          "mcpReturnMs": 12,
-          "uiMs": 622,
-          "totalMs": 634
-        },
-        {
-          "mcpReturnMs": 10,
-          "uiMs": 665,
-          "totalMs": 675
-        },
-        {
           "mcpReturnMs": 13,
-          "uiMs": 671,
-          "totalMs": 684
+          "uiMs": 722,
+          "totalMs": 735
+        },
+        {
+          "mcpReturnMs": 14,
+          "uiMs": 622,
+          "totalMs": 636
+        },
+        {
+          "mcpReturnMs": 9,
+          "uiMs": 717,
+          "totalMs": 726
+        },
+        {
+          "mcpReturnMs": 15,
+          "uiMs": 674,
+          "totalMs": 689
         },
         {
           "mcpReturnMs": 10,
-          "uiMs": 712,
-          "totalMs": 722
-        },
-        {
-          "mcpReturnMs": 12,
-          "uiMs": 658,
-          "totalMs": 670
+          "uiMs": 664,
+          "totalMs": 674
         },
         {
           "mcpReturnMs": 8,
-          "uiMs": 663,
-          "totalMs": 671
+          "uiMs": 668,
+          "totalMs": 676
         },
         {
-          "mcpReturnMs": 13,
-          "uiMs": 670,
-          "totalMs": 683
+          "mcpReturnMs": 10,
+          "uiMs": 715,
+          "totalMs": 725
         },
         {
-          "mcpReturnMs": 14,
-          "uiMs": 720,
-          "totalMs": 734
+          "mcpReturnMs": 12,
+          "uiMs": 653,
+          "totalMs": 665
         },
         {
-          "mcpReturnMs": 16,
-          "uiMs": 608,
-          "totalMs": 624
+          "mcpReturnMs": 9,
+          "uiMs": 664,
+          "totalMs": 673
+        },
+        {
+          "mcpReturnMs": 9,
+          "uiMs": 715,
+          "totalMs": 724
         }
       ],
-      "p50": 665,
-      "p95": 725,
-      "max": 725
+      "p50": 668,
+      "p95": 722,
+      "max": 722
     },
     {
       "variant": "complete",
       "samples": [
         {
-          "mcpReturnMs": 20,
+          "mcpReturnMs": 14,
           "uiMs": 3,
-          "totalMs": 188
+          "totalMs": 189
         },
         {
-          "mcpReturnMs": 16,
-          "uiMs": 5,
-          "totalMs": 176
-        },
-        {
-          "mcpReturnMs": 18,
-          "uiMs": 4,
-          "totalMs": 176
-        },
-        {
-          "mcpReturnMs": 17,
+          "mcpReturnMs": 14,
           "uiMs": 4,
           "totalMs": 163
         },
         {
-          "mcpReturnMs": 17,
-          "uiMs": 4,
-          "totalMs": 255
-        },
-        {
-          "mcpReturnMs": 18,
-          "uiMs": 4,
-          "totalMs": 186
-        },
-        {
-          "mcpReturnMs": 19,
-          "uiMs": 2,
-          "totalMs": 169
-        },
-        {
-          "mcpReturnMs": 17,
+          "mcpReturnMs": 12,
           "uiMs": 3,
-          "totalMs": 160
-        },
-        {
-          "mcpReturnMs": 17,
-          "uiMs": 2,
-          "totalMs": 172
+          "totalMs": 176
         },
         {
           "mcpReturnMs": 16,
           "uiMs": 3,
-          "totalMs": 174
+          "totalMs": 179
+        },
+        {
+          "mcpReturnMs": 14,
+          "uiMs": 2,
+          "totalMs": 185
+        },
+        {
+          "mcpReturnMs": 19,
+          "uiMs": 2,
+          "totalMs": 166
+        },
+        {
+          "mcpReturnMs": 15,
+          "uiMs": 3,
+          "totalMs": 173
+        },
+        {
+          "mcpReturnMs": 18,
+          "uiMs": 2,
+          "totalMs": 185
+        },
+        {
+          "mcpReturnMs": 14,
+          "uiMs": 3,
+          "totalMs": 168
+        },
+        {
+          "mcpReturnMs": 14,
+          "uiMs": 3,
+          "totalMs": 172
         }
       ],
       "p50": 3,
-      "p95": 5,
-      "max": 5
+      "p95": 4,
+      "max": 4
     }
   ],
   "overall": {
     "n": 30,
-    "p50": 636,
-    "p95": 720,
-    "max": 725
+    "p50": 664,
+    "p95": 717,
+    "max": 722
   }
 }
