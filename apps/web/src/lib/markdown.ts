@@ -1,12 +1,33 @@
-/** Escape raw HTML so skipHtml still shows tags as literal text (V12-M3). */
-export function escapeRawHtml(md: string): string {
-  const parts = md.split(/(```[\s\S]*?```)/g);
-  return parts
-    .map((part, i) => {
-      if (i % 2 === 1) return part;
-      return part.replace(/</g, "&lt;");
-    })
-    .join("");
+type MdastNode = {
+  type: string;
+  value?: string;
+  children?: MdastNode[];
+  position?: unknown;
+};
+
+/**
+ * remark plugin: turn raw HTML nodes into text so they render literally
+ * (V12-M3) without shifting source offsets (needed for toggleTask).
+ */
+export function remarkHtmlAsText() {
+  return (tree: MdastNode) => {
+    const walk = (node: MdastNode) => {
+      if (!node.children) return;
+      for (let i = 0; i < node.children.length; i++) {
+        const child = node.children[i]!;
+        if (child.type === "html" && typeof child.value === "string") {
+          node.children[i] = {
+            type: "text",
+            value: child.value,
+            position: child.position,
+          };
+        } else {
+          walk(child);
+        }
+      }
+    };
+    walk(tree);
+  };
 }
 
 /** Plain-text extract from markdown for list/card snippets. */

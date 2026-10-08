@@ -2,8 +2,8 @@ import type { Components } from "react-markdown";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 import {
-  escapeRawHtml,
   isInternalPath,
+  remarkHtmlAsText,
   sanitizeUrl,
   urlTransform,
 } from "../lib/markdown";
@@ -23,8 +23,6 @@ export function Markdown({
   readOnly = false,
   className,
 }: Props) {
-  // Escape raw HTML so it appears as literal text (skipHtml would otherwise drop it).
-  const safeSource = escapeRawHtml(source);
   const components: Components = {
     h1: ({ children }) => <h3 className="md-h1">{children}</h3>,
     h2: ({ children }) => <h4 className="md-h2">{children}</h4>,
@@ -37,21 +35,13 @@ export function Markdown({
       <blockquote className="md-quote">{children}</blockquote>
     ),
     hr: () => <hr className="md-hr" />,
-    code: ({ className: codeClass, children, ...rest }) => {
+    code: ({ className: codeClass, children }) => {
       const text = String(children);
       const isBlock = Boolean(codeClass) || text.includes("\n");
       if (!isBlock) {
-        return (
-          <code className="md-inline-code" {...rest}>
-            {children}
-          </code>
-        );
+        return <code className="md-inline-code">{children}</code>;
       }
-      return (
-        <code className={codeClass} {...rest}>
-          {children}
-        </code>
-      );
+      return <code className={codeClass}>{children}</code>;
     },
     pre: ({ children }) => {
       let lang: string | undefined;
@@ -146,17 +136,27 @@ export function Markdown({
     td: ({ children }) => <td className="md-td">{children}</td>,
     ul: ({ children }) => <ul className="md-ul">{children}</ul>,
     ol: ({ children }) => <ol className="md-ol">{children}</ol>,
-    li: ({ children, node, ...rest }) => {
-      const checked = (rest as { checked?: boolean | null }).checked;
-      if (typeof checked === "boolean") {
+    li: ({ children, node, className }) => {
+      const classes = Array.isArray(className)
+        ? className
+        : String(className ?? "").split(/\s+/);
+      const isTask = classes.includes("task-list-item");
+      if (isTask) {
+        const inputChild = node?.children?.find(
+          (c) =>
+            c.type === "element" &&
+            (c as { tagName?: string }).tagName === "input",
+        ) as
+          | {
+              type: "element";
+              properties?: { checked?: boolean };
+            }
+          | undefined;
+        const checked = Boolean(inputChild?.properties?.checked);
         const offset = node?.position?.start?.offset ?? 0;
         const disabled = readOnly || !onToggleTask;
-        const { checked: _c, ...liRest } = rest as {
-          checked?: boolean | null;
-        } & typeof rest;
-        void _c;
         return (
-          <li className={`md-task${checked ? " is-done" : ""}`} {...liRest}>
+          <li className={`md-task${checked ? " is-done" : ""}`}>
             <label className="md-task-label">
               <input
                 type="checkbox"
@@ -171,23 +171,19 @@ export function Markdown({
           </li>
         );
       }
-      return (
-        <li className="md-li" {...rest}>
-          {children}
-        </li>
-      );
+      return <li className="md-li">{children}</li>;
     },
     // Suppress default GFM checkbox; we render native inputs in `li`.
-    input: ({ type, ...props }) => {
+    input: ({ type }) => {
       if (type === "checkbox") return null;
-      return <input type={type} {...props} />;
+      return null;
     },
   };
 
   return (
     <div className={`markdown${className ? ` ${className}` : ""}`}>
       <ReactMarkdown
-        remarkPlugins={[remarkGfm]}
+        remarkPlugins={[remarkGfm, remarkHtmlAsText]}
         skipHtml
         urlTransform={urlTransform}
         components={components}

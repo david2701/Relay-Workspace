@@ -87,15 +87,16 @@ describe("Markdown sanitization (V12-M3–M6)", () => {
   }
 
   it("renders raw HTML as text, no script or on* attrs", () => {
-    // react-markdown drops raw HTML by default; ensure no executable tags leak.
     const html = render(
-      'Antes <script>alert(1)</script> después\n\n<img src=x onerror=alert(1)>\n',
+      "Antes <script>alert(1)</script> después\n\n<img src=x onerror=alert(1)>\n",
     );
+    // No live elements — only escaped text (may still contain the word onerror).
     expect(html.toLowerCase()).not.toContain("<script");
-    expect(html).not.toMatch(/\son\w+=/i);
     expect(html.toLowerCase()).not.toContain("<img");
+    expect(html).not.toMatch(/<[a-z][^>]*\son\w+=/i);
     expect(html).toContain("Antes");
     expect(html).toContain("después");
+    expect(html).toContain("alert(1)");
   });
 
   it("shows javascript: links as text without <a>", () => {
@@ -131,8 +132,9 @@ describe("Markdown sanitization (V12-M3–M6)", () => {
     const html = render(fixture);
     expect(html.toLowerCase()).not.toContain("<script");
     expect(html.toLowerCase()).not.toContain("<img");
-    expect(html).not.toMatch(/\son\w+=/i);
+    expect(html).not.toMatch(/<[a-z][^>]*\son\w+=/i);
     expect(html).toContain("Imagen: logo");
+    expect(html).toContain('type="checkbox"');
   });
 });
 
