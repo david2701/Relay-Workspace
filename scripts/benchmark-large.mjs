@@ -11,7 +11,7 @@
  * Expects server on RELAY_API (default :7420) and web on RELAY_WEB (:7421)
  * with the large seed already loaded.
  */
-import { mkdirSync, writeFileSync, readFileSync, existsSync } from "node:fs";
+import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { resolve } from "node:path";
 import { chromium } from "@playwright/test";
 

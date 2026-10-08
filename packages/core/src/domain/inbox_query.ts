@@ -53,14 +53,6 @@ function groupLabel(date: Date, now: Date): { key: string; label: string } {
   return { key: "this_week", label: "Esta semana" };
 }
 
-function maxUpdatedAt(items: readonly WorkItem[]): string | null {
-  let max: string | null = null;
-  for (const item of items) {
-    if (max === null || item.updated_at > max) max = item.updated_at;
-  }
-  return max;
-}
-
 type AttentionBuckets = {
   needsYou: WorkItem[];
   blocked: WorkItem[];
@@ -68,12 +60,13 @@ type AttentionBuckets = {
 };
 
 function buildAttention(items: readonly WorkItem[], now: Date): AttentionBuckets {
+  // Newest first: keeps MCP→UI mutations inside the virtualized window at 10k.
   const needsYou = items
     .filter((i) => i.status === "needs_you")
-    .sort((a, b) => a.updated_at.localeCompare(b.updated_at));
+    .sort((a, b) => b.updated_at.localeCompare(a.updated_at));
   const blocked = items
     .filter((i) => i.status === "blocked")
-    .sort((a, b) => a.updated_at.localeCompare(b.updated_at));
+    .sort((a, b) => b.updated_at.localeCompare(a.updated_at));
   const endToday = endOfParisDay(now);
   const today = items
     .filter((i) => {
@@ -300,7 +293,9 @@ export function queryInbox(args: InboxQueryArgs): InboxQueryResult {
     total_count: full.items.length,
     next_cursor,
     has_more,
-    sync_cursor: maxUpdatedAt(args.items),
+    // Wall-clock cursor (not max(updated_at)): seed/future dates must not
+    // hide later mutations from incremental poll.
+    sync_cursor: nowIso(now),
     server_time: nowIso(now),
   };
   if (full.section_counts) result.section_counts = full.section_counts;
@@ -336,7 +331,7 @@ export function buildInboxSync(args: InboxSyncArgs): InboxSyncResult {
     removed_ids,
     counters,
     total_count: full.items.length,
-    sync_cursor: maxUpdatedAt(args.items),
+    sync_cursor: nowIso(now),
     server_time: nowIso(now),
   };
   if (full.section_counts) result.section_counts = full.section_counts;

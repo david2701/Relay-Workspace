@@ -1,8 +1,8 @@
+import { decodeCursor, encodeCursor } from "../domain/cursor.js";
+import type { PageMeta, PageParams } from "../domain/page.js";
 import type { Agent } from "../schemas/agent.js";
 import type { ItemNoteLink, Note } from "../schemas/note.js";
 import type { WorkItem } from "../schemas/work_item.js";
-import { decodeCursor, encodeCursor } from "../domain/cursor.js";
-import type { PageMeta, PageParams } from "../domain/page.js";
 import type { RelayDb } from "./db.js";
 import {
   rebuildSearchFts,
@@ -401,4 +401,4 @@ export class AgentRepository {
   }
 }
 
-export { removeFromFts, rebuildSearchFts, syncItemToFts, syncNoteToFts };
+export { rebuildSearchFts, removeFromFts, syncItemToFts, syncNoteToFts };

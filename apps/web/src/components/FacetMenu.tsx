@@ -15,8 +15,8 @@ import { copy } from "../lib/copy";
 import type { Agent, Status } from "../lib/types";
 import {
   DUE_VALUES,
-  STATUS_ORDER,
   type DueFacet,
+  STATUS_ORDER,
   type UrlFacets,
 } from "../lib/url_state";
 import { ActorMark } from "./ActorMark";

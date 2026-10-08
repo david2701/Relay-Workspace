@@ -99,7 +99,6 @@ export function startOfParisDay(date: Date): Date {
 }
 
 export function endOfParisDay(date: Date): Date {
-  const p = toParisParts(date);
   const startNext = addParisDays(startOfParisDay(date), 1);
   return new Date(startNext.getTime() - 1);
 }

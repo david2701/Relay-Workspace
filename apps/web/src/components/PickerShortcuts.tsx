@@ -4,10 +4,10 @@ import {
   dateOnlyParisIso,
   fromParisWall,
   isDateOnly,
+  type ParisWall,
   parisWeekday,
   startOfParisDay,
   toParisParts,
-  type ParisWall,
 } from "../lib/paris_time";
 
 export type ShortcutKind = "due" | "reminder";

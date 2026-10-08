@@ -1,8 +1,8 @@
 import { readFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
-import { renderToStaticMarkup } from "react-dom/server";
 import { createElement } from "react";
+import { renderToStaticMarkup } from "react-dom/server";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { Markdown } from "../components/Markdown";
 import {
@@ -10,8 +10,8 @@ import {
   draftIsNewer,
   readNoteDraft,
   sanitizeUrl,
-  toPlainText,
   toggleTask,
+  toPlainText,
   urlTransform,
   writeNoteDraft,
 } from "./markdown";

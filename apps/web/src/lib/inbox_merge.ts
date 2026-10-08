@@ -1,7 +1,7 @@
 import type { InboxResult, InboxSyncDelta, WorkItem } from "./types";
 
-function byUpdatedAsc(a: WorkItem, b: WorkItem): number {
-  return a.updated_at < b.updated_at ? -1 : a.updated_at > b.updated_at ? 1 : 0;
+function byUpdatedDesc(a: WorkItem, b: WorkItem): number {
+  return a.updated_at < b.updated_at ? 1 : a.updated_at > b.updated_at ? -1 : 0;
 }
 
 /** Rebuild Atención sections from a flat item list (view already filtered). */
@@ -10,10 +10,10 @@ export function rebuildAttentionSections(
 ): NonNullable<InboxResult["sections"]> {
   const needs_you = items
     .filter((i) => i.status === "needs_you")
-    .sort(byUpdatedAsc);
+    .sort(byUpdatedDesc);
   const blocked = items
     .filter((i) => i.status === "blocked")
-    .sort(byUpdatedAsc);
+    .sort(byUpdatedDesc);
   const today = items.filter(
     (i) => i.status !== "needs_you" && i.status !== "blocked",
   );
@@ -104,6 +104,21 @@ export function applyInboxDelta(
 
   if (prev.view === "attention" || prev.sections) {
     next.sections = rebuildAttentionSections(merged);
+    // Brand-new upserts jump to the top of their section so MCP→UI stays
+    // visible under virtualization even if seed rows have newer stamps.
+    const prevIds = new Set(prev.items.map((i) => i.id));
+    const freshIds = new Set(
+      delta.upserts.filter((u) => !prevIds.has(u.id)).map((u) => u.id),
+    );
+    if (freshIds.size > 0 && next.sections) {
+      next.sections = next.sections.map((section) => {
+        const head = section.items.filter((i) => freshIds.has(i.id));
+        if (head.length === 0) return section;
+        const rest = section.items.filter((i) => !freshIds.has(i.id));
+        return { ...section, items: [...head, ...rest] };
+      });
+      next.items = next.sections.flatMap((s) => s.items);
+    }
   }
   if (prev.groups) {
     next.groups = mergeGroups(prev.groups, itemsById, removed, delta.upserts);

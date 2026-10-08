@@ -24,8 +24,8 @@ import {
   fromParisWallDetailed,
   isDateOnly,
   PARIS_TZ,
-  toParisParts,
   type ParisWall,
+  toParisParts,
 } from "../lib/paris_time";
 import { CalendarGrid } from "./CalendarGrid";
 import { buildShortcuts, PickerShortcuts, type Shortcut } from "./PickerShortcuts";
@@ -324,7 +324,7 @@ export function DateTimePicker({
     const cur = draft ? toParisParts(new Date(draft)) : null;
     let hh = cur && !isDateOnly(draft!) ? cur.hh : kind === "reminder" ? 9 : 23;
     let mm = cur && !isDateOnly(draft!) ? cur.mm : kind === "reminder" ? 0 : 59;
-    let dateOnly = noTime && allowDateOnly;
+    const dateOnly = noTime && allowDateOnly;
     if (dateOnly) {
       hh = 23;
       mm = 59;

@@ -1,4 +1,3 @@
-import type { WorkItem } from "./types";
 import {
   addParisDays,
   endOfParisWeek,
@@ -7,6 +6,7 @@ import {
   parisWeekday,
   startOfParisDay,
 } from "./paris_time";
+import type { WorkItem } from "./types";
 
 export type DateGroupKey =
   | "overdue"

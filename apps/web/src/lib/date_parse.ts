@@ -1,12 +1,12 @@
 import {
   addParisDays,
+  type DstNote,
   dateOnlyParisIso,
   fromParisWallDetailed,
+  type ParisWall,
   parisWeekday,
   startOfParisDay,
   toParisParts,
-  type DstNote,
-  type ParisWall,
 } from "./paris_time";
 
 export type ParseKind = "due" | "reminder";

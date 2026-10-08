@@ -2,8 +2,8 @@ import { describe, expect, it } from "vitest";
 import {
   EMPTY_FACETS,
   parseUrlState,
-  serializeUrlState,
   type RelayUrlState,
+  serializeUrlState,
 } from "./url_state";
 
 describe("url_state round-trip", () => {

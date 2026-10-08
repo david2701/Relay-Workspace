@@ -4,8 +4,9 @@ import {
 } from "../domain/context_pack.js";
 import { ConflictError, NotFoundError, ValidationError } from "../domain/errors.js";
 import { buildInboxSync, queryInbox } from "../domain/inbox_query.js";
+import type { PageParams } from "../domain/page.js";
 import { recommendInbox } from "../domain/recommend.js";
-import { searchItems, searchNotes, type SearchDeps } from "../domain/search.js";
+import { type SearchDeps, searchItems, searchNotes } from "../domain/search.js";
 import { nowIso } from "../domain/time.js";
 import {
   applyStatusChange,
@@ -44,9 +45,8 @@ import type {
   UpdateItemInput,
   WorkItem,
 } from "../schemas/work_item.js";
-import type { PageParams } from "../domain/page.js";
-import type { ListPageResult } from "../store/repositories.js";
 import { openDatabase, type RelayDb } from "../store/db.js";
+import type { ListPageResult } from "../store/repositories.js";
 import {
   AgentRepository,
   LinkRepository,

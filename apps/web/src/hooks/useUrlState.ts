@@ -1,13 +1,13 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import type { AppView } from "../lib/types";
 import {
-  emptyUrlState,
   EMPTY_FACETS,
+  emptyUrlState,
   parseUrlState,
-  serializeUrlState,
-  urlsEqual,
   type RelayUrlState,
+  serializeUrlState,
   type UrlFacets,
+  urlsEqual,
 } from "../lib/url_state";
 
 export type UseUrlStateOptions = {

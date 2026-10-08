@@ -60,7 +60,7 @@ describe("rebuildAttentionSections", () => {
       "blocked",
       "today",
     ]);
-    expect(sections[0]!.items.map((i) => i.id)).toEqual(["b", "a"]);
+    expect(sections[0]!.items.map((i) => i.id)).toEqual(["a", "b"]);
     expect(sections[1]!.items.map((i) => i.id)).toEqual(["c"]);
     expect(sections[2]!.items.map((i) => i.id)).toEqual(["d"]);
   });

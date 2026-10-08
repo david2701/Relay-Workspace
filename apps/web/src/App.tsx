@@ -9,9 +9,9 @@ import {
 import { ActorMark } from "./components/ActorMark";
 import { DetailPanel } from "./components/DetailPanel";
 import { FilterBar } from "./components/FilterBar";
-import { focusSearchField } from "./components/SearchField";
 import { ItemRow } from "./components/ItemRow";
 import { NoteView } from "./components/NoteView";
+import { focusSearchField } from "./components/SearchField";
 import { ThemeSwitch } from "./components/ThemeSwitch";
 import { VirtualItemList } from "./components/VirtualItemList";
 import { usePoll } from "./hooks/usePoll";
@@ -20,8 +20,9 @@ import { useUrlState } from "./hooks/useUrlState";
 import { markForOwner } from "./lib/actor_mark";
 import { api } from "./lib/api";
 import { copy } from "./lib/copy";
-import { applyInboxDelta, isInboxDelta } from "./lib/inbox_merge";
+import { groupByDue } from "./lib/date_groups";
 import { itemMatchesFacets } from "./lib/facet_filter";
+import { applyInboxDelta, isInboxDelta } from "./lib/inbox_merge";
 import { toPlainText } from "./lib/markdown";
 import { matchesQuery } from "./lib/normalize";
 import type {
@@ -34,7 +35,6 @@ import type {
   SearchMatch,
   WorkItem,
 } from "./lib/types";
-import { groupByDue } from "./lib/date_groups";
 import {
   EMPTY_FACETS,
   hasActiveFacets,
@@ -285,7 +285,10 @@ export default function App() {
     const nextItems = new Map<string, WorkItem>();
     for (const item of inbox.items) {
       const prev = prevUpdated.current.get(item.id);
+      const canFlashNew =
+        hydratedView.current === inboxView && prevView.current === inboxView;
       if (prev && prev !== item.updated_at) flash(item.id);
+      else if (!prev && canFlashNew) flash(item.id);
       nextMap.set(item.id, item.updated_at);
       nextItems.set(item.id, item);
     }

@@ -206,7 +206,7 @@ export function NoteEditor({
       e.stopPropagation();
       const el = taRef.current;
       if (!el) return;
-      const { next, selStart, selEnd } = wrapSelection(
+      const { next, selEnd } = wrapSelection(
         body,
         el.selectionStart,
         el.selectionEnd,
@@ -214,7 +214,7 @@ export function NoteEditor({
         "]()",
       );
       // Cursor between the parentheses: [selection](|)
-      const cursor = selEnd + 2; // after "](" 
+      const cursor = selEnd + 2; // after "]("
       applyEdit(next, cursor, cursor);
       return;
     }

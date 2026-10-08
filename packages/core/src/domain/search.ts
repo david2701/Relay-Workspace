@@ -8,7 +8,7 @@ import type {
 import type { Note } from "../schemas/note.js";
 import type { WorkItem } from "../schemas/work_item.js";
 import type { RelayDb } from "../store/db.js";
-import { encodeCursor, decodeCursor } from "./cursor.js";
+import { decodeCursor, encodeCursor } from "./cursor.js";
 import { itemIdsInView } from "./inbox_query.js";
 import {
   addParisDays,
@@ -83,7 +83,7 @@ function findMatchRanges(
   if (first < 0) return null;
   const max = 120;
   let start = Math.max(0, first - 40);
-  let end = Math.min(plain.length, start + max);
+  const end = Math.min(plain.length, start + max);
   if (end - start < max) start = Math.max(0, end - max);
   let snippet = plain.slice(start, end);
   if (start > 0) snippet = `…${snippet}`;

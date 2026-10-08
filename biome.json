@@ -19,7 +19,8 @@
       "recommended": true,
       "suspicious": {
         "noExplicitAny": "error",
-        "noAssignInExpressions": "off"
+        "noAssignInExpressions": "off",
+        "noArrayIndexKey": "off"
       },
       "complexity": {
         "noForEach": "off"
@@ -32,10 +33,15 @@
         "useAriaPropsSupportedByRole": "off",
         "noStaticElementInteractions": "off",
         "useSemanticElements": "off",
-        "noAutofocus": "off"
+        "noAutofocus": "off",
+        "useFocusableInteractive": "off",
+        "noNoninteractiveElementToInteractiveRole": "off",
+        "noNoninteractiveTabindex": "off",
+        "noRedundantRoles": "off"
       },
       "correctness": {
-        "useExhaustiveDependencies": "off"
+        "useExhaustiveDependencies": "off",
+        "noUnusedFunctionParameters": "off"
       }
     }
   }

@@ -170,12 +170,13 @@ type StatusPlan = {
 };
 
 const STATUS_PLAN: readonly StatusPlan[] = [
-  { status: "inbox", weight: 1500 },
-  { status: "assigned", weight: 1500 },
-  { status: "in_progress", weight: 1500 },
-  { status: "blocked", weight: 800 },
-  { status: "needs_you", weight: 700 },
-  { status: "done", weight: 3000 },
+  { status: "inbox", weight: 2200 },
+  { status: "assigned", weight: 2000 },
+  { status: "in_progress", weight: 2000 },
+  // Keep Atención sections modest so MCP→UI rows stay near the virtual window.
+  { status: "blocked", weight: 120 },
+  { status: "needs_you", weight: 80 },
+  { status: "done", weight: 2600 },
   { status: "cancelled", weight: 1000 },
 ];
 
@@ -196,7 +197,8 @@ export function seedLargeDatabase(dbPath: string = resolvedDb): {
   const svc = new RelayService({ dbPath });
   svc.resetData();
   const rng = mulberry32(SEED);
-  const baseMs = Date.parse("2026-10-08T12:00:00.000Z");
+  // Anchor in the recent past so live mutations (Date.now()) sort as newest.
+  const baseMs = Date.now() - 60_000;
   const insertItem = svc.db.prepare(
     `INSERT INTO work_items (
       id, title, goal, status, assignee_type, assignee_id,
@@ -227,7 +229,11 @@ export function seedLargeDatabase(dbPath: string = resolvedDb): {
       const agentId = pick(rng, AGENTS);
       const title = `${pick(rng, VERBS)} ${pick(rng, NOUNS)}`;
       const createdHours = -Math.floor(rng() * 24 * 21);
-      const updatedHours = createdHours + Math.floor(rng() * 48);
+      // Keep updated_at ≤ baseMs so live mutations (Date.now()) sort as newest.
+      const updatedHours = Math.min(
+        0,
+        createdHours + Math.floor(rng() * 48),
+      );
       const created_at = isoFromOffsetHours(baseMs, createdHours);
       const updated_at = isoFromOffsetHours(baseMs, updatedHours);
       const priority = pick(rng, ["none", "low", "medium", "high"] as const);

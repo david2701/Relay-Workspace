@@ -185,11 +185,21 @@ describe("API–MCP pagination, search, sync parity", () => {
       view: "attention",
       since,
     })) as Record<string, unknown>;
-    // server_time is stamped per call; compare stable payload fields.
-    const { server_time: httpTime, ...httpRest } = httpDelta;
-    const { server_time: mcpTime, ...mcpRest } = mcpDelta;
+    // server_time / sync_cursor are stamped per call; compare stable fields.
+    const {
+      server_time: httpTime,
+      sync_cursor: httpCursor,
+      ...httpRest
+    } = httpDelta;
+    const {
+      server_time: mcpTime,
+      sync_cursor: mcpCursor,
+      ...mcpRest
+    } = mcpDelta;
     expect(httpTime).toBeTruthy();
     expect(mcpTime).toBeTruthy();
+    expect(httpCursor).toBeTruthy();
+    expect(mcpCursor).toBeTruthy();
     expect(mcpRest).toEqual(httpRest);
     expect(httpDelta.mode).toBe("delta");
     expect(

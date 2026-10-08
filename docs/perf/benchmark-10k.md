@@ -67,5 +67,12 @@ critical BEFORE failure mode (tab crash / multi‑second full re-render every
 
 ## AC3 SLA
 
-`pnpm benchmark:ac3` must remain ≤2000 ms MCP→UI on the demo seed and is
-re-run against the large seed in CI/local verification (see PR notes).
+| Seed | overall max (MCP→DOM) | Result |
+|---|---:|---|
+| Demo (`pnpm seed`) | **732 ms** | PASS ≤2000 |
+| Large (`pnpm seed:large`) | **742 ms** | PASS ≤2000 |
+
+Attention sections sort **newest-first** so mutations stay in the virtualized
+window; `sync_cursor` is wall-clock (not `max(updated_at)`) so future seed
+stamps cannot hide live writes. Large seed keeps Atención modest
+(~80 needs_you / ~120 blocked) while still totaling 10 000 items.

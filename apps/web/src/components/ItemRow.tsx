@@ -130,8 +130,7 @@ export function ItemRow({
         ) : null}
       </div>
       <div className="item-meta">
-        {due &&
-        due.text &&
+        {due?.text &&
         item.status !== "done" &&
         item.status !== "cancelled" ? (
           <span className={`due-chip mono tone-${due.tone}`}>{due.text}</span>

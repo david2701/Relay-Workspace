@@ -753,27 +753,19 @@ export function DetailPanel({
                       : "Referencia"}
                 </div>
                 {grouped[role].map((n) => (
-                  <article
-                    key={n.id}
-                    className="note-card note-card-openable"
-                    role={onOpenNote ? "button" : undefined}
-                    tabIndex={onOpenNote ? 0 : undefined}
-                    onClick={() => onOpenNote?.(n.id)}
-                    onKeyDown={(e) => {
-                      if (!onOpenNote) return;
-                      if (e.key === "Enter" || e.key === " ") {
-                        e.preventDefault();
-                        onOpenNote(n.id);
-                      }
-                    }}
-                  >
+                  <article key={n.id} className="note-card note-card-openable">
                     <div className="note-card-head">
-                      <strong>{n.title}</strong>
+                      <button
+                        type="button"
+                        className="note-card-open linkish"
+                        onClick={() => onOpenNote?.(n.id)}
+                      >
+                        <strong>{n.title}</strong>
+                      </button>
                       <button
                         type="button"
                         className="linkish"
-                        onClick={async (e) => {
-                          e.stopPropagation();
+                        onClick={async () => {
                           await api.unlinkNote(item.id, n.id);
                           setNotes((prev) => prev.filter((x) => x.id !== n.id));
                         }}
