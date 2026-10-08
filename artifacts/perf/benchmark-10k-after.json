@@ -1,0 +1,65 @@
+{
+  "phase": "after",
+  "measured_at": "2026-10-08T08:19:22.289Z",
+  "item_total_hint": 6000,
+  "api": {
+    "inbox_attention": {
+      "path": "/api/inbox?view=attention",
+      "samples": 20,
+      "p50_ms": 80.82,
+      "p95_ms": 113.65,
+      "mean_ms": 86.11,
+      "payload_bytes": 3282633
+    },
+    "inbox_all": {
+      "path": "/api/inbox?view=all",
+      "samples": 20,
+      "p50_ms": 68.77,
+      "p95_ms": 71.61,
+      "mean_ms": 68.55,
+      "payload_bytes": 3531413
+    },
+    "inbox_all_page": {
+      "path": "/api/inbox?view=all&limit=50",
+      "samples": 20,
+      "p50_ms": 57.56,
+      "p95_ms": 66.66,
+      "mean_ms": 57.28,
+      "payload_bytes": 28761
+    }
+  },
+  "mcp": {
+    "inbox_query": {
+      "tool": "inbox_query",
+      "samples": 20,
+      "p50_ms": 75.83,
+      "p95_ms": 87.21,
+      "mean_ms": 77.23,
+      "payload_bytes": 3282644
+    }
+  },
+  "poll": {
+    "initial_bytes": 3282633,
+    "steady_bytes": 257,
+    "mode": "delta"
+  },
+  "ui": {
+    "attention": {
+      "view": "attention",
+      "to_first_row_ms": 35.97,
+      "to_interactive_ms": 64.54
+    },
+    "all": {
+      "view": "all",
+      "to_first_row_ms": 833.34,
+      "to_interactive_ms": 863.93
+    },
+    "scroll": {
+      "frames": 74,
+      "avg_frame_ms": 94.62,
+      "fps": 10.57,
+      "long_frames_over_32ms": 39,
+      "scroll_distance_px": 20000
+    }
+  }
+}

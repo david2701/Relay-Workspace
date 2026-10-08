@@ -1,0 +1,135 @@
+{
+  "before": {
+    "phase": "before",
+    "measured_at": "2026-10-08T07:42:04.666Z",
+    "item_total_hint": null,
+    "api": {
+      "inbox_attention": {
+        "path": "/api/inbox?view=attention",
+        "samples": 20,
+        "p50_ms": 66.14,
+        "p95_ms": 92.18,
+        "mean_ms": 70.65,
+        "payload_bytes": 3418310
+      },
+      "inbox_all": {
+        "path": "/api/inbox?view=all",
+        "samples": 20,
+        "p50_ms": 57.08,
+        "p95_ms": 66.08,
+        "mean_ms": 58.09,
+        "payload_bytes": 3531276
+      },
+      "inbox_all_page": {
+        "path": "/api/inbox?view=all&limit=50",
+        "samples": 20,
+        "p50_ms": 58.27,
+        "p95_ms": 71.1,
+        "mean_ms": 60.85,
+        "payload_bytes": 3531276
+      }
+    },
+    "mcp": {
+      "inbox_query": {
+        "tool": "inbox_query",
+        "samples": 20,
+        "p50_ms": 65.64,
+        "p95_ms": 72.51,
+        "mean_ms": 66.85,
+        "payload_bytes": 3418321
+      }
+    },
+    "poll": {
+      "initial_bytes": 3418310,
+      "steady_bytes": 3418310,
+      "mode": "snapshot"
+    },
+    "ui": {
+      "attention": {
+        "view": "attention",
+        "to_first_row_ms": null,
+        "to_interactive_ms": null,
+        "note": "Chromium target crashed rendering ~2832 full DOM rows (3.4MB payload)"
+      },
+      "all": {
+        "view": "all",
+        "to_first_row_ms": null,
+        "to_interactive_ms": null,
+        "note": "Unmeasurable on baseline: full DOM of ~6000 rows crashes headless Chromium"
+      },
+      "scroll": {
+        "fps": null,
+        "long_frames_over_32ms": null,
+        "note": "Unmeasurable: page crashed before scroll sampling"
+      },
+      "observed_dom_rows_attention": 2832,
+      "observed_dom_rows_all": 6000,
+      "observed_payload_attention_bytes": 3418310
+    }
+  },
+  "after": {
+    "phase": "after",
+    "measured_at": "2026-10-08T08:19:22.289Z",
+    "item_total_hint": 6000,
+    "api": {
+      "inbox_attention": {
+        "path": "/api/inbox?view=attention",
+        "samples": 20,
+        "p50_ms": 80.82,
+        "p95_ms": 113.65,
+        "mean_ms": 86.11,
+        "payload_bytes": 3282633
+      },
+      "inbox_all": {
+        "path": "/api/inbox?view=all",
+        "samples": 20,
+        "p50_ms": 68.77,
+        "p95_ms": 71.61,
+        "mean_ms": 68.55,
+        "payload_bytes": 3531413
+      },
+      "inbox_all_page": {
+        "path": "/api/inbox?view=all&limit=50",
+        "samples": 20,
+        "p50_ms": 57.56,
+        "p95_ms": 66.66,
+        "mean_ms": 57.28,
+        "payload_bytes": 28761
+      }
+    },
+    "mcp": {
+      "inbox_query": {
+        "tool": "inbox_query",
+        "samples": 20,
+        "p50_ms": 75.83,
+        "p95_ms": 87.21,
+        "mean_ms": 77.23,
+        "payload_bytes": 3282644
+      }
+    },
+    "poll": {
+      "initial_bytes": 3282633,
+      "steady_bytes": 257,
+      "mode": "delta"
+    },
+    "ui": {
+      "attention": {
+        "view": "attention",
+        "to_first_row_ms": 35.97,
+        "to_interactive_ms": 64.54
+      },
+      "all": {
+        "view": "all",
+        "to_first_row_ms": 833.34,
+        "to_interactive_ms": 863.93
+      },
+      "scroll": {
+        "frames": 74,
+        "avg_frame_ms": 94.62,
+        "fps": 10.57,
+        "long_frames_over_32ms": 39,
+        "scroll_distance_px": 20000
+      }
+    }
+  }
+}
