@@ -25,8 +25,8 @@ import { markForOwner, markForUser } from "./lib/actor_mark";
 import { api, type RelaySettings } from "./lib/api";
 import { groupByDue } from "./lib/date_groups";
 import { setDisplayContext } from "./lib/display_context";
-import { formatGroupLabel } from "./lib/group_label";
 import { itemMatchesFacets } from "./lib/facet_filter";
+import { formatGroupLabel } from "./lib/group_label";
 import {
   applyInboxDelta,
   ensureAttentionSections,
