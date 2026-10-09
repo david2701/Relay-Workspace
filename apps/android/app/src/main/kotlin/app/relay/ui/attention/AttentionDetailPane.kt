@@ -55,6 +55,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import app.relay.R
+import app.relay.data.Agent
 import app.relay.data.Status
 import app.relay.data.WorkItem
 import app.relay.theme.RelayDimens
@@ -67,6 +68,8 @@ fun AttentionDetailPane(
     showBack: Boolean,
     onBack: () -> Unit,
     modifier: Modifier = Modifier,
+    agentsById: Map<String, Agent> = emptyMap(),
+    nowMillis: Long = System.currentTimeMillis(),
 ) {
     val colors = RelayThemeTokens.colors
     if (item == null) {
@@ -136,6 +139,8 @@ fun AttentionDetailPane(
     ) { innerPadding ->
         DetailBody(
             item = item,
+            agentsById = agentsById,
+            nowMillis = nowMillis,
             contentPadding = innerPadding,
         )
     }
@@ -201,11 +206,13 @@ private fun DetailBarAction(
 @Composable
 private fun DetailBody(
     item: WorkItem,
+    agentsById: Map<String, Agent>,
+    nowMillis: Long,
     contentPadding: PaddingValues,
 ) {
     val colors = RelayThemeTokens.colors
     var decisionDraft by rememberSaveable(item.id) { mutableStateOf("") }
-    val agentName = stringResource(R.string.default_agent_name)
+    val agentName = AttentionPresentation.returnAgentName(item, agentsById)
     Column(
         modifier = Modifier
             .fillMaxSize()
@@ -226,11 +233,12 @@ private fun DetailBody(
             NeedsYouActionCard(
                 item = item,
                 agentName = agentName,
+                nowMillis = nowMillis,
                 decisionDraft = decisionDraft,
                 onDecisionChange = { decisionDraft = it },
             )
         }
-        HandoffSection(item = item, agentName = agentName)
+        HandoffSection(item = item, agentsById = agentsById, nowMillis = nowMillis)
         ContextSection(item = item)
         Spacer(modifier = Modifier.height(8.dp))
     }
@@ -273,11 +281,13 @@ private fun StatusBadge(status: Status) {
 private fun NeedsYouActionCard(
     item: WorkItem,
     agentName: String,
+    nowMillis: Long,
     decisionDraft: String,
     onDecisionChange: (String) -> Unit,
 ) {
     val colors = RelayThemeTokens.colors
     val shape = RoundedCornerShape(16.dp)
+    val relative = RelativeTimeFormat.formatRelative(iso = item.updatedAt, nowMillis = nowMillis)
     Column(
         modifier = Modifier
             .fillMaxWidth()
@@ -289,7 +299,7 @@ private fun NeedsYouActionCard(
         verticalArrangement = Arrangement.spacedBy(12.dp),
     ) {
         Text(
-            text = stringResource(R.string.needs_you_meta, agentName, "hace 3 h"),
+            text = stringResource(R.string.needs_you_meta, agentName, relative),
             style = MaterialTheme.typography.labelMedium,
             color = colors.inkMuted,
         )
@@ -301,6 +311,7 @@ private fun NeedsYouActionCard(
                 color = colors.ink,
             )
         }
+        DueReminderChips(item = item, nowMillis = nowMillis)
         OutlinedTextField(
             value = decisionDraft,
             onValueChange = onDecisionChange,
@@ -372,8 +383,13 @@ private fun NeedsYouActionCard(
 }
 
 @Composable
-private fun HandoffSection(item: WorkItem, agentName: String) {
+private fun HandoffSection(
+    item: WorkItem,
+    agentsById: Map<String, Agent>,
+    nowMillis: Long,
+) {
     val colors = RelayThemeTokens.colors
+    val model = AttentionPresentation.handoff(item, agentsById, nowMillis)
     Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
         Text(
             text = stringResource(R.string.section_handoff),
@@ -391,23 +407,21 @@ private fun HandoffSection(item: WorkItem, agentName: String) {
         ) {
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Text(
-                    text = "hace 3 h",
+                    text = model.relativeTime,
                     style = MaterialTheme.typography.labelMedium,
                     color = colors.inkMuted,
                 )
                 Spacer(modifier = Modifier.width(8.dp))
-                MonogramChip(text = "RD")
-                Text(" → ", color = colors.inkMuted)
-                MonogramChip(text = "É")
+                ActorFlow(from = model.fromMark, to = model.toMark)
             }
             Text(
-                text = stringResource(R.string.handoff_summary, agentName),
+                text = model.summary,
                 style = MaterialTheme.typography.bodyMedium,
                 fontWeight = FontWeight.Medium,
                 color = colors.ink,
             )
             Text(
-                text = metaLine(item),
+                text = model.detailLine,
                 style = MaterialTheme.typography.bodySmall,
                 color = colors.inkMuted,
                 maxLines = 1,
@@ -458,24 +472,5 @@ private fun ContextSection(item: WorkItem) {
                 )
             }
         }
-    }
-}
-
-@Composable
-private fun MonogramChip(text: String) {
-    val colors = RelayThemeTokens.colors
-    Box(
-        modifier = Modifier
-            .size(22.dp)
-            .clip(CircleShape)
-            .background(colors.ink),
-        contentAlignment = Alignment.Center,
-    ) {
-        Text(
-            text = text,
-            color = colors.paper,
-            style = MaterialTheme.typography.labelSmall,
-            fontWeight = FontWeight.SemiBold,
-        )
     }
 }

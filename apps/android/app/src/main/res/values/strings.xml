@@ -13,6 +13,7 @@
     <string name="error_title">No se pudo cargar Atención</string>
     <string name="retry">Reintentar</string>
     <string name="sync_up_to_date">Al día</string>
+    <string name="sync_up_to_date_relative">Al día · %1$s</string>
     <string name="loading">Cargando Atención</string>
     <string name="fab_new_item">Nuevo ítem</string>
     <string name="search">Buscar</string>

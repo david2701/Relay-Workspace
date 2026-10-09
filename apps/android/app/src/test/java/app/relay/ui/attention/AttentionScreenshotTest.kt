@@ -131,15 +131,30 @@ class AttentionScreenshotTest {
         captureEnd(dark = true, widthDp = 840, heightDp = 1200, fileName = "attention_840_dark_end")
     }
 
+    private fun readyState(selectedItemId: String? = null): AttentionUiState.Ready {
+        return AttentionUiState.Ready(
+            inbox = seedInbox,
+            selectedItemId = selectedItemId,
+            agentsById = screenshotAgentsById(),
+            lastSyncedAtMillis = ScreenshotSyncedAtMillis,
+            presentationNowMillis = ScreenshotNowMillis,
+        )
+    }
+
     private fun selectedNeedsYouState(): AttentionUiState.Ready {
         val needsYouId = seedInbox.sections.orEmpty()
             .first { it.key == AttentionSectionKey.NeedsYou }
             .items.first().id
-        return AttentionUiState.Ready(inbox = seedInbox, selectedItemId = needsYouId)
+        return readyState(selectedItemId = needsYouId)
     }
 
     private fun longListState(): AttentionUiState.Ready =
-        AttentionUiState.Ready(inbox = longInbox)
+        AttentionUiState.Ready(
+            inbox = longInbox,
+            agentsById = screenshotAgentsById(),
+            lastSyncedAtMillis = ScreenshotSyncedAtMillis,
+            presentationNowMillis = ScreenshotNowMillis,
+        )
 
     private fun captureList(dark: Boolean, widthDp: Int, heightDp: Int, fileName: String) {
         // Preselect only at expanded width so list+detail render side by side.
@@ -147,7 +162,7 @@ class AttentionScreenshotTest {
         val state = if (widthDp >= 840) {
             selectedNeedsYouState()
         } else {
-            AttentionUiState.Ready(inbox = seedInbox)
+            readyState()
         }
         composeRule.captureAttention(
             dark = dark,

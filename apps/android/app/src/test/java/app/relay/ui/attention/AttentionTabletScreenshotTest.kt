@@ -38,7 +38,13 @@ class AttentionTabletScreenshotTest {
             dark = false,
             widthDp = 840,
             heightDp = 1200,
-            state = AttentionUiState.Ready(inbox = inbox, selectedItemId = needsYouId),
+            state = AttentionUiState.Ready(
+                inbox = inbox,
+                selectedItemId = needsYouId,
+                agentsById = screenshotAgentsById(),
+                lastSyncedAtMillis = ScreenshotSyncedAtMillis,
+                presentationNowMillis = ScreenshotNowMillis,
+            ),
             fileName = "attention_tablet_light",
         )
     }

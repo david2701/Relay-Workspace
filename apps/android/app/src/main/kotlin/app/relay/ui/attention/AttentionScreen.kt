@@ -29,14 +29,20 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.outlined.Notes
 import androidx.compose.material.icons.filled.Inbox
+import androidx.compose.material.icons.automirrored.outlined.Undo
 import androidx.compose.material.icons.outlined.Add
+import androidx.compose.material.icons.outlined.BackHand
 import androidx.compose.material.icons.outlined.CloudDone
 import androidx.compose.material.icons.outlined.FilterList
 import androidx.compose.material.icons.outlined.Inbox
+import androidx.compose.material.icons.outlined.MoreVert
+import androidx.compose.material.icons.outlined.Notifications
 import androidx.compose.material.icons.outlined.People
 import androidx.compose.material.icons.outlined.Search
 import androidx.compose.material3.Badge
 import androidx.compose.material3.BadgedBox
+import androidx.compose.material3.Button
+import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.ExtendedFloatingActionButton
@@ -44,6 +50,9 @@ import androidx.compose.material3.FloatingActionButton
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.OutlinedButton
+import androidx.compose.material3.OutlinedTextField
+import androidx.compose.material3.OutlinedTextFieldDefaults
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
@@ -87,6 +96,7 @@ import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.window.core.layout.WindowSizeClass
 import app.relay.R
+import app.relay.data.Agent
 import app.relay.data.AttentionSectionKey
 import app.relay.data.Status
 import app.relay.data.WorkItem
@@ -94,6 +104,9 @@ import app.relay.theme.RelayDimens
 import app.relay.theme.RelayThemeTokens
 import app.relay.theme.selectedRowShadowLayers
 import kotlinx.coroutines.launch
+
+/** Medium single-pane list column max width (Penpot 600). */
+private val MediumListMaxWidth = 488.dp
 
 private enum class RelayDestination {
     Attention,
@@ -116,7 +129,7 @@ fun AttentionRoute(
 /**
  * Adaptive Atención shell:
  * - Compact (&lt;600 dp): bottom bar + extended FAB; list/detail single-pane
- * - Medium (600–839): navigation rail + FAB in rail header; single pane, list max ~560 dp
+ * - Medium (600–839): navigation rail + FAB in rail header; single pane, list max ~488 dp centered
  * - Expanded (≥840): rail + list-detail side by side (list ~360 dp)
  */
 @OptIn(ExperimentalMaterial3Api::class, ExperimentalMaterial3AdaptiveApi::class)
@@ -268,8 +281,12 @@ fun AttentionScreen(
                             val detailItem = (state as? AttentionUiState.Ready)?.let { ready ->
                                 ready.findItem(detailId)
                             }
+                            val ready = state as? AttentionUiState.Ready
                             AttentionDetailPane(
                                 item = detailItem,
+                                agentsById = ready?.agentsById.orEmpty(),
+                                nowMillis = ready?.presentationNowMillis
+                                    ?: System.currentTimeMillis(),
                                 showBack = showingCompactDetail || (!isListDetailVisible && detailItem != null),
                                 onBack = {
                                     scope.launch {
@@ -426,7 +443,10 @@ private fun AttentionListPane(
                             fontWeight = FontWeight.Bold,
                             color = colors.ink,
                         )
-                        Row(verticalAlignment = Alignment.CenterVertically) {
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            modifier = Modifier.testTag("attention_sync_line"),
+                        ) {
                             Icon(
                                 imageVector = Icons.Outlined.CloudDone,
                                 contentDescription = null,
@@ -435,7 +455,8 @@ private fun AttentionListPane(
                             )
                             Spacer(modifier = Modifier.width(4.dp))
                             Text(
-                                text = stringResource(R.string.sync_up_to_date),
+                                text = (state as? AttentionUiState.Ready)?.syncSubtitle
+                                    ?: stringResource(R.string.sync_up_to_date),
                                 style = MaterialTheme.typography.labelMedium,
                                 color = colors.inkMuted,
                             )
@@ -508,11 +529,12 @@ private fun AttentionListPane(
                                     start = innerPadding.calculateStartPadding(LocalLayoutDirection.current),
                                     end = innerPadding.calculateEndPadding(LocalLayoutDirection.current),
                                 ),
-                            contentAlignment = Alignment.TopStart,
+                            contentAlignment = Alignment.TopCenter,
                         ) {
                             Box(
                                 modifier = Modifier
-                                    .widthIn(max = 560.dp)
+                                    .widthIn(max = MediumListMaxWidth)
+                                    .fillMaxWidth()
                                     .fillMaxHeight()
                                     .testTag("attention_list_max_width"),
                             ) {
@@ -681,6 +703,9 @@ fun AttentionList(
                     isSelected = state.selectedItemId == item.id,
                     onClick = { onSelectItem(item.id) },
                     condensed = condensed,
+                    agentsById = state.agentsById,
+                    nowMillis = state.presentationNowMillis,
+                    showInlineDecision = !condensed && item.status == Status.NeedsYou,
                     modifier = Modifier.testTag("row_${item.id}"),
                 )
             }
@@ -702,6 +727,9 @@ fun AttentionItemRow(
     onClick: () -> Unit,
     modifier: Modifier = Modifier,
     condensed: Boolean = false,
+    agentsById: Map<String, Agent> = emptyMap(),
+    nowMillis: Long = System.currentTimeMillis(),
+    showInlineDecision: Boolean = false,
 ) {
     val colors = RelayThemeTokens.colors
     val isDark = RelayThemeTokens.isDark
@@ -710,16 +738,17 @@ fun AttentionItemRow(
     val background = when {
         isNeedsYou && !condensed -> colors.needsYouRowFill
         isNeedsYou && condensed && isSelected -> colors.needsYouRowFill
+        isNeedsYou -> colors.needsYouRowFill
         isSelected -> colors.selectedRowFill
         else -> colors.raised
     }
     val borderColor = when {
-        isNeedsYou && condensed && isSelected -> colors.attentionRule
+        isNeedsYou && (showInlineDecision || (condensed && isSelected)) -> colors.attentionRule
         isSelected && !isNeedsYou -> colors.control
         else -> colors.line
     }
     val borderWidth = when {
-        isNeedsYou && condensed && isSelected -> RelayDimens.needsYouRuleWidth
+        isNeedsYou && (showInlineDecision || (condensed && isSelected)) -> RelayDimens.needsYouRuleWidth
         isSelected && !isNeedsYou -> RelayDimens.selectedRowBorderWidth
         else -> 1.dp
     }
@@ -749,6 +778,8 @@ fun AttentionItemRow(
             spotColor = layer.color,
         )
     }
+    var decisionDraft by rememberSaveable(item.id) { mutableStateOf("") }
+    val agentName = AttentionPresentation.returnAgentName(item, agentsById)
     // clip → drawWithContent → background/border: drawContent paints fill+border+children,
     // then the 2 dp rule is drawn on top so the 1 dp border cannot cover it (B2 / §9.5 r8).
     Box(
@@ -779,55 +810,80 @@ fun AttentionItemRow(
                 },
             ),
     ) {
-        Row(
+        Column(
             modifier = Modifier
                 .fillMaxWidth()
                 .padding(start = if (isNeedsYou) RelayDimens.needsYouRuleWidth + 10.dp else 12.dp)
                 .padding(end = 12.dp, top = 12.dp, bottom = 12.dp),
-            verticalAlignment = Alignment.Top,
         ) {
-            Column(modifier = Modifier.weight(1f)) {
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    StatusGlyph(status = item.status)
-                    Spacer(modifier = Modifier.width(8.dp))
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                verticalAlignment = Alignment.Top,
+            ) {
+                StatusGlyph(status = item.status)
+                Spacer(modifier = Modifier.width(8.dp))
+                Column(modifier = Modifier.weight(1f)) {
+                    Row(verticalAlignment = Alignment.Top) {
+                        Text(
+                            text = item.title,
+                            style = MaterialTheme.typography.titleMedium,
+                            color = colors.ink,
+                            fontWeight = FontWeight.SemiBold,
+                            maxLines = if (condensed) 1 else 2,
+                            overflow = TextOverflow.Ellipsis,
+                            modifier = Modifier.weight(1f),
+                        )
+                        Spacer(modifier = Modifier.width(8.dp))
+                        ActorFlow(
+                            from = if (isNeedsYou) {
+                                AttentionPresentation.mark(
+                                    type = item.lastActorType,
+                                    actorId = item.lastActorId,
+                                    agentsById = agentsById,
+                                )
+                            } else {
+                                null
+                            },
+                            to = AttentionPresentation.witnessMark(item, agentsById),
+                        )
+                    }
+                    Spacer(modifier = Modifier.height(4.dp))
                     Text(
-                        text = item.title,
-                        style = MaterialTheme.typography.titleMedium,
-                        color = colors.ink,
-                        fontWeight = FontWeight.SemiBold,
-                        maxLines = if (condensed) 1 else 2,
+                        text = AttentionPresentation.metaLine(item, agentsById, nowMillis),
+                        style = MaterialTheme.typography.bodySmall,
+                        color = if (item.status == Status.Blocked) colors.warn else colors.inkMuted,
+                        maxLines = if (isNeedsYou) 2 else 1,
                         overflow = TextOverflow.Ellipsis,
-                        modifier = Modifier.weight(1f),
+                        modifier = Modifier.testTag(
+                            if (item.status == Status.Blocked) "blocked_reason" else "row_meta",
+                        ),
                     )
+                    val body = when {
+                        condensed && !showInlineDecision -> null
+                        item.status == Status.NeedsYou -> item.needsYouReason
+                        item.status == Status.Blocked -> null
+                        else -> null
+                    }
+                    if (!body.isNullOrBlank()) {
+                        Spacer(modifier = Modifier.height(6.dp))
+                        Text(
+                            text = body,
+                            style = MaterialTheme.typography.bodyMedium,
+                            color = colors.ink2,
+                            maxLines = 4,
+                            overflow = TextOverflow.Ellipsis,
+                        )
+                    }
+                    DueReminderChips(item = item, nowMillis = nowMillis)
                 }
-                Spacer(modifier = Modifier.height(4.dp))
-                Text(
-                    text = metaLine(item),
-                    style = MaterialTheme.typography.bodySmall,
-                    color = if (item.status == Status.Blocked) colors.warn else colors.inkMuted,
-                    maxLines = 1,
-                    overflow = TextOverflow.Ellipsis,
-                    modifier = Modifier.testTag(
-                        if (item.status == Status.Blocked) "blocked_reason" else "row_meta",
-                    ),
+            }
+            if (showInlineDecision) {
+                Spacer(modifier = Modifier.height(10.dp))
+                InlineNeedsYouActions(
+                    agentName = agentName,
+                    decisionDraft = decisionDraft,
+                    onDecisionChange = { decisionDraft = it },
                 )
-                // Body: needs_you reason or goal. Blocked reason is only in metaLine (B7).
-                val body = when {
-                    condensed -> null
-                    item.status == Status.NeedsYou -> item.needsYouReason
-                    item.status == Status.Blocked -> item.goal
-                    else -> item.goal
-                }
-                if (!body.isNullOrBlank()) {
-                    Spacer(modifier = Modifier.height(6.dp))
-                    Text(
-                        text = body,
-                        style = MaterialTheme.typography.bodyMedium,
-                        color = colors.ink2,
-                        maxLines = 3,
-                        overflow = TextOverflow.Ellipsis,
-                    )
-                }
             }
         }
         if (isNeedsYou) {
@@ -838,6 +894,185 @@ fun AttentionItemRow(
                     .fillMaxHeight()
                     .testTag("needs_you_rule"),
             )
+        }
+    }
+}
+
+@Composable
+internal fun ActorFlow(
+    from: ActorMarkModel?,
+    to: ActorMarkModel,
+    modifier: Modifier = Modifier,
+) {
+    val colors = RelayThemeTokens.colors
+    Row(
+        modifier = modifier.testTag("actor_flow"),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(4.dp),
+    ) {
+        if (from != null) {
+            ActorMark(mark = from)
+            Text("→", color = colors.inkMuted, style = MaterialTheme.typography.labelSmall)
+        }
+        ActorMark(mark = to)
+    }
+}
+
+@Composable
+internal fun ActorMark(
+    mark: ActorMarkModel,
+    modifier: Modifier = Modifier,
+) {
+    val colors = RelayThemeTokens.colors
+    val isHuman = mark.shape == ActorMarkModel.Shape.Circle
+    val shape = if (isHuman) CircleShape else RoundedCornerShape(5.dp)
+    Box(
+        modifier = modifier
+            .size(20.dp)
+            .clip(shape)
+            .background(if (isHuman) colors.ink else colors.raised)
+            .border(1.dp, colors.ink, shape)
+            .testTag("actor_mark_${mark.monogram}"),
+        contentAlignment = Alignment.Center,
+    ) {
+        Text(
+            text = mark.monogram,
+            color = if (isHuman) colors.paper else colors.ink,
+            style = MaterialTheme.typography.labelSmall,
+            fontWeight = FontWeight.SemiBold,
+        )
+    }
+}
+
+@Composable
+internal fun DueReminderChips(
+    item: WorkItem,
+    nowMillis: Long,
+    modifier: Modifier = Modifier,
+) {
+    val dueAt = item.dueAt
+    val reminderAt = item.reminderAt
+    if (dueAt == null && reminderAt == null) return
+    val colors = RelayThemeTokens.colors
+    Row(
+        modifier = modifier
+            .padding(top = 6.dp)
+            .testTag("due_reminder_chips"),
+        horizontalArrangement = Arrangement.spacedBy(10.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        if (dueAt != null) {
+            val chip = RelativeTimeFormat.formatDue(iso = dueAt, nowMillis = nowMillis)
+            Text(
+                text = chip.text,
+                style = MaterialTheme.typography.labelMedium,
+                fontWeight = FontWeight.Medium,
+                color = when (chip.tone) {
+                    DueChip.Tone.Crit -> colors.crit
+                    DueChip.Tone.Warn -> colors.warn
+                    DueChip.Tone.Muted -> colors.inkMuted
+                },
+                modifier = Modifier.testTag("due_chip"),
+            )
+        }
+        if (reminderAt != null) {
+            val chip = RelativeTimeFormat.formatReminder(iso = reminderAt, nowMillis = nowMillis)
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                modifier = Modifier.testTag("reminder_chip"),
+            ) {
+                Icon(
+                    imageVector = Icons.Outlined.Notifications,
+                    contentDescription = null,
+                    tint = colors.inkMuted,
+                    modifier = Modifier.size(12.dp),
+                )
+                Spacer(modifier = Modifier.width(3.dp))
+                Text(
+                    text = chip.text,
+                    style = MaterialTheme.typography.labelMedium,
+                    color = colors.inkMuted,
+                )
+            }
+        }
+    }
+}
+
+@Composable
+private fun InlineNeedsYouActions(
+    agentName: String,
+    decisionDraft: String,
+    onDecisionChange: (String) -> Unit,
+) {
+    val colors = RelayThemeTokens.colors
+    Column(
+        verticalArrangement = Arrangement.spacedBy(10.dp),
+        modifier = Modifier.testTag("inline_decision_card"),
+    ) {
+        OutlinedTextField(
+            value = decisionDraft,
+            onValueChange = onDecisionChange,
+            modifier = Modifier
+                .fillMaxWidth()
+                .testTag("inline_decision_input"),
+            placeholder = { Text(stringResource(R.string.decision_placeholder)) },
+            shape = RoundedCornerShape(12.dp),
+            colors = OutlinedTextFieldDefaults.colors(
+                focusedContainerColor = colors.raised,
+                unfocusedContainerColor = colors.raised,
+                focusedBorderColor = colors.lineStrong,
+                unfocusedBorderColor = colors.line,
+                focusedTextColor = colors.ink,
+                unfocusedTextColor = colors.ink,
+                cursorColor = colors.accentInk,
+            ),
+        )
+        Button(
+            onClick = {},
+            modifier = Modifier
+                .fillMaxWidth()
+                .testTag("inline_return_agent"),
+            colors = ButtonDefaults.buttonColors(
+                containerColor = colors.hl,
+                contentColor = colors.onHl,
+            ),
+            shape = RoundedCornerShape(999.dp),
+        ) {
+            Icon(Icons.AutoMirrored.Outlined.Undo, contentDescription = null)
+            Spacer(modifier = Modifier.width(8.dp))
+            Text(
+                text = stringResource(R.string.cta_return_to_agent, agentName),
+                fontWeight = FontWeight.SemiBold,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+            )
+        }
+        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            OutlinedButton(
+                onClick = {},
+                modifier = Modifier.testTag("inline_do_myself"),
+                shape = RoundedCornerShape(999.dp),
+                colors = ButtonDefaults.outlinedButtonColors(contentColor = colors.ink),
+            ) {
+                Icon(Icons.Outlined.BackHand, contentDescription = null)
+                Spacer(modifier = Modifier.width(6.dp))
+                Text(
+                    text = stringResource(R.string.cta_do_myself),
+                    fontWeight = FontWeight.SemiBold,
+                )
+            }
+            IconButton(
+                onClick = {},
+                modifier = Modifier
+                    .border(1.dp, colors.line, CircleShape)
+                    .testTag("inline_overflow"),
+            ) {
+                Icon(
+                    Icons.Outlined.MoreVert,
+                    contentDescription = stringResource(R.string.more),
+                    tint = colors.ink,
+                )
+            }
         }
     }
 }
@@ -878,14 +1113,8 @@ internal fun StatusGlyph(status: Status) {
     }
 }
 
-internal fun metaLine(item: WorkItem): String {
-    val reason = when (item.status) {
-        Status.NeedsYou -> "Necesita tu decisión"
-        Status.Blocked -> item.blockedReason?.let { "Atascado: $it" }
-        else -> item.reminderIntent
-    }
-    return reason ?: item.status.name.lowercase()
-}
+internal fun metaLine(item: WorkItem): String =
+    AttentionPresentation.metaLine(item, agentsById = emptyMap())
 
 private fun AttentionUiState.Ready.findItem(itemId: String?): WorkItem? {
     if (itemId == null) return null
