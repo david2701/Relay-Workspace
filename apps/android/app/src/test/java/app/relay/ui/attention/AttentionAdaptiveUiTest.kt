@@ -92,6 +92,79 @@ class AttentionListDetailAdaptiveTest {
     val composeRule = createAndroidComposeRule<ComponentActivity>()
 
     @Test
+    fun widthSwitch600To840RevealsListAndDetail() {
+        val inbox = seedInbox()
+        val needsYouId = inbox.sections!!.first { it.key == AttentionSectionKey.NeedsYou }
+            .items.first().id
+
+        // Medium (600): rail + single pane — selected item shows detail only.
+        setViewportQualifiers(600, 900)
+        composeRule.setContent {
+            RelayTheme(darkTheme = false) {
+                Box(
+                    modifier = Modifier
+                        .requiredSize(600.dp, 900.dp)
+                        .testTag("viewport"),
+                ) {
+                    AttentionScreen(
+                        state = AttentionUiState.Ready(
+                            inbox = inbox,
+                            selectedItemId = needsYouId,
+                        ),
+                        onRetry = {},
+                        onSelectItem = {},
+                    )
+                }
+            }
+        }
+        composeRule.waitForIdle()
+        assertTrue(
+            composeRule.onAllNodesWithTag("nav_suite_rail", useUnmergedTree = true)
+                .fetchSemanticsNodes()
+                .isNotEmpty(),
+        )
+        composeRule.onNodeWithTag("attention_detail").assertIsDisplayed()
+        val listVisibleAt600 = composeRule
+            .onAllNodesWithTag("attention_list")
+            .fetchSemanticsNodes()
+            .isNotEmpty()
+        assertTrue(
+            "600dp with selection must be single-pane (no list+detail)",
+            !listVisibleAt600,
+        )
+
+        // Expanded (840): same selection → list and detail side by side.
+        setViewportQualifiers(840, 1200)
+        composeRule.setContent {
+            RelayTheme(darkTheme = false) {
+                Box(
+                    modifier = Modifier
+                        .requiredSize(840.dp, 1200.dp)
+                        .testTag("viewport"),
+                ) {
+                    AttentionScreen(
+                        state = AttentionUiState.Ready(
+                            inbox = inbox,
+                            selectedItemId = needsYouId,
+                        ),
+                        onRetry = {},
+                        onSelectItem = {},
+                    )
+                }
+            }
+        }
+        composeRule.waitForIdle()
+        assertTrue(
+            composeRule.onAllNodesWithTag("nav_suite_rail", useUnmergedTree = true)
+                .fetchSemanticsNodes()
+                .isNotEmpty(),
+        )
+        composeRule.onNodeWithTag("attention_list").assertIsDisplayed()
+        composeRule.onNodeWithTag("attention_detail").assertIsDisplayed()
+        composeRule.onNodeWithTag("detail_bottom_bar").assertIsDisplayed()
+    }
+
+    @Test
     fun listAndDetailSideBySideAt840() {
         val inbox = seedInbox()
         val needsYouId = inbox.sections!!.first { it.key == AttentionSectionKey.NeedsYou }

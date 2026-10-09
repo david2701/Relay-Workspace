@@ -12,7 +12,7 @@ Recorded with **Roborazzi** on the JVM (Robolectric `GraphicsMode.NATIVE`). No e
 ```bash
 ./gradlew :app:testDebugUnitTest -Droborazzi.test.record=true \
   --tests 'app.relay.ui.attention.AttentionScreenshotTest'
-# PNGs: app/src/test/screenshots/ (360 / 600 / 840 dp, light & dark;
+# PNGs: app/src/test/screenshots/ (360 / 411 / 600 / 840 dp, light & dark;
 # Attention, detail, `_end` with 24 items)
 # Verify: -Droborazzi.test.verify=true -Droborazzi.test.record=false
 # No recordRoborazziDebug / verifyRoborazziDebug tasks — Roborazzi AGP plugin is not applied.

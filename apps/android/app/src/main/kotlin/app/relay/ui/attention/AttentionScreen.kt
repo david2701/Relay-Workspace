@@ -216,15 +216,24 @@ fun AttentionScreen(
                 },
                 badge = {
                     if (needsYouCount > 0) {
-                        val badgeDesc = stringResource(R.string.cd_nav_attention_badge, needsYouCount)
+                        // M3 Badge pill (Penpot). On the selected hl indicator, invert
+                        // colors so the container stays a visible pill (not a bare digit).
+                        val attentionSelected =
+                            currentDestination == RelayDestination.Attention
+                        val badgeDesc =
+                            stringResource(R.string.cd_nav_attention_badge, needsYouCount)
                         Badge(
-                            containerColor = colors.hl,
-                            contentColor = colors.onHl,
+                            containerColor = if (attentionSelected) colors.onHl else colors.hl,
+                            contentColor = if (attentionSelected) colors.hl else colors.onHl,
                             modifier = Modifier.testTag("nav_attention_badge"),
                         ) {
                             Text(
                                 text = needsYouCount.toString(),
-                                modifier = Modifier.semantics { contentDescription = badgeDesc },
+                                style = MaterialTheme.typography.labelSmall,
+                                fontWeight = FontWeight.Bold,
+                                modifier = Modifier.semantics {
+                                    contentDescription = badgeDesc
+                                },
                             )
                         }
                     }

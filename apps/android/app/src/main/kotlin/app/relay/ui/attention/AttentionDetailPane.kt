@@ -182,19 +182,20 @@ private fun DetailBarAction(
     testTag: String,
 ) {
     val colors = RelayThemeTokens.colors
-    Column(
+    // Penpot / M3 BottomAppBar: icon + label inline (not NavigationBar stacked 11sp).
+    Row(
         modifier = Modifier
             .testTag(testTag)
-            .padding(horizontal = 12.dp, vertical = 4.dp),
-        horizontalAlignment = Alignment.CenterHorizontally,
+            .padding(horizontal = 12.dp, vertical = 8.dp),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(8.dp),
     ) {
-        Box(modifier = Modifier.size(24.dp), contentAlignment = Alignment.Center) {
+        Box(modifier = Modifier.size(20.dp), contentAlignment = Alignment.Center) {
             icon()
         }
-        Spacer(modifier = Modifier.height(2.dp))
         Text(
             text = label,
-            style = MaterialTheme.typography.labelSmall,
+            style = MaterialTheme.typography.bodyMedium,
             color = colors.inkMuted,
         )
     }
@@ -303,7 +304,8 @@ private fun NeedsYouActionCard(
         ) {
             Text(
                 text = stringResource(R.string.needs_you_meta, agentName, relative),
-                style = MaterialTheme.typography.labelMedium,
+                style = MaterialTheme.typography.bodySmall,
+                fontWeight = FontWeight.Medium,
                 color = colors.inkMuted,
                 modifier = Modifier.weight(1f),
             )

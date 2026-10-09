@@ -16,7 +16,7 @@ import org.robolectric.annotation.GraphicsMode
 
 /**
  * JVM screenshot captures via Roborazzi (no KVM/emulator required).
- * Widths: 360 / 600 / 840; light/dark; Attention list, detail, and `_end` (24 items).
+ * Widths: 360 / 411 / 600 / 840; light/dark; Attention list, detail, and `_end` (24 items).
  */
 @RunWith(RobolectricTestRunner::class)
 @GraphicsMode(GraphicsMode.Mode.NATIVE)
@@ -49,6 +49,16 @@ class AttentionScreenshotTest {
     @Test
     fun attention_360_dark() {
         captureList(dark = true, widthDp = 360, heightDp = 780, fileName = "attention_360_dark")
+    }
+
+    @Test
+    fun attention_411_light() {
+        captureList(dark = false, widthDp = 411, heightDp = 915, fileName = "attention_411_light")
+    }
+
+    @Test
+    fun attention_411_dark() {
+        captureList(dark = true, widthDp = 411, heightDp = 915, fileName = "attention_411_dark")
     }
 
     @Test
