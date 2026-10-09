@@ -235,13 +235,21 @@ fun AttentionScreen(
                             isDark = isDark,
                         )
                         if (needsYouCount > 0) {
+                            // Light: ink outline on hl (r8) so yellow passes ≥3:1 non-text
+                            // against paper; dark keeps paper ring for OLED separation.
+                            val badgeOutline =
+                                if (isDark) colors.paper else colors.hlBadgeOutline
                             Badge(
                                 containerColor = colors.hl,
                                 contentColor = colors.onHl,
                                 modifier = Modifier
                                     .align(Alignment.TopEnd)
                                     .offset(x = 4.dp, y = (-4).dp)
-                                    .border(1.5.dp, colors.paper, CircleShape)
+                                    .border(
+                                        RelayDimens.badgeOutlineWidth,
+                                        badgeOutline,
+                                        CircleShape,
+                                    )
                                     .testTag("nav_attention_badge"),
                             ) {
                                 Text(

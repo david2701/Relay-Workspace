@@ -47,6 +47,27 @@ class TokenContrastTest {
     }
 
     @Test
+    fun lightHlBadgeOutlineMeetsNonTextContrast() {
+        val light = RelayColorTokens.Light
+        // Yellow fill alone is below 3:1 against paper — outline is required.
+        assertTrue(
+            "hl vs paper should be the low-contrast case we outline for",
+            ContrastMath.contrastRatio(light.hl, light.paper) < 3.0,
+        )
+        assertTrue(
+            ContrastMath.contrastRatio(light.hlBadgeOutline, light.hl) >= 3.0,
+        )
+        assertTrue(
+            ContrastMath.contrastRatio(light.hlBadgeOutline, light.paper) >= 3.0,
+        )
+        assertTrue(
+            ContrastMath.contrastRatio(light.hlBadgeOutline, light.sunken) >= 3.0,
+        )
+        assertEquals(light.ink, light.hlBadgeOutline)
+        assertEquals(1.5f, RelayDimens.badgeOutlineWidth.value)
+    }
+
+    @Test
     fun lightOchresAndDarkYellowMeetSpecFloors() {
         val light = RelayColorTokens.Light
         assertTrue(ContrastMath.contrastRatio(light.accentInk, light.paper) >= 4.5)

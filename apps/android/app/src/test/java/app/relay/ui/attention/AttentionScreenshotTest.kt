@@ -92,6 +92,16 @@ class AttentionScreenshotTest {
     }
 
     @Test
+    fun detail_411_light() {
+        captureDetail(dark = false, widthDp = 411, heightDp = 915, fileName = "detail_411_light")
+    }
+
+    @Test
+    fun detail_411_dark() {
+        captureDetail(dark = true, widthDp = 411, heightDp = 915, fileName = "detail_411_dark")
+    }
+
+    @Test
     fun detail_600_light() {
         captureDetail(dark = false, widthDp = 600, heightDp = 900, fileName = "detail_600_light")
     }
