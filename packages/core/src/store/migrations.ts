@@ -255,4 +255,23 @@ UPDATE event_seq
   WHERE id = 1;
 `,
   },
+  {
+    version: 7,
+    sql: `
+-- HTTP Idempotency-Key cache (24h TTL). Key is unique per method+path.
+CREATE TABLE IF NOT EXISTS idempotency_keys (
+  key TEXT NOT NULL,
+  method TEXT NOT NULL,
+  path TEXT NOT NULL,
+  body_hash TEXT NOT NULL,
+  status_code INTEGER NOT NULL,
+  response_body TEXT NOT NULL,
+  created_at TEXT NOT NULL,
+  PRIMARY KEY (key, method, path)
+);
+
+CREATE INDEX IF NOT EXISTS idx_idempotency_keys_created
+  ON idempotency_keys(created_at);
+`,
+  },
 ];

@@ -359,12 +359,11 @@ export function createMcpTools(svc: RelayService): McpToolDef[] {
         if (!base.success) {
           throw new ValidationError("id is required");
         }
+        const record = (raw ?? {}) as Record<string, unknown>;
         const page = parseEventPageQuery({
-          after_seq: (raw as { after_seq?: unknown }).after_seq as
-            | string
-            | number
-            | undefined,
-          limit: (raw as { limit?: unknown }).limit as string | number | undefined,
+          after_seq: record.after_seq as string | number | undefined,
+          before_seq: record.before_seq as string | number | undefined,
+          limit: record.limit as string | number | undefined,
         });
         return svc.listEventsForItem(base.data.id, page);
       },
@@ -390,6 +389,7 @@ export function createMcpTools(svc: RelayService): McpToolDef[] {
         }
         const page = parseEventPageQuery({
           after_seq: record.after_seq as string | number | undefined,
+          before_seq: record.before_seq as string | number | undefined,
           limit: record.limit as string | number | undefined,
         });
         const opts: {
@@ -419,6 +419,7 @@ export function createMcpTools(svc: RelayService): McpToolDef[] {
         const record = (raw ?? {}) as Record<string, unknown>;
         const page = parseEventPageQuery({
           after_seq: record.after_seq as string | number | undefined,
+          before_seq: record.before_seq as string | number | undefined,
           limit: record.limit as string | number | undefined,
         });
         return svc.listChanges(page);

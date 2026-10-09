@@ -1,6 +1,6 @@
 import type { Source, Status } from "../schemas/enums.js";
 import type { Actor, SetStatusInput, WorkItem } from "../schemas/work_item.js";
-import { ValidationError } from "./errors.js";
+import { ConflictError, ValidationError } from "./errors.js";
 import { nowIso } from "./time.js";
 
 const TERMINAL: ReadonlySet<Status> = new Set(["done", "cancelled"]);
@@ -157,6 +157,65 @@ export function askUser(args: AskUserArgs): WorkItem {
   };
   if (args.at) payload.at = args.at;
   return applyStatusChange(payload);
+}
+
+export type TakeItemArgs = {
+  item: WorkItem;
+  actor: Actor;
+  source: Source;
+  userId: string;
+  at?: Date;
+};
+
+/**
+ * «Lo hago yo» — assign to the user and set in_progress.
+ * Rejects terminal items (done / cancelled) with ConflictError (409).
+ */
+export function takeItem(args: TakeItemArgs): WorkItem {
+  if (isTerminal(args.item.status)) {
+    throw new ConflictError(
+      `Cannot take a ${args.item.status} item`,
+      {
+        item: args.item,
+        current_updated_at: args.item.updated_at,
+      },
+    );
+  }
+  const at = args.at ?? new Date();
+  const iso = nowIso(at);
+  return {
+    ...args.item,
+    assignee_type: "user",
+    assignee_id: args.userId,
+    status: "in_progress",
+    started_at: args.item.started_at ?? iso,
+    updated_at: iso,
+    last_actor_type: args.actor.type,
+    last_actor_id: args.actor.id,
+    source: args.item.source === "system" ? args.source : args.item.source,
+  };
+}
+
+/** Return a needs_you item to its agent assignee (status → assigned). */
+export function returnToAgent(
+  item: WorkItem,
+  actor: Actor,
+  source: Source,
+  at: Date = new Date(),
+): WorkItem {
+  if (item.status !== "needs_you") {
+    throw new ValidationError("Only needs_you items can be returned to an agent");
+  }
+  if (item.assignee_type !== "agent" || !item.assignee_id) {
+    throw new ValidationError("Item has no agent assignee to return to");
+  }
+  return applyStatusChange({
+    item,
+    input: { status: "assigned" },
+    actor,
+    source,
+    at,
+  });
 }
 
 export function stampActor(

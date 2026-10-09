@@ -6,6 +6,7 @@ import { RelayService } from "@relay/core";
 import { Hono } from "hono";
 import { cors } from "hono/cors";
 import { loadEnv } from "./env.js";
+import { idempotencyMiddleware } from "./idempotency_middleware.js";
 import { createMcpHttpHandler, invokeMcpTool } from "./mcp/http.js";
 import { createApi } from "./routes/api.js";
 
@@ -49,11 +50,13 @@ export function createApp(
         "Content-Type",
         "X-Relay-Actor",
         "X-Relay-Source",
+        "Idempotency-Key",
         "mcp-session-id",
       ],
       exposeHeaders: ["mcp-session-id"],
     }),
   );
+  app.use("/api/*", idempotencyMiddleware(svc));
   app.route("/api", createApi(svc));
   const mcpHandler = createMcpHttpHandler(svc);
   app.all("/mcp", mcpHandler);

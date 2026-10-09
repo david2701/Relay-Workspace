@@ -1,7 +1,7 @@
 import { Bell, CalendarBlank, LinkSimple, X } from "@phosphor-icons/react";
 import { useEffect, useMemo, useState } from "react";
 import { useActorLabels } from "../hooks/useActorLabels";
-import { useT } from "../i18n/I18nProvider";
+import { useI18n, useT } from "../i18n/I18nProvider";
 import type { MessageKey } from "../i18n/types";
 import {
   markForActor,
@@ -21,7 +21,6 @@ import type {
   Status,
   WorkItem,
 } from "../lib/types";
-import { USER_ACTOR_ID } from "../lib/url_state";
 import { ActorMark, isStaleWorking, isWorking } from "./ActorMark";
 import { DateTimePicker } from "./DateTimePicker";
 import { StatusGlyph } from "./StatusGlyph";
@@ -62,6 +61,7 @@ export function DetailPanel({
   onOpenNote,
 }: Props) {
   const t = useT();
+  const { locale } = useI18n();
   const actorLabels = useActorLabels();
   const sl = (s: Status) => statusLabel(t, s);
   const [notes, setNotes] = useState<LinkedNote[]>([]);
@@ -166,28 +166,49 @@ export function DetailPanel({
     setStatusOpen(false);
   }
 
-  async function saveDecisionNote(text: string) {
-    if (!text.trim()) return;
-    const title = t("detail.decisionNoteTitle", {
-      reason: (item!.needs_you_reason ?? "respuesta").slice(0, 60),
-    });
-    const { note } = await api.createNote(title, text.trim());
-    await api.linkNote(item!.id, note.id, "decision");
-    const linked = await api.itemNotes(item!.id);
-    setNotes(linked.notes);
-  }
-
   async function returnToAgent() {
-    await saveDecisionNote(reply);
+    const text = reply.trim();
+    if (text) {
+      const { item: next, note } = await api.answer(item!.id, {
+        text,
+        return_to: "agent",
+        locale,
+        if_updated_at: item!.updated_at,
+      });
+      onChange(next);
+      onFlash(next.id);
+      setNotes((prev) => {
+        const linked = { ...note, role: "decision" as const };
+        return [linked, ...prev.filter((n) => n.id !== note.id)];
+      });
+      setReply("");
+      return;
+    }
     const { item: next } = await api.setStatus(item!.id, "assigned");
     onChange(next);
     onFlash(next.id);
   }
 
   async function doMyself() {
-    await saveDecisionNote(reply);
-    await api.assignMe(item!.id);
-    const { item: next } = await api.setStatus(item!.id, "in_progress");
+    const text = reply.trim();
+    let current = item!;
+    if (text) {
+      const answered = await api.answer(current.id, {
+        text,
+        return_to: "none",
+        locale,
+        if_updated_at: current.updated_at,
+      });
+      current = answered.item;
+      setNotes((prev) => {
+        const linked = { ...answered.note, role: "decision" as const };
+        return [linked, ...prev.filter((n) => n.id !== answered.note.id)];
+      });
+      setReply("");
+    }
+    const { item: next } = await api.take(current.id, {
+      if_updated_at: current.updated_at,
+    });
     onChange(next);
     onFlash(next.id);
   }

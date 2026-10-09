@@ -2,6 +2,7 @@ export * from "./domain/agent_presence.js";
 export * from "./domain/context_pack.js";
 export * from "./domain/cursor.js";
 export * from "./domain/date_groups.js";
+export * from "./domain/decision_note_title.js";
 export * from "./domain/errors.js";
 export * from "./domain/inbox_query.js";
 export * from "./domain/page.js";
@@ -24,6 +25,7 @@ export * from "./services/relay_service.js";
 export * from "./store/agent_queries.js";
 export * from "./store/db.js";
 export * from "./store/event_log.js";
+export * from "./store/idempotency.js";
 export * from "./store/migrations.js";
 export type { ListPageResult } from "./store/repositories.js";
 export {

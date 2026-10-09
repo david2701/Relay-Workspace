@@ -329,7 +329,23 @@
 .note-card-head {
   display: flex;
   justify-content: space-between;
+  align-items: flex-start;
   gap: 8px;
+}
+
+/* Buttons default to text-align:center — long titles must stay left like other cards. */
+.note-card-head .note-card-open {
+  flex: 1;
+  min-width: 0;
+  text-align: left;
+  justify-content: flex-start;
+  white-space: normal;
+}
+
+.note-card-head .note-card-open strong {
+  display: block;
+  text-align: left;
+  overflow-wrap: anywhere;
 }
 
 .note-card p,

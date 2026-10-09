@@ -9,6 +9,7 @@ import {
   buildContextPack,
   contextPackToMarkdown,
 } from "../domain/context_pack.js";
+import { buildDecisionNoteTitle } from "../domain/decision_note_title.js";
 import { ConflictError, NotFoundError, ValidationError } from "../domain/errors.js";
 import { buildInboxSync, queryInbox } from "../domain/inbox_query.js";
 import type { PageParams } from "../domain/page.js";
@@ -21,7 +22,9 @@ import {
   completeItem,
   delegateItem,
   reopenItem,
+  returnToAgent,
   stampActor,
+  takeItem,
 } from "../domain/transitions.js";
 import {
   dateOnlyZoneIso,
@@ -70,6 +73,7 @@ import {
 } from "../schemas/settings.js";
 import type {
   Actor,
+  AnswerItemInput,
   CreateItemInput,
   SetStatusInput,
   UpdateItemInput,
@@ -87,6 +91,7 @@ import {
   listItemEvents,
   listRecentItemEvents,
 } from "../store/event_log.js";
+import { cleanupExpiredIdempotencyKeys } from "../store/idempotency.js";
 import type { ListPageResult } from "../store/repositories.js";
 import {
   AgentRepository,
@@ -94,6 +99,9 @@ import {
   NoteRepository,
   WorkItemRepository,
 } from "../store/repositories.js";
+
+/** Max characters stored in answered event payload.text. */
+const ANSWER_EXCERPT_MAX = 200;
 
 const SYSTEM_ACTOR: Actor = { type: "system", id: "relay" };
 
@@ -130,6 +138,22 @@ export type EventPageOptions = {
   limit?: number;
 };
 
+export type AnswerResult = {
+  item: WorkItem;
+  note: Note;
+  seq: number;
+};
+
+export type TakeResult = {
+  item: WorkItem;
+  seq: number;
+};
+
+export type ItemWriteOpts = {
+  /** Optimistic concurrency; mismatch → ConflictError with current item. */
+  if_updated_at?: string;
+};
+
 export type AgentHandoffsOptions = {
   after_seq?: number;
   before_seq?: number;
@@ -156,6 +180,7 @@ export class RelayService {
    * another). The pragma itself is cheap; we only reload rows when it moves.
    */
   private cachedDataVersion: number | null = null;
+  private idempotencyCleanupTimer: ReturnType<typeof setInterval> | null = null;
 
   constructor(options: RelayServiceOptions) {
     this.db = openDatabase(options.dbPath);
@@ -168,13 +193,61 @@ export class RelayService {
       void DEFAULT_AGENTS;
     }
     this.cachedDataVersion = readSqliteDataVersion(this.db);
+    this.idempotencyCleanupTimer = setInterval(
+      () => {
+        cleanupExpiredIdempotencyKeys(this.db);
+      },
+      60 * 60 * 1000,
+    );
+    // Allow the process to exit while the timer is pending (tests / short-lived CLIs).
+    if (
+      this.idempotencyCleanupTimer &&
+      typeof this.idempotencyCleanupTimer === "object" &&
+      "unref" in this.idempotencyCleanupTimer
+    ) {
+      this.idempotencyCleanupTimer.unref();
+    }
   }
 
   close(): void {
+    if (this.idempotencyCleanupTimer) {
+      clearInterval(this.idempotencyCleanupTimer);
+      this.idempotencyCleanupTimer = null;
+    }
     this.itemsCache = null;
     this.openItemsCache = null;
     this.cachedDataVersion = null;
     this.db.close();
+  }
+
+  /** Drop expired Idempotency-Key rows (also runs on open + hourly). */
+  cleanupIdempotencyKeys(now?: Date): number {
+    return cleanupExpiredIdempotencyKeys(this.db, now ?? new Date());
+  }
+
+  /**
+   * Persist an updated item, honouring optional if_updated_at.
+   * Must run inside runInWriteTx when combined with events.
+   */
+  private writeItem(
+    next: WorkItem,
+    opts?: ItemWriteOpts,
+  ): void {
+    if (opts?.if_updated_at !== undefined) {
+      const ok = this.items.updateIfUnchanged(next, opts.if_updated_at);
+      if (!ok) {
+        const latest = this.items.get(next.id);
+        throw new ConflictError(
+          `WorkItem ${next.id} was modified (expected updated_at=${opts.if_updated_at})`,
+          {
+            current_updated_at: latest?.updated_at ?? next.updated_at,
+            item: latest ?? next,
+          },
+        );
+      }
+      return;
+    }
+    this.items.upsert(next);
   }
 
   /**
@@ -594,7 +667,12 @@ export class RelayService {
     });
   }
 
-  updateItem(id: string, input: UpdateItemInput, actor: Actor): WorkItem {
+  updateItem(
+    id: string,
+    input: UpdateItemInput,
+    actor: Actor,
+    opts?: ItemWriteOpts,
+  ): WorkItem {
     const current = this.getItem(id);
     const assigneeType = input.assignee_type ?? current.assignee_type;
     let assigneeId =
@@ -645,17 +723,23 @@ export class RelayService {
     );
     const event = this.classifyUpdateEvent(current, next);
     return this.runInWriteTx(() => {
-      this.items.upsert(next);
+      this.writeItem(next, opts);
       this.emitItemEvent(next.id, event.type, actor, event.payload);
       return next;
     });
   }
 
-  setStatus(id: string, input: SetStatusInput, actor: Actor, source: Source): WorkItem {
+  setStatus(
+    id: string,
+    input: SetStatusInput,
+    actor: Actor,
+    source: Source,
+    opts?: ItemWriteOpts,
+  ): WorkItem {
     const current = this.getItem(id);
     const next = applyStatusChange({ item: current, input, actor, source });
     return this.runInWriteTx(() => {
-      this.items.upsert(next);
+      this.writeItem(next, opts);
       this.emitItemEvent(next.id, "status_changed", actor, {
         from: current.status,
         to: next.status,
@@ -731,6 +815,120 @@ export class RelayService {
         needs_you_reason: next.needs_you_reason,
       });
       return next;
+    });
+  }
+
+  /**
+   * «Responder» — create a decision note, emit `answered`, and optionally
+   * return a needs_you item to its agent (`status_changed` → assigned).
+   * All writes share one transaction (D5).
+   */
+  answer(
+    id: string,
+    input: AnswerItemInput,
+    actor: Actor,
+    source: Source,
+    opts?: ItemWriteOpts,
+  ): AnswerResult {
+    const text = input.text.trim();
+    if (text.length < 1 || text.length > 4000) {
+      throw new ValidationError("text must be 1..4000 characters");
+    }
+    const current = this.getItem(id);
+    const returnTo = input.return_to ?? "agent";
+    const shouldReturn =
+      returnTo === "agent" &&
+      current.status === "needs_you" &&
+      current.assignee_type === "agent" &&
+      Boolean(current.assignee_id);
+    const at = new Date();
+    const noteTitle = buildDecisionNoteTitle(
+      current.title,
+      input.locale ?? "en",
+    );
+    const note: Note = {
+      id: createId("nte"),
+      title: noteTitle,
+      body_md: text,
+      created_at: nowIso(at),
+      updated_at: nowIso(at),
+    };
+    const next: WorkItem = shouldReturn
+      ? returnToAgent(current, actor, source, at)
+      : stampActor(current, actor, at);
+    const excerpt =
+      text.length > ANSWER_EXCERPT_MAX
+        ? text.slice(0, ANSWER_EXCERPT_MAX)
+        : text;
+    return this.runInWriteTx(() => {
+      this.notes.upsert(note);
+      this.links.link({
+        item_id: id,
+        note_id: note.id,
+        role: "decision",
+      });
+      this.writeItem(next, opts);
+      this.emitItemEvent(id, "answered", actor, {
+        note_id: note.id,
+        text: excerpt,
+      });
+      if (shouldReturn) {
+        this.emitItemEvent(id, "status_changed", actor, {
+          from: current.status,
+          to: next.status,
+        });
+      }
+      return { item: next, note, seq: latestEventSeq(this.db) };
+    });
+  }
+
+  /**
+   * «Lo hago yo» — assign to the user and set in_progress, emitting `taken`.
+   * Idempotent when already user + in_progress. 409 if done/cancelled.
+   */
+  take(
+    id: string,
+    actor: Actor,
+    source: Source,
+    opts?: ItemWriteOpts,
+  ): TakeResult {
+    const current = this.getItem(id);
+    if (
+      current.assignee_type === "user" &&
+      current.assignee_id === USER_ACTOR_ID &&
+      current.status === "in_progress"
+    ) {
+      if (
+        opts?.if_updated_at !== undefined &&
+        opts.if_updated_at !== current.updated_at
+      ) {
+        throw new ConflictError(
+          `WorkItem ${id} was modified (expected updated_at=${opts.if_updated_at})`,
+          {
+            current_updated_at: current.updated_at,
+            item: current,
+          },
+        );
+      }
+      return { item: current, seq: latestEventSeq(this.db) };
+    }
+    const next = takeItem({
+      item: current,
+      actor,
+      source,
+      userId: USER_ACTOR_ID,
+    });
+    return this.runInWriteTx(() => {
+      this.writeItem(next, opts);
+      this.emitItemEvent(id, "taken", actor, {
+        from_assignee_type: current.assignee_type,
+        from_assignee_id: current.assignee_id,
+        to_assignee_type: next.assignee_type,
+        to_assignee_id: next.assignee_id,
+        from_status: current.status,
+        to_status: next.status,
+      });
+      return { item: next, seq: latestEventSeq(this.db) };
     });
   }
 

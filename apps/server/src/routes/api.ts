@@ -1,4 +1,5 @@
 import {
+  AnswerItemInputSchema,
   CreateItemInputSchema,
   CreateNoteInputSchema,
   InboxViewSchema,
@@ -29,8 +30,27 @@ const ActorBodySchema = z
 
 const PageLimitSchema = z.coerce.number().int().min(1).max(200);
 
+/** Optimistic concurrency stamp — ISO datetime with offset (same as WorkItem.updated_at). */
+const IfUpdatedAtSchema = z.string().datetime({ offset: true });
+
 const NotePatchSchema = UpdateNoteInputSchema.extend({
-  if_updated_at: z.string().optional(),
+  if_updated_at: IfUpdatedAtSchema.optional(),
+});
+
+const ItemPatchSchema = UpdateItemInputSchema.extend({
+  if_updated_at: IfUpdatedAtSchema.optional(),
+});
+
+const StatusBodySchema = SetStatusInputSchema.extend({
+  if_updated_at: IfUpdatedAtSchema.optional(),
+});
+
+const AnswerBodySchema = AnswerItemInputSchema.extend({
+  if_updated_at: IfUpdatedAtSchema.optional(),
+});
+
+const TakeBodySchema = z.object({
+  if_updated_at: IfUpdatedAtSchema.optional(),
 });
 
 function parseSearchFromQuery(query: Record<string, string>) {
@@ -134,10 +154,16 @@ export function createApi(svc: RelayService): Hono {
       const raw = await c.req.json();
       const withActor = ActorBodySchema.parse(raw);
       c.set("actorBody", withActor.actor);
-      const input = UpdateItemInputSchema.parse(raw);
+      const parsed = ItemPatchSchema.parse(raw);
+      const { if_updated_at, ...input } = parsed;
       const source = sourceFromRequest(c);
       const actor = actorFromRequest(c, svc, source);
-      const item = svc.updateItem(c.req.param("id"), input, actor);
+      const item = svc.updateItem(
+        c.req.param("id"),
+        input,
+        actor,
+        if_updated_at !== undefined ? { if_updated_at } : undefined,
+      );
       return c.json({ item });
     } catch (err) {
       return handleError(c, err);
@@ -149,10 +175,17 @@ export function createApi(svc: RelayService): Hono {
       const raw = await c.req.json();
       const withActor = ActorBodySchema.parse(raw);
       c.set("actorBody", withActor.actor);
-      const input = SetStatusInputSchema.parse(raw);
+      const parsed = StatusBodySchema.parse(raw);
+      const { if_updated_at, ...input } = parsed;
       const source = sourceFromRequest(c);
       const actor = actorFromRequest(c, svc, source);
-      const item = svc.setStatus(c.req.param("id"), input, actor, source);
+      const item = svc.setStatus(
+        c.req.param("id"),
+        input,
+        actor,
+        source,
+        if_updated_at !== undefined ? { if_updated_at } : undefined,
+      );
       return c.json({ item });
     } catch (err) {
       return handleError(c, err);
@@ -212,6 +245,50 @@ export function createApi(svc: RelayService): Hono {
       const actor = actorFromRequest(c, svc, source);
       const item = svc.askUser(c.req.param("id"), body.reason, actor, source);
       return c.json({ item });
+    } catch (err) {
+      return handleError(c, err);
+    }
+  });
+
+  app.post("/items/:id/answer", async (c) => {
+    try {
+      const raw = await c.req.json();
+      const withActor = ActorBodySchema.parse(raw);
+      c.set("actorBody", withActor.actor);
+      const parsed = AnswerBodySchema.parse(raw);
+      const { if_updated_at, ...input } = parsed;
+      const source = sourceFromRequest(c);
+      const actor = actorFromRequest(c, svc, source);
+      const result = svc.answer(
+        c.req.param("id"),
+        input,
+        actor,
+        source,
+        if_updated_at !== undefined ? { if_updated_at } : undefined,
+      );
+      return c.json(result);
+    } catch (err) {
+      return handleError(c, err);
+    }
+  });
+
+  app.post("/items/:id/take", async (c) => {
+    try {
+      const raw = (await c.req.json().catch(() => ({}))) as unknown;
+      const withActor = ActorBodySchema.parse(raw ?? {});
+      c.set("actorBody", withActor.actor);
+      const parsed = TakeBodySchema.parse(raw ?? {});
+      const source = sourceFromRequest(c);
+      const actor = actorFromRequest(c, svc, source);
+      const result = svc.take(
+        c.req.param("id"),
+        actor,
+        source,
+        parsed.if_updated_at !== undefined
+          ? { if_updated_at: parsed.if_updated_at }
+          : undefined,
+      );
+      return c.json(result);
     } catch (err) {
       return handleError(c, err);
     }
@@ -336,8 +413,10 @@ export function createApi(svc: RelayService): Hono {
     try {
       const opts = parseEventPageQuery({
         after_seq: c.req.query("after_seq"),
+        before_seq: c.req.query("before_seq"),
         limit: c.req.query("limit"),
       });
+      // before_seq reserved for SSE resume; paging still uses after_seq.
       return c.json(svc.listEventsForItem(c.req.param("id"), opts));
     } catch (err) {
       return handleError(c, err);
@@ -348,6 +427,7 @@ export function createApi(svc: RelayService): Hono {
     try {
       const opts = parseEventPageQuery({
         after_seq: c.req.query("after_seq"),
+        before_seq: c.req.query("before_seq"),
         limit: c.req.query("limit"),
       });
       return c.json(svc.listChanges(opts));
@@ -378,6 +458,7 @@ export function createApi(svc: RelayService): Hono {
       const since = c.req.query("since");
       const page = parseEventPageQuery({
         after_seq: c.req.query("after_seq"),
+        before_seq: c.req.query("before_seq"),
         limit: c.req.query("limit"),
       });
       const opts: {
