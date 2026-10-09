@@ -1,5 +1,7 @@
 import { ValidationError } from "@relay/core";
 import type { Context } from "hono";
+import type { AuthOptions } from "./auth.js";
+import { authorizeStreamRequest } from "./auth.js";
 import { MAX_AFTER_SEQ, parseEventPageQuery } from "./event_query.js";
 import type { SseHub } from "./sse_hub.js";
 
@@ -7,13 +9,24 @@ function newClientId(): string {
   return `sse_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 10)}`;
 }
 
+export type StreamAuthContext = {
+  svc: import("@relay/core").RelayService;
+  auth: AuthOptions;
+};
+
 /**
- * Phase 2 hook: require a bearer/token for `/api/stream`.
- * Return a Response to reject; return null to allow.
+ * Require a bearer token or short-lived `?access_token=` stream ticket when
+ * `requireToken` is on. Return a Response to reject; return null to allow.
  */
-export function authorizeStream(_c: Context): Response | null {
-  // Phase 2 will validate Authorization / token here.
-  return null;
+export function authorizeStream(
+  c: Context,
+  ctx?: StreamAuthContext,
+): Response | null {
+  if (!ctx) {
+    // Tests / legacy callers without auth context — allow (loopback default).
+    return null;
+  }
+  return authorizeStreamRequest(c, ctx.svc, ctx.auth);
 }
 
 /**
@@ -37,9 +50,12 @@ export function parseStreamAfterSeq(c: Context): number {
   }
 }
 
-export function createStreamHandler(hub: SseHub) {
+export function createStreamHandler(
+  hub: SseHub,
+  authCtx?: StreamAuthContext,
+) {
   return async (c: Context): Promise<Response> => {
-    const denied = authorizeStream(c);
+    const denied = authorizeStream(c, authCtx);
     if (denied) return denied;
 
     let afterSeq: number;

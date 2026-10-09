@@ -47,3 +47,17 @@ export class ConflictError extends DomainError {
     }
   }
 }
+
+export class UnauthorizedError extends DomainError {
+  constructor(message = "Authentication required") {
+    super("unauthorized", message);
+    this.name = "UnauthorizedError";
+  }
+}
+
+export class ForbiddenError extends DomainError {
+  constructor(message = "Forbidden") {
+    super("forbidden", message);
+    this.name = "ForbiddenError";
+  }
+}

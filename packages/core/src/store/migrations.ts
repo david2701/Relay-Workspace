@@ -274,4 +274,49 @@ CREATE INDEX IF NOT EXISTS idx_idempotency_keys_created
   ON idempotency_keys(created_at);
 `,
   },
+  {
+    version: 8,
+    sql: `
+-- Per-device auth tokens (hash only) + short-lived pairing codes.
+CREATE TABLE IF NOT EXISTS devices (
+  id TEXT PRIMARY KEY,
+  name TEXT NOT NULL,
+  platform TEXT NOT NULL,
+  token_hash TEXT NOT NULL UNIQUE,
+  created_at TEXT NOT NULL,
+  last_seen_at TEXT NOT NULL,
+  revoked_at TEXT
+);
+
+CREATE INDEX IF NOT EXISTS idx_devices_revoked ON devices(revoked_at);
+
+CREATE TABLE IF NOT EXISTS pairing_codes (
+  code TEXT PRIMARY KEY,
+  created_at TEXT NOT NULL,
+  expires_at TEXT NOT NULL,
+  consumed_at TEXT,
+  failed_attempts INTEGER NOT NULL DEFAULT 0,
+  created_by_device_id TEXT
+);
+
+CREATE INDEX IF NOT EXISTS idx_pairing_codes_expires ON pairing_codes(expires_at);
+
+CREATE TABLE IF NOT EXISTS pairing_ip_backoff (
+  ip TEXT PRIMARY KEY,
+  fail_count INTEGER NOT NULL DEFAULT 0,
+  blocked_until TEXT
+);
+
+-- Short-lived SSE EventSource tickets (query param; never the long-lived device token).
+CREATE TABLE IF NOT EXISTS stream_tickets (
+  token_hash TEXT PRIMARY KEY,
+  device_id TEXT NOT NULL,
+  expires_at TEXT NOT NULL,
+  created_at TEXT NOT NULL,
+  FOREIGN KEY (device_id) REFERENCES devices(id) ON DELETE CASCADE
+);
+
+CREATE INDEX IF NOT EXISTS idx_stream_tickets_expires ON stream_tickets(expires_at);
+`,
+  },
 ];

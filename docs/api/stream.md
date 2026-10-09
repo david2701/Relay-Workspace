@@ -21,11 +21,16 @@ Last-Event-ID: <seq>   # optional; preferred over query when both are set
 | `400` | Bad `Last-Event-ID` / `after_seq` (same rules as [events.md](./events.md)) |
 | `503` | Concurrent connection cap exceeded (default **50**, `RELAY_SSE_MAX_CONNECTIONS`) |
 
-### Auth (phase 2 hook)
+### Auth
 
-Phase 1 is local-only and unauthenticated. `authorizeStream` in
-`apps/server/src/stream_route.ts` is the intentional hook point — phase 2 will
-require a token on `/api/stream` without changing the event wire format.
+When `RELAY_REQUIRE_TOKEN` is on (default for non-loopback binds), `/api/stream`
+requires auth via `authorizeStream`:
+
+- `Authorization: Bearer <device token>`, or
+- short-lived `?access_token=` stream ticket from `POST /api/stream/ticket`
+  (EventSource cannot set headers — see [auth.md](./auth.md)).
+
+Loopback with tokens optional stays unauthenticated for local web.
 
 ## Wire format
 

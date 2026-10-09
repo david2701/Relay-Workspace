@@ -13,11 +13,13 @@ import {
 } from "@relay/core";
 import { Hono } from "hono";
 import { z } from "zod";
+import type { AuthOptions } from "../auth.js";
 import { actorFromRequest, sourceFromRequest } from "../actor.js";
 import { parseEventPageQuery } from "../event_query.js";
 import { handleError } from "../http_errors.js";
 import type { SseHub } from "../sse_hub.js";
 import { createStreamHandler } from "../stream_route.js";
+import { createDeviceRoutes } from "./devices.js";
 
 const ActorBodySchema = z
   .object({
@@ -66,6 +68,8 @@ function parseSearchFromQuery(query: Record<string, string>) {
 export type CreateApiOptions = {
   /** Realtime SSE hub; when omitted, GET /api/stream returns 503. */
   streamHub?: SseHub;
+  /** LAN auth options (defaults: no token required — loopback). */
+  auth?: AuthOptions;
 };
 
 export function createApi(svc: RelayService, opts: CreateApiOptions = {}): Hono {
@@ -73,8 +77,13 @@ export function createApi(svc: RelayService, opts: CreateApiOptions = {}): Hono 
 
   app.get("/health", (c) => c.json({ ok: true }));
 
+  const streamAuth =
+    opts.auth !== undefined
+      ? { svc, auth: opts.auth }
+      : undefined;
+
   if (opts.streamHub) {
-    app.get("/stream", createStreamHandler(opts.streamHub));
+    app.get("/stream", createStreamHandler(opts.streamHub, streamAuth));
   } else {
     app.get("/stream", (c) =>
       c.json(
@@ -85,6 +94,10 @@ export function createApi(svc: RelayService, opts: CreateApiOptions = {}): Hono 
         503,
       ),
     );
+  }
+
+  if (opts.auth) {
+    app.route("/", createDeviceRoutes(svc, opts.auth));
   }
 
   app.get("/agents", (c) => c.json({ agents: svc.listAgents() }));

@@ -1,6 +1,7 @@
 import { existsSync } from "node:fs";
 import { resolve } from "node:path";
 import { z } from "zod";
+import { resolveAuthBindConfig, type AuthBindConfig } from "./auth_config.js";
 
 function defaultDbPath(): string {
   const candidates = [
@@ -24,9 +25,18 @@ const EnvSchema = z.object({
   RELAY_SSE_RESYNC_THRESHOLD: z.coerce.number().int().positive().default(5000),
   /** Server-side MAX(seq) poll for cross-process fan-out (ms). */
   RELAY_SSE_WATCH_MS: z.coerce.number().int().positive().default(250),
+  /**
+   * Force token auth on/off. Default: true when bind is non-loopback,
+   * false on loopback. Non-loopback + false is rejected at startup.
+   */
+  RELAY_REQUIRE_TOKEN: z.string().optional(),
+  /** Base URL embedded in pairing QR (e.g. http://192.168.1.10:7420). */
+  RELAY_PUBLIC_URL: z.string().optional(),
 });
 
-export type Env = z.infer<typeof EnvSchema>;
+export type Env = z.infer<typeof EnvSchema> & {
+  auth: AuthBindConfig;
+};
 
 export function loadEnv(env: NodeJS.ProcessEnv = process.env): Env {
   const parsed = EnvSchema.safeParse({
@@ -36,5 +46,15 @@ export function loadEnv(env: NodeJS.ProcessEnv = process.env): Env {
   if (!parsed.success) {
     throw new Error(`Invalid environment: ${parsed.error.message}`);
   }
-  return parsed.data;
+  const data = parsed.data;
+  const requireTokenEnv =
+    data.RELAY_REQUIRE_TOKEN ?? env.RELAY_REQUIRE_TOKEN;
+  const publicUrlEnv = data.RELAY_PUBLIC_URL ?? env.RELAY_PUBLIC_URL;
+  const auth = resolveAuthBindConfig({
+    host: data.RELAY_HOST,
+    port: data.RELAY_PORT,
+    ...(requireTokenEnv !== undefined ? { requireTokenEnv } : {}),
+    ...(publicUrlEnv !== undefined ? { publicUrlEnv } : {}),
+  });
+  return { ...data, auth };
 }

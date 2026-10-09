@@ -5,6 +5,12 @@ import { serveStatic } from "@hono/node-server/serve-static";
 import { RelayService } from "@relay/core";
 import { Hono } from "hono";
 import { cors } from "hono/cors";
+import {
+  type AuthOptions,
+  createAuthMiddleware,
+  createMcpInvokeAuthMiddleware,
+} from "./auth.js";
+import { createClientIpResolver, type ClientIpResolver } from "./client_ip.js";
 import { loadEnv } from "./env.js";
 import { idempotencyMiddleware } from "./idempotency_middleware.js";
 import { createMcpHttpHandler, invokeMcpTool } from "./mcp/http.js";
@@ -37,7 +43,30 @@ export type CreateAppOptions = {
   /** Shared SSE hub (tests may inject a short-interval hub). */
   streamHub?: SseHub;
   streamOptions?: SseHubOptions;
+  /**
+   * When true, every /api (except public) and /mcp/invoke requires a device
+   * token. Default false so existing loopback e2e/tests stay unchanged.
+   */
+  requireToken?: boolean;
+  /** Base URL for pairing QR payloads. */
+  publicUrl?: string;
+  /** Override client IP resolution (tests). */
+  resolveClientIp?: ClientIpResolver;
 };
+
+function buildAuthOptions(
+  opts: CreateAppOptions,
+  webOrigin: string,
+): AuthOptions {
+  const inferredPublic =
+    webOrigin.replace(/:\d+$/, ":7420").replace(/\/$/, "") ||
+    "http://127.0.0.1:7420";
+  return {
+    requireToken: opts.requireToken ?? false,
+    publicUrl: opts.publicUrl ?? inferredPublic,
+    resolveClientIp: createClientIpResolver(opts.resolveClientIp),
+  };
+}
 
 export function createApp(
   svc: RelayService,
@@ -46,6 +75,7 @@ export function createApp(
 ): Hono {
   const streamHub =
     opts.streamHub ?? createSseHub(svc, opts.streamOptions ?? {});
+  const auth = buildAuthOptions(opts, webOrigin);
   const app = new Hono();
   app.use(
     "*",
@@ -54,6 +84,7 @@ export function createApp(
       allowMethods: ["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
       allowHeaders: [
         "Content-Type",
+        "Authorization",
         "X-Relay-Actor",
         "X-Relay-Source",
         "Idempotency-Key",
@@ -63,25 +94,30 @@ export function createApp(
       exposeHeaders: ["mcp-session-id"],
     }),
   );
+  app.use("/api/*", createAuthMiddleware(svc, auth));
   app.use("/api/*", idempotencyMiddleware(svc));
-  app.route("/api", createApi(svc, { streamHub }));
+  app.route("/api", createApi(svc, { streamHub, auth }));
   // Stash for tests / graceful shutdown.
   (app as Hono & { streamHub: SseHub }).streamHub = streamHub;
   const mcpHandler = createMcpHttpHandler(svc);
   app.all("/mcp", mcpHandler);
-  app.post("/mcp/invoke", async (c) => {
-    try {
-      const body = await c.req.json();
-      const name = String(body.name ?? "");
-      const args = (body.arguments ?? {}) as Record<string, unknown>;
-      const headerActor = c.req.header("x-relay-actor") ?? undefined;
-      const result = await invokeMcpTool(svc, name, args, headerActor);
-      return c.json({ result });
-    } catch (err) {
-      const message = err instanceof Error ? err.message : String(err);
-      return c.json({ error: message }, 400);
-    }
-  });
+  app.post(
+    "/mcp/invoke",
+    createMcpInvokeAuthMiddleware(svc, auth),
+    async (c) => {
+      try {
+        const body = await c.req.json();
+        const name = String(body.name ?? "");
+        const args = (body.arguments ?? {}) as Record<string, unknown>;
+        const headerActor = c.req.header("x-relay-actor") ?? undefined;
+        const result = await invokeMcpTool(svc, name, args, headerActor);
+        return c.json({ result });
+      } catch (err) {
+        const message = err instanceof Error ? err.message : String(err);
+        return c.json({ error: message }, 400);
+      }
+    },
+  );
 
   // Callers (main) pass resolveWebDist(); tests omit so API-only behavior is stable.
   const webDist = opts.webDist ?? null;
@@ -105,6 +141,10 @@ export function createApp(
         mcp_invoke: "/mcp/invoke",
         mcp_stdio: "pnpm --filter @relay/server mcp:stdio",
         web: "Set RELAY_WEB_DIST or build apps/web (dist/) for SPA fallback",
+        auth: {
+          require_token: auth.requireToken,
+          public_url: auth.publicUrl,
+        },
       }),
     );
   }
@@ -113,10 +153,6 @@ export function createApp(
 
 async function main(): Promise<void> {
   const env = loadEnv();
-  if (env.RELAY_HOST !== "127.0.0.1" && env.RELAY_HOST !== "localhost") {
-    console.error("Security: RELAY_HOST must be 127.0.0.1 (local-only bind)");
-    process.exit(1);
-  }
   const svc = new RelayService({ dbPath: env.RELAY_DB });
   const webDist = resolveWebDist(process.env.RELAY_WEB_DIST);
   const streamHub = createSseHub(svc, {
@@ -124,7 +160,12 @@ async function main(): Promise<void> {
     resyncThreshold: env.RELAY_SSE_RESYNC_THRESHOLD,
     watchIntervalMs: env.RELAY_SSE_WATCH_MS,
   });
-  const app = createApp(svc, env.RELAY_WEB_ORIGIN, { webDist, streamHub });
+  const app = createApp(svc, env.RELAY_WEB_ORIGIN, {
+    webDist,
+    streamHub,
+    requireToken: env.auth.requireToken,
+    publicUrl: env.auth.publicUrl,
+  });
   serve(
     {
       fetch: app.fetch,
@@ -136,6 +177,9 @@ async function main(): Promise<void> {
         `Relay API+MCP listening on http://${env.RELAY_HOST}:${info.port}`,
       );
       console.info(`SQLite: ${env.RELAY_DB}`);
+      console.info(
+        `Auth: require_token=${env.auth.requireToken} public_url=${env.auth.publicUrl}`,
+      );
       console.info(`SSE stream: http://${env.RELAY_HOST}:${info.port}/api/stream`);
       console.info(`MCP Streamable HTTP: http://${env.RELAY_HOST}:${info.port}/mcp`);
       console.info(`MCP invoke helper: http://${env.RELAY_HOST}:${info.port}/mcp/invoke`);

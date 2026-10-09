@@ -11,6 +11,7 @@ import { SUPPORTED_LOCALES } from "../i18n/types";
 import type { RelaySettings } from "../lib/api";
 import { graphemeCount, MAX_NAME_GRAPHEMES } from "../lib/grapheme";
 import { initialFromName } from "../lib/initial_from_name";
+import { DevicesSettings } from "./DevicesSettings";
 import { ThemeSwitch } from "./ThemeSwitch";
 
 type Theme = "light" | "dark" | "system";
@@ -19,6 +20,7 @@ export type SettingsSection =
   | "language"
   | "timezone"
   | "theme"
+  | "devices"
   | "about";
 
 type Props = {
@@ -44,6 +46,7 @@ const SECTION_KEYS: Record<SettingsSection, MessageKey> = {
   language: "settings.section.language",
   timezone: "settings.section.timezone",
   theme: "settings.section.theme",
+  devices: "settings.section.devices",
   about: "settings.section.about",
 };
 
@@ -526,6 +529,15 @@ export function SettingsPanel({
             >
               <h3 id="settings-theme-h">{t("settings.section.theme")}</h3>
               <ThemeSwitch theme={theme} onChange={onThemeChange} />
+            </section>
+
+            <section
+              id="settings-devices"
+              aria-labelledby="settings-devices-h"
+              hidden={section !== "devices"}
+            >
+              <h3 id="settings-devices-h">{t("settings.section.devices")}</h3>
+              {section === "devices" ? <DevicesSettings /> : null}
             </section>
 
             <section

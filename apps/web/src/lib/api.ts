@@ -10,6 +10,21 @@ export type SettingsResponse = {
   work_item_count: number;
 };
 
+export type RelayDevice = {
+  id: string;
+  name: string;
+  platform: "web" | "ios" | "android" | "other";
+  created_at: string;
+  last_seen_at: string;
+  revoked_at: string | null;
+};
+
+export type PairingSessionResponse = {
+  code: string;
+  expires_at: string;
+  qr: { v: 1; url: string; code: string };
+};
+
 import type {
   Agent,
   ContextPack,
@@ -171,6 +186,37 @@ export const api = {
       method: "PUT",
       body: JSON.stringify(patch),
     }),
+  listDevices: () => request<{ devices: RelayDevice[] }>("/api/devices"),
+  startPairing: () =>
+    request<PairingSessionResponse>("/api/pair/start", { method: "POST" }),
+  claimPairing: (body: {
+    code: string;
+    device_name: string;
+    platform: RelayDevice["platform"];
+  }) =>
+    request<{
+      device_id: string;
+      token: string;
+      device: RelayDevice;
+    }>("/api/pair/claim", {
+      method: "POST",
+      body: JSON.stringify(body),
+    }),
+  renameDevice: (id: string, name: string) =>
+    request<{ device: RelayDevice }>(`/api/devices/${id}`, {
+      method: "PATCH",
+      body: JSON.stringify({ name }),
+    }),
+  revokeDevice: (id: string) =>
+    request<{ device: RelayDevice }>(`/api/devices/${id}`, {
+      method: "DELETE",
+    }),
+  mintStreamTicket: () =>
+    request<{
+      access_token: string;
+      expires_at: string;
+      expires_in: number;
+    }>("/api/stream/ticket", { method: "POST" }),
   loadSampleData: (locale: "en" | "fr" | "es") =>
     request<SettingsResponse & { ok: boolean; locale: string }>("/api/seed", {
       method: "POST",
