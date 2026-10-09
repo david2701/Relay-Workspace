@@ -100,7 +100,42 @@ export function createApi(svc: RelayService, opts: CreateApiOptions = {}): Hono 
     app.route("/", createDeviceRoutes(svc, opts.auth));
   }
 
-  app.get("/agents", (c) => c.json({ agents: svc.listAgents() }));
+  app.get("/agents", (c) => c.json({ agents: svc.listAgentSummaries() }));
+
+  app.get("/agents/:id", (c) => {
+    try {
+      const page = parseEventPageQuery({
+        after_seq: c.req.query("after_seq"),
+        before_seq: c.req.query("before_seq"),
+        limit: c.req.query("limit"),
+      });
+      const currentRaw = c.req.query("current_items_limit");
+      const profileOpts: {
+        after_seq?: number;
+        before_seq?: number;
+        limit?: number;
+        current_items_limit?: number;
+      } = {};
+      if (page.after_seq !== undefined) profileOpts.after_seq = page.after_seq;
+      if (page.before_seq !== undefined) profileOpts.before_seq = page.before_seq;
+      if (page.limit !== undefined) profileOpts.limit = page.limit;
+      if (currentRaw !== undefined) {
+        // Reuse the same limit bounds as event paging (1…200).
+        const currentPage = parseEventPageQuery({ limit: currentRaw });
+        if (currentPage.limit !== undefined) {
+          profileOpts.current_items_limit = currentPage.limit;
+        }
+      }
+      return c.json({
+        agent: svc.getAgentProfile(
+          c.req.param("id"),
+          Object.keys(profileOpts).length > 0 ? profileOpts : undefined,
+        ),
+      });
+    } catch (err) {
+      return handleError(c, err);
+    }
+  });
 
   app.get("/items", (c) => {
     try {

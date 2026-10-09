@@ -177,6 +177,38 @@ Priorities: `none` | `low` | `medium` | `high`
 Note roles: `context` | `reference` | `decision`  
 Inbox views: `attention` | `agent_wip` | `upcoming` | `done` | `all`
 
+### `agents_list`
+
+List catalog agents with presence (`last_seen_at`, `active`) and assigned-item `counts`.
+
+| Param | Type | Required |
+|-------|------|----------|
+| — | — | — |
+
+**Call:** `{}`  
+**Response:** `{ "agents": [ { "id", "display_name", "monogram", "last_seen_at", "active", "counts": { "needs_you", "blocked", "in_progress", "assigned", "done" } } ] }`
+
+See [`docs/api/agents.md`](../api/agents.md).
+
+### `agents_get`
+
+Agent profile: summary fields plus `current_items` and paged `handoffs` (newest first).
+`after_seq` / `before_seq` / `limit` use the same validation as `items_events` /
+`changes_list` (`parseEventPageQuery`; invalid → `validation_error`).
+
+| Param | Type | Required |
+|-------|------|----------|
+| `id` | string (agent) | yes |
+| `after_seq` | int 0…MAX_SAFE_INTEGER | no |
+| `before_seq` | int 0…MAX_SAFE_INTEGER | no |
+| `limit` | int 1–200 | no (default 50) |
+| `current_items_limit` | int 1–200 | no (default 10) |
+
+**Call:** `{ "id": "agent-code" }`  
+**Response:** `{ "agent": { …summary, "current_items": […], "handoffs": […], "handoffs_next_seq", "handoffs_has_more" } }`
+
+`handoffs_next_seq` matches item `next_seq` semantics (last seq in this page; empty → request cursor). Unknown id → `not_found`.
+
 ### `items_list`
 
 List work items. Optional pagination.

@@ -1009,6 +1009,17 @@ export default function App() {
     view === "notes"
       ? t("nav.notes")
       : VIEWS.find((v) => v.id === view)?.label ?? "Relay";
+  const syncLabel =
+    syncState === "offline"
+      ? t("sync.offline")
+      : syncState === "reconnecting"
+        ? t("sync.reconnecting")
+        : t("sync.ok", {
+            relative: new Intl.RelativeTimeFormat(intlLocale, {
+              numeric: "auto",
+              style: "short",
+            }).format(-Math.max(0, syncAge.current), "second"),
+          });
 
   return (
     <div className={`app-shell${needsOnboarding ? " is-onboarding" : ""}`}>
@@ -1053,24 +1064,14 @@ export default function App() {
           <div
             className="mono sync-seal"
             data-sync-state={syncState}
-            title={
-              syncState === "reconnecting"
-                ? t("sync.reconnecting")
-                : offline
-                  ? t("sync.offline")
-                  : undefined
-            }
+            title={syncLabel}
+            aria-label={syncLabel}
+            role="status"
           >
-            {syncState === "offline"
-              ? t("sync.offline")
-              : syncState === "reconnecting"
-                ? t("sync.reconnecting")
-                : t("sync.ok", {
-                    relative: new Intl.RelativeTimeFormat(intlLocale, {
-                      numeric: "auto",
-                      style: "short",
-                    }).format(-Math.max(0, syncAge.current), "second"),
-                  })}
+            <span className="sync-seal-dot" aria-hidden="true" />
+            <span className="sync-seal-label" aria-hidden="true">
+              {syncLabel}
+            </span>
           </div>
           <button type="button" className="linkish" onClick={() => setShowShortcuts(true)}>
             ? {t("nav.shortcuts")}

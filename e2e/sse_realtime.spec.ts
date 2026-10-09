@@ -123,4 +123,81 @@ test.describe("SSE realtime (PR 1c)", () => {
     );
     await expect(page.locator(".sync-seal")).toContainText(/up to date|al día|à jour/i);
   });
+
+  for (const locale of ["en", "fr", "es"] as const) {
+    test(`collapsed rail @768 (${locale}): dot-only, unclipped, full aria-label for all states`, async ({
+      page,
+    }) => {
+      const labelRe: Record<
+        "connected" | "reconnecting" | "offline",
+        RegExp
+      > = {
+        connected:
+          locale === "fr"
+            ? /à jour/i
+            : locale === "es"
+              ? /al día/i
+              : /up to date/i,
+        reconnecting:
+          locale === "fr"
+            ? /reconnexion/i
+            : locale === "es"
+              ? /reconectando/i
+              : /reconnecting/i,
+        offline:
+          locale === "fr"
+            ? /hors ligne/i
+            : locale === "es"
+              ? /sin conexión/i
+              : /offline/i,
+      };
+
+      await page.addInitScript((loc) => {
+        localStorage.setItem("relay.locale", loc);
+      }, locale);
+      await page.setViewportSize({ width: 768, height: 1024 });
+      await completeOnboarding(page);
+      await page.goto("/all");
+
+      const seal = page.locator(".sync-seal");
+      const label = page.locator(".sync-seal-label");
+
+      async function assertCompactState(
+        state: "connected" | "reconnecting" | "offline",
+      ): Promise<void> {
+        await expect(seal).toHaveAttribute("data-sync-state", state, {
+          timeout: 15_000,
+        });
+        await expect(label).toBeHidden();
+        const aria = (await seal.getAttribute("aria-label")) ?? "";
+        const title = (await seal.getAttribute("title")) ?? "";
+        expect(aria, `${locale}/${state} aria-label`).toMatch(labelRe[state]);
+        expect(title, `${locale}/${state} title`).toMatch(labelRe[state]);
+        expect(aria).toBe(title);
+        const metrics = await seal.evaluate((el: HTMLElement) => ({
+          scrollWidth: el.scrollWidth,
+          clientWidth: el.clientWidth,
+          // innerText ignores display:none .sync-seal-label
+          painted: (el.innerText ?? "").trim(),
+        }));
+        expect(
+          metrics.scrollWidth,
+          `${locale}/${state} clipped: sw=${metrics.scrollWidth} cw=${metrics.clientWidth}`,
+        ).toBeLessThanOrEqual(metrics.clientWidth + 1);
+        // Collapsed rail paints the dot only — never mid-word fragments like «Up to».
+        expect(metrics.painted).toBe("");
+      }
+
+      await assertCompactState("connected");
+
+      await page.route("**/api/stream*", (route) => route.abort());
+      await page.reload({ waitUntil: "domcontentloaded" });
+      await assertCompactState("reconnecting");
+
+      await page.unroute("**/api/stream*");
+      await page.route("**/api/**", (route) => route.abort());
+      await page.reload({ waitUntil: "domcontentloaded" }).catch(() => {});
+      await assertCompactState("offline");
+    });
+  }
 });
