@@ -1,0 +1,26 @@
+{
+  "item": {
+    "id": "itm_cancelled_fixture",
+    "title": "Cancelado de ejemplo",
+    "goal": null,
+    "status": "cancelled",
+    "assignee_type": "unassigned",
+    "assignee_id": null,
+    "due_at": null,
+    "reminder_at": null,
+    "reminder_intent": null,
+    "priority": "none",
+    "blocked_reason": null,
+    "needs_you_reason": null,
+    "source": "ui",
+    "created_at": "2026-10-09T03:40:42.188Z",
+    "updated_at": "2026-10-09T03:40:42.188Z",
+    "started_at": null,
+    "completed_at": "2026-10-09T03:40:42.188Z",
+    "completed_by_type": "user",
+    "completed_by_id": "david",
+    "last_actor_type": "user",
+    "last_actor_id": "user",
+    "list_id": null
+  }
+}
