@@ -8,6 +8,7 @@ import type { PageParams } from "../domain/page.js";
 import { recommendInbox } from "../domain/recommend.js";
 import { type SearchDeps, searchItems, searchNotes } from "../domain/search.js";
 import { nowIso } from "../domain/time.js";
+import { buildDecisionNoteTitle } from "../domain/decision_note_title.js";
 import {
   applyStatusChange,
   askUser,
@@ -745,7 +746,10 @@ export class RelayService {
       current.assignee_type === "agent" &&
       Boolean(current.assignee_id);
     const at = new Date();
-    const noteTitle = `Decisión: ${(current.needs_you_reason ?? "respuesta").slice(0, 60)}`;
+    const noteTitle = buildDecisionNoteTitle(
+      current.title,
+      input.locale ?? "en",
+    );
     const note: Note = {
       id: createId("nte"),
       title: noteTitle,

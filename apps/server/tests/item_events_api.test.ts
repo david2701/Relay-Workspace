@@ -109,80 +109,108 @@ describe("item events HTTP + MCP", () => {
     expect(ctx.events.length).toBeGreaterThan(0);
   });
 
-  const badCases: Array<{ query: string; label: string }> = [
-    { query: "after_seq=-1", label: "after_seq=-1" },
-    { query: "after_seq=abc", label: "after_seq=abc" },
-    { query: "limit=0", label: "limit=0" },
-    { query: "limit=-1", label: "limit=-1" },
-    { query: "limit=99999", label: "limit=99999" },
+  const badCases: Array<{ query: string; label: string; field: string }> = [
+    { query: "after_seq=-1", label: "after_seq=-1", field: "after_seq" },
+    { query: "after_seq=abc", label: "after_seq=abc", field: "after_seq" },
+    { query: "after_seq=", label: "after_seq=empty", field: "after_seq" },
+    { query: "before_seq=", label: "before_seq=empty", field: "before_seq" },
+    { query: "before_seq=abc", label: "before_seq=abc", field: "before_seq" },
+    { query: "limit=0", label: "limit=0", field: "limit" },
+    { query: "limit=-1", label: "limit=-1", field: "limit" },
+    { query: "limit=", label: "limit=empty", field: "limit" },
+    { query: "limit=99999", label: "limit=99999", field: "limit" },
     {
       query: "after_seq=999999999999999999999",
       label: "after_seq=huge",
+      field: "after_seq",
     },
   ];
 
-  for (const { query, label } of badCases) {
-    it(`GET /api/changes returns 400 for ${label}`, async () => {
+  for (const { query, label, field } of badCases) {
+    it(`GET /api/changes returns 400 naming ${field} for ${label}`, async () => {
       const res = await app.request(`http://127.0.0.1/api/changes?${query}`);
       expect(res.status).toBe(400);
-      const body = (await res.json()) as { error: string; message: string };
+      const body = (await res.json()) as {
+        error: string;
+        message: string;
+        field?: string;
+      };
       expect(body.error).toBe("validation_error");
-      expect(typeof body.message).toBe("string");
-      expect(body.message.length).toBeGreaterThan(0);
+      expect(body.field).toBe(field);
+      expect(body.message).toContain(field);
     });
 
-    it(`GET /api/items/:id/events returns 400 for ${label}`, async () => {
+    it(`GET /api/items/:id/events returns 400 naming ${field} for ${label}`, async () => {
       const item = svc.createItem({ title: `bad-${label}` }, actor, "ui");
       const res = await app.request(
         `http://127.0.0.1/api/items/${item.id}/events?${query}`,
       );
       expect(res.status).toBe(400);
-      const body = (await res.json()) as { error: string; message: string };
+      const body = (await res.json()) as {
+        error: string;
+        message: string;
+        field?: string;
+      };
       expect(body.error).toBe("validation_error");
-      expect(body.message.length).toBeGreaterThan(0);
+      expect(body.field).toBe(field);
+      expect(body.message).toContain(field);
     });
 
-    it(`GET /api/inbox returns 400 for ${label}`, async () => {
+    it(`GET /api/inbox returns 400 naming ${field} for ${label}`, async () => {
       const res = await app.request(
         `http://127.0.0.1/api/inbox?view=all&${query}`,
       );
       expect(res.status).toBe(400);
-      const body = (await res.json()) as { error: string; message: string };
+      const body = (await res.json()) as {
+        error: string;
+        message: string;
+        field?: string;
+      };
       expect(body.error).toBe("validation_error");
-      expect(body.message.length).toBeGreaterThan(0);
+      expect(body.field).toBe(field);
+      expect(body.message).toContain(field);
     });
   }
 
-  const mcpBad: Array<{ args: Record<string, unknown>; label: string }> = [
-    { args: { after_seq: -1 }, label: "after_seq=-1" },
-    { args: { after_seq: "abc" }, label: "after_seq=abc" },
-    { args: { limit: 0 }, label: "limit=0" },
-    { args: { limit: -1 }, label: "limit=-1" },
-    { args: { limit: 99999 }, label: "limit=99999" },
+  const mcpBad: Array<{
+    args: Record<string, unknown>;
+    label: string;
+    field: string;
+  }> = [
+    { args: { after_seq: -1 }, label: "after_seq=-1", field: "after_seq" },
+    { args: { after_seq: "abc" }, label: "after_seq=abc", field: "after_seq" },
+    { args: { after_seq: "" }, label: "after_seq=empty", field: "after_seq" },
+    { args: { before_seq: "" }, label: "before_seq=empty", field: "before_seq" },
+    { args: { limit: 0 }, label: "limit=0", field: "limit" },
+    { args: { limit: -1 }, label: "limit=-1", field: "limit" },
+    { args: { limit: "" }, label: "limit=empty", field: "limit" },
+    { args: { limit: 99999 }, label: "limit=99999", field: "limit" },
     {
       args: { after_seq: Number.MAX_SAFE_INTEGER + 1 },
       label: "after_seq=huge",
+      field: "after_seq",
     },
   ];
 
-  for (const { args, label } of mcpBad) {
-    it(`MCP changes_list rejects ${label}`, async () => {
-      await expect(invokeMcpTool(svc, "changes_list", args)).rejects.toThrow(
-        ValidationError,
-      );
+  for (const { args, label, field } of mcpBad) {
+    it(`MCP changes_list rejects ${label} with field ${field}`, async () => {
+      await expect(invokeMcpTool(svc, "changes_list", args)).rejects.toMatchObject({
+        name: "ValidationError",
+        field,
+      });
     });
 
-    it(`MCP items_events rejects ${label}`, async () => {
+    it(`MCP items_events rejects ${label} with field ${field}`, async () => {
       const item = svc.createItem({ title: `mcp-${label}` }, actor, "ui");
       await expect(
         invokeMcpTool(svc, "items_events", { id: item.id, ...args }),
-      ).rejects.toThrow(ValidationError);
+      ).rejects.toMatchObject({ name: "ValidationError", field });
     });
 
-    it(`MCP inbox_query rejects ${label}`, async () => {
+    it(`MCP inbox_query rejects ${label} with field ${field}`, async () => {
       await expect(
         invokeMcpTool(svc, "inbox_query", { view: "all", ...args }),
-      ).rejects.toThrow(ValidationError);
+      ).rejects.toMatchObject({ name: "ValidationError", field });
     });
   }
 

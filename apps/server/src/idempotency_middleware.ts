@@ -49,6 +49,7 @@ export function idempotencyMiddleware(svc: RelayService): MiddlewareHandler {
           error: "validation_error",
           message:
             "Idempotency-Key must be 1..256 visible ASCII characters (no spaces)",
+          field: "Idempotency-Key",
         },
         400,
       );

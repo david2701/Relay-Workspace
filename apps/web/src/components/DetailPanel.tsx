@@ -1,7 +1,7 @@
 import { Bell, CalendarBlank, LinkSimple, X } from "@phosphor-icons/react";
 import { useEffect, useMemo, useState } from "react";
 import { useActorLabels } from "../hooks/useActorLabels";
-import { useT } from "../i18n/I18nProvider";
+import { useI18n, useT } from "../i18n/I18nProvider";
 import type { MessageKey } from "../i18n/types";
 import {
   markForActor,
@@ -60,6 +60,7 @@ export function DetailPanel({
   onOpenNote,
 }: Props) {
   const t = useT();
+  const { locale } = useI18n();
   const actorLabels = useActorLabels();
   const sl = (s: Status) => statusLabel(t, s);
   const [notes, setNotes] = useState<LinkedNote[]>([]);
@@ -170,6 +171,7 @@ export function DetailPanel({
       const { item: next, note } = await api.answer(item!.id, {
         text,
         return_to: "agent",
+        locale,
         if_updated_at: item!.updated_at,
       });
       onChange(next);
@@ -193,6 +195,7 @@ export function DetailPanel({
       const answered = await api.answer(current.id, {
         text,
         return_to: "none",
+        locale,
         if_updated_at: current.updated_at,
       });
       current = answered.item;

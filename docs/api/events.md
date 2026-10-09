@@ -53,12 +53,27 @@ Demo seed backdates one item’s `updated_at` for Attention ordering via
 
 ## Query parameters
 
-Shared by `/api/changes`, `/api/items/:id/events`, and inbox `after_seq` / `limit`:
+Shared by `/api/changes`, `/api/items/:id/events`, and inbox (`after_seq` / `before_seq` / `limit`):
 
 | Param | Rules |
 | --- | --- |
-| `after_seq` | Optional. Safe integer `0 … Number.MAX_SAFE_INTEGER`. Invalid → **400** `{ "error": "validation_error", "message": "…" }`. |
-| `limit` | Optional. Integer `1 … 200`. Invalid (`0`, negative, non-numeric, `>200`) → **400** same shape. |
+| `after_seq` | Optional. Safe integer `0 … Number.MAX_SAFE_INTEGER`. |
+| `before_seq` | Optional. Same bounds as `after_seq` (reserved for SSE resume). |
+| `limit` | Optional. Integer `1 … 200`. |
+
+**Empty values** (`after_seq=`, `before_seq=`, `limit=`) return **400** — omit the parameter to use the default. Do not treat blank as `0`.
+
+Invalid or empty → **400**:
+
+```json
+{
+  "error": "validation_error",
+  "message": "after_seq must be a safe integer between 0 and 9007199254740991",
+  "field": "after_seq"
+}
+```
+
+`message` always names the offending field; `field` repeats it for clients. Same shape for write validation (`text`, `if_updated_at`, `Idempotency-Key`).
 
 ## Endpoints
 

@@ -220,14 +220,17 @@ describe("write validation → 400 validation_error", () => {
 
   async function expectValidation400(
     res: Response,
-  ): Promise<{ error: string; message: string }> {
+    field: string,
+  ): Promise<{ error: string; message: string; field?: string }> {
     expect(res.status).toBe(400);
-    const body = (await res.json()) as { error: string; message: string };
-    expect(body).toEqual({
-      error: "validation_error",
-      message: expect.any(String),
-    });
-    expect(body.message.length).toBeGreaterThan(0);
+    const body = (await res.json()) as {
+      error: string;
+      message: string;
+      field?: string;
+    };
+    expect(body.error).toBe("validation_error");
+    expect(body.field).toBe(field);
+    expect(body.message).toContain(field);
     return body;
   }
 
@@ -238,7 +241,7 @@ describe("write validation → 400 validation_error", () => {
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ text: "" }),
     });
-    await expectValidation400(empty);
+    await expectValidation400(empty, "text");
 
     const oversized = await app.request(
       `http://127.0.0.1/api/items/${id}/answer`,
@@ -248,7 +251,7 @@ describe("write validation → 400 validation_error", () => {
         body: JSON.stringify({ text: "x".repeat(4001) }),
       },
     );
-    await expectValidation400(oversized);
+    await expectValidation400(oversized, "text");
   });
 
   it("answer/take/PATCH reject malformed if_updated_at with 400 validation_error", async () => {
@@ -282,7 +285,7 @@ describe("write validation → 400 validation_error", () => {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(row.body),
       });
-      await expectValidation400(res);
+      await expectValidation400(res, "if_updated_at");
     }
   });
 
@@ -299,7 +302,28 @@ describe("write validation → 400 validation_error", () => {
         },
         body: "{}",
       });
-      await expectValidation400(res);
+      await expectValidation400(res, "Idempotency-Key");
     }
+  });
+
+  it("answer note title is i18n prefix + item title, body holds the text", async () => {
+    const id = await seedNeedsYou();
+    const item = svc.getItem(id);
+    const res = await app.request(`http://127.0.0.1/api/items/${id}/answer`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json", "X-Relay-Source": "ui" },
+      body: JSON.stringify({
+        text: "Ship version A (Relay).",
+        return_to: "agent",
+        locale: "en",
+      }),
+    });
+    expect(res.status).toBe(200);
+    const body = (await res.json()) as {
+      note: { title: string; body_md: string };
+    };
+    expect(body.note.title).toBe(`Decision: ${item.title}`);
+    expect(body.note.body_md).toBe("Ship version A (Relay).");
+    expect(body.note.title).not.toContain("Ship version");
   });
 });
