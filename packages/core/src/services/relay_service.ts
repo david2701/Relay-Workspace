@@ -348,10 +348,14 @@ export class RelayService {
       ...(beforeSeq !== undefined ? { beforeSeq } : {}),
       limit,
     });
+    // Same cursor rule as item `next_seq` (docs/api/events.md): last seq in
+    // this page; when empty, echo the request cursor (default 0). Handoffs are
+    // newest-first, so the last row is the oldest — pass as before_seq.
+    const requestCursor = beforeSeq ?? afterSeq ?? 0;
     const next_seq =
       handoffs.length > 0
-        ? (handoffs[handoffs.length - 1]?.seq ?? 0)
-        : (beforeSeq ?? afterSeq ?? 0);
+        ? (handoffs[handoffs.length - 1]?.seq ?? requestCursor)
+        : requestCursor;
     return { handoffs, next_seq, has_more };
   }
 

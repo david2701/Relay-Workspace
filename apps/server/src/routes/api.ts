@@ -50,9 +50,11 @@ export function createApi(svc: RelayService): Hono {
 
   app.get("/agents/:id", (c) => {
     try {
-      const afterRaw = c.req.query("after_seq");
-      const beforeRaw = c.req.query("before_seq");
-      const limitRaw = c.req.query("limit");
+      const page = parseEventPageQuery({
+        after_seq: c.req.query("after_seq"),
+        before_seq: c.req.query("before_seq"),
+        limit: c.req.query("limit"),
+      });
       const currentRaw = c.req.query("current_items_limit");
       const opts: {
         after_seq?: number;
@@ -60,17 +62,15 @@ export function createApi(svc: RelayService): Hono {
         limit?: number;
         current_items_limit?: number;
       } = {};
-      if (afterRaw !== undefined) {
-        opts.after_seq = z.coerce.number().int().nonnegative().parse(afterRaw);
-      }
-      if (beforeRaw !== undefined) {
-        opts.before_seq = z.coerce.number().int().nonnegative().parse(beforeRaw);
-      }
-      if (limitRaw !== undefined) {
-        opts.limit = PageLimitSchema.parse(limitRaw);
-      }
+      if (page.after_seq !== undefined) opts.after_seq = page.after_seq;
+      if (page.before_seq !== undefined) opts.before_seq = page.before_seq;
+      if (page.limit !== undefined) opts.limit = page.limit;
       if (currentRaw !== undefined) {
-        opts.current_items_limit = PageLimitSchema.parse(currentRaw);
+        // Reuse the same limit bounds as event paging (1…200).
+        const currentPage = parseEventPageQuery({ limit: currentRaw });
+        if (currentPage.limit !== undefined) {
+          opts.current_items_limit = currentPage.limit;
+        }
       }
       return c.json({
         agent: svc.getAgentProfile(

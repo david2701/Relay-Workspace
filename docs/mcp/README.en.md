@@ -193,19 +193,21 @@ See [`docs/api/agents.md`](../api/agents.md).
 ### `agents_get`
 
 Agent profile: summary fields plus `current_items` and paged `handoffs` (newest first).
+`after_seq` / `before_seq` / `limit` use the same validation as `items_events` /
+`changes_list` (`parseEventPageQuery`; invalid → `validation_error`).
 
 | Param | Type | Required |
 |-------|------|----------|
 | `id` | string (agent) | yes |
-| `after_seq` | int ≥0 | no |
-| `before_seq` | int ≥0 | no |
+| `after_seq` | int 0…MAX_SAFE_INTEGER | no |
+| `before_seq` | int 0…MAX_SAFE_INTEGER | no |
 | `limit` | int 1–200 | no (default 50) |
 | `current_items_limit` | int 1–200 | no (default 10) |
 
 **Call:** `{ "id": "agent-code" }`  
 **Response:** `{ "agent": { …summary, "current_items": […], "handoffs": […], "handoffs_next_seq", "handoffs_has_more" } }`
 
-Unknown id → `not_found`.
+`handoffs_next_seq` matches item `next_seq` semantics (last seq in this page; empty → request cursor). Unknown id → `not_found`.
 
 ### `items_list`
 

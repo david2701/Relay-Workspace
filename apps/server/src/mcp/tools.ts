@@ -61,36 +61,42 @@ export function createMcpTools(svc: RelayService): McpToolDef[] {
         "Agent profile: presence, counts, current items, and paged handoffs",
       inputSchema: z.object({
         id: z.string(),
-        after_seq: z.number().int().nonnegative().optional(),
-        before_seq: z.number().int().nonnegative().optional(),
+        after_seq: z.number().int().min(0).max(MAX_AFTER_SEQ).optional(),
+        before_seq: z.number().int().min(0).max(MAX_AFTER_SEQ).optional(),
         limit: z.number().int().min(1).max(200).optional(),
         current_items_limit: z.number().int().min(1).max(200).optional(),
       }),
       handler: (raw) => {
-        const parsed = z
-          .object({
-            id: z.string(),
-            after_seq: z.number().int().nonnegative().optional(),
-            before_seq: z.number().int().nonnegative().optional(),
-            limit: z.number().int().min(1).max(200).optional(),
-            current_items_limit: z.number().int().min(1).max(200).optional(),
-          })
-          .parse(raw);
+        const record = (raw ?? {}) as Record<string, unknown>;
+        const base = z.object({ id: z.string() }).safeParse(raw);
+        if (!base.success) {
+          throw new ValidationError("id is required");
+        }
+        const page = parseEventPageQuery({
+          after_seq: record.after_seq as string | number | undefined,
+          before_seq: record.before_seq as string | number | undefined,
+          limit: record.limit as string | number | undefined,
+        });
         const opts: {
           after_seq?: number;
           before_seq?: number;
           limit?: number;
           current_items_limit?: number;
         } = {};
-        if (parsed.after_seq !== undefined) opts.after_seq = parsed.after_seq;
-        if (parsed.before_seq !== undefined) opts.before_seq = parsed.before_seq;
-        if (parsed.limit !== undefined) opts.limit = parsed.limit;
-        if (parsed.current_items_limit !== undefined) {
-          opts.current_items_limit = parsed.current_items_limit;
+        if (page.after_seq !== undefined) opts.after_seq = page.after_seq;
+        if (page.before_seq !== undefined) opts.before_seq = page.before_seq;
+        if (page.limit !== undefined) opts.limit = page.limit;
+        if (record.current_items_limit !== undefined) {
+          const currentPage = parseEventPageQuery({
+            limit: record.current_items_limit as string | number | undefined,
+          });
+          if (currentPage.limit !== undefined) {
+            opts.current_items_limit = currentPage.limit;
+          }
         }
         return {
           agent: svc.getAgentProfile(
-            parsed.id,
+            base.data.id,
             Object.keys(opts).length > 0 ? opts : undefined,
           ),
         };

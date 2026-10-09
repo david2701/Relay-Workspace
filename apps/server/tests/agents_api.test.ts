@@ -1,7 +1,7 @@
 import { mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { RelayService, USER_ACTOR_ID } from "@relay/core";
+import { RelayService, USER_ACTOR_ID, ValidationError } from "@relay/core";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { createApp } from "../src/index.js";
 import { invokeMcpTool } from "../src/mcp/http.js";
@@ -137,4 +137,68 @@ describe("agents HTTP + MCP", () => {
     });
     expect(mcpGet).toEqual(httpGet);
   });
+
+  it("handoffs_next_seq echoes request cursor when the page is empty", async () => {
+    const res = await app.request(
+      "http://127.0.0.1/api/agents/agent-code?after_seq=999&limit=10",
+    );
+    expect(res.status).toBe(200);
+    const body = (await res.json()) as {
+      agent: { handoffs: unknown[]; handoffs_next_seq: number };
+    };
+    expect(body.agent.handoffs).toEqual([]);
+    expect(body.agent.handoffs_next_seq).toBe(999);
+  });
+
+  const badCases: Array<{ query: string; label: string }> = [
+    { query: "after_seq=-1", label: "after_seq=-1" },
+    { query: "after_seq=abc", label: "after_seq=abc" },
+    { query: "before_seq=-1", label: "before_seq=-1" },
+    { query: "before_seq=abc", label: "before_seq=abc" },
+    { query: "limit=0", label: "limit=0" },
+    { query: "limit=-1", label: "limit=-1" },
+    { query: "limit=99999", label: "limit=99999" },
+    {
+      query: "after_seq=999999999999999999999",
+      label: "after_seq=huge",
+    },
+    {
+      query: "before_seq=999999999999999999999",
+      label: "before_seq=huge",
+    },
+  ];
+
+  for (const { query, label } of badCases) {
+    it(`GET /api/agents/:id returns 400 for ${label}`, async () => {
+      const res = await app.request(
+        `http://127.0.0.1/api/agents/agent-code?${query}`,
+      );
+      expect(res.status).toBe(400);
+      const body = (await res.json()) as { error: string; message: string };
+      expect(body.error).toBe("validation_error");
+      expect(typeof body.message).toBe("string");
+      expect(body.message.length).toBeGreaterThan(0);
+    });
+  }
+
+  const mcpBad: Array<{ args: Record<string, unknown>; label: string }> = [
+    { args: { after_seq: -1 }, label: "after_seq=-1" },
+    { args: { after_seq: "abc" }, label: "after_seq=abc" },
+    { args: { before_seq: -1 }, label: "before_seq=-1" },
+    { args: { limit: 0 }, label: "limit=0" },
+    { args: { limit: -1 }, label: "limit=-1" },
+    { args: { limit: 99999 }, label: "limit=99999" },
+    {
+      args: { after_seq: Number.MAX_SAFE_INTEGER + 1 },
+      label: "after_seq=huge",
+    },
+  ];
+
+  for (const { args, label } of mcpBad) {
+    it(`MCP agents_get rejects ${label}`, async () => {
+      await expect(
+        invokeMcpTool(svc, "agents_get", { id: "agent-code", ...args }),
+      ).rejects.toThrow(ValidationError);
+    });
+  }
 });

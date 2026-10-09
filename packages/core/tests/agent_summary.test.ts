@@ -79,12 +79,16 @@ describe("agent summary / presence", () => {
     const acted = svc.setStatus(item.id, { status: "in_progress" }, code, "mcp");
     const after = svc.listAgentSummaries(new Date(acted.updated_at));
     const afterCode = after.find((a) => a.id === "agent-code");
-    expect(afterCode?.last_seen_at).toBe(acted.updated_at);
+    // last_seen_at comes from item_events.created_at (may differ by 1ms from updated_at).
+    expect(afterCode?.last_seen_at).toBeTruthy();
+    expect(Date.parse(afterCode!.last_seen_at!)).toBeGreaterThanOrEqual(
+      Date.parse(acted.updated_at) - 5,
+    );
     expect(afterCode?.active).toBe(true);
     const staleNow = new Date(
-      Date.parse(acted.updated_at) + (AGENT_ACTIVE_MINUTES + 1) * 60_000,
+      Date.parse(afterCode!.last_seen_at!) + (AGENT_ACTIVE_MINUTES + 1) * 60_000,
     );
-    expect(isAgentActive(acted.updated_at, staleNow)).toBe(false);
+    expect(isAgentActive(afterCode!.last_seen_at!, staleNow)).toBe(false);
     expect(svc.listAgentSummaries(staleNow).find((a) => a.id === "agent-code")?.active).toBe(
       false,
     );
@@ -193,6 +197,22 @@ describe("agent summary / presence", () => {
     expect(noiseHandoffs[0]?.type).toBe("delegated");
     const doneRow = statusRows.find((h) => h.payload.to === "done");
     expect(doneRow?.item_title).toBe("Ship changelog");
+  });
+
+  it("handoffs_next_seq equals request cursor when the page is empty", () => {
+    const emptyAfter = svc.listAgentHandoffsPage("agent-code", {
+      after_seq: 42,
+      limit: 10,
+    });
+    expect(emptyAfter.handoffs).toEqual([]);
+    expect(emptyAfter.next_seq).toBe(42);
+    const emptyBefore = svc.listAgentHandoffsPage("agent-code", {
+      before_seq: 7,
+      limit: 10,
+    });
+    expect(emptyBefore.handoffs).toEqual([]);
+    expect(emptyBefore.next_seq).toBe(7);
+    expect(svc.getAgentProfile("agent-code").handoffs_next_seq).toBe(0);
   });
 
   it("getAgentProfile throws not_found for unknown agent", () => {

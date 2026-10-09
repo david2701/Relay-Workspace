@@ -59,14 +59,15 @@ derived only from the event log.
 
 Profile for one agent. Unknown id → `404`.
 
-Query:
+Query (shared validation via `parseEventPageQuery` — same rules as
+[`docs/api/events.md`](./events.md)):
 
 | Param | Default | Notes |
 | --- | --- | --- |
-| `limit` | 50 (max 200) | Handoffs page size |
-| `after_seq` | — | Only handoffs with `seq > after_seq` |
-| `before_seq` | — | Only handoffs with `seq < before_seq` (load older) |
-| `current_items_limit` | 10 (max 200) | Open items on the profile |
+| `limit` | 50 (max 200) | Handoffs page size. Invalid (`0`, negative, non-numeric, `>200`) → **400** `validation_error`. |
+| `after_seq` | — | Only handoffs with `seq > after_seq`. Safe integer `0 … Number.MAX_SAFE_INTEGER`; invalid → **400**. |
+| `before_seq` | — | Only handoffs with `seq < before_seq` (load older). Same integer rules as `after_seq`. |
+| `current_items_limit` | 10 (max 200) | Open items on the profile (same `1…200` limit rules). |
 
 ```json
 {
@@ -110,8 +111,13 @@ Newest-first page of `item_events` where the agent is involved:
 
 Each row includes `item_title`. Profile fields:
 
-- `handoffs` — the event array (not nested)
-- `handoffs_next_seq` — oldest `seq` in the page (pass as `before_seq` for older)
+- `handoffs` — the event array (not nested), **newest first**
+- `handoffs_next_seq` — same semantics as item `next_seq` in
+  [`docs/api/events.md`](./events.md): the last `seq` **in this page** of this
+  agent’s handoffs. Because the page is newest-first, that is the oldest seq in
+  the page — pass it as the next `before_seq` to continue toward older handoffs.
+  When the page is empty, `handoffs_next_seq` equals the request `before_seq` or
+  `after_seq` (default `0`).
 - `handoffs_has_more` — more older (or filtered) rows exist
 
 User-only field updates (`updated`, `reminder_set`, …) and agent `status_changed` to `in_progress` / `assigned` are **not** handoffs.

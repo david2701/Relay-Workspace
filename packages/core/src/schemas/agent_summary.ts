@@ -41,7 +41,11 @@ export const AgentProfileSchema = AgentSummarySchema.extend({
   current_items: z.array(WorkItemSchema),
   /** Newest-first handoff events (see `docs/api/agents.md`). */
   handoffs: z.array(AgentHandoffSchema),
-  /** Oldest `seq` in `handoffs` (pass as `before_seq` for the next older page). */
+  /**
+   * Last `seq` in this handoffs page (same rule as item `next_seq` in
+   * `docs/api/events.md`). Newest-first ⇒ oldest in page; pass as `before_seq`.
+   * Empty page ⇒ request `before_seq` / `after_seq` (default 0).
+   */
   handoffs_next_seq: z.number().int().nonnegative(),
   handoffs_has_more: z.boolean(),
 });
