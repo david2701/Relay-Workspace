@@ -37,6 +37,7 @@ import type {
   AgentProfile,
   AgentSummary,
 } from "../schemas/agent_summary.js";
+import type { Device, DevicePlatform } from "../schemas/device.js";
 import {
   type InboxView,
   type Source,
@@ -85,6 +86,16 @@ import {
 } from "../store/agent_queries.js";
 import { openDatabase, type RelayDb, readSqliteDataVersion } from "../store/db.js";
 import {
+  type CreatedDevice,
+  databaseContainsPlaintextToken,
+  findDeviceByToken,
+  getDevice,
+  listDevices,
+  renameDevice,
+  revokeDevice,
+  touchDeviceLastSeen,
+} from "../store/devices.js";
+import {
   appendItemEvent,
   itemIdsWithEventsAfter,
   latestEventSeq,
@@ -92,6 +103,11 @@ import {
   listRecentItemEvents,
 } from "../store/event_log.js";
 import { cleanupExpiredIdempotencyKeys } from "../store/idempotency.js";
+import {
+  claimPairing,
+  type PairingSession,
+  startPairing,
+} from "../store/pairing.js";
 import type { ListPageResult } from "../store/repositories.js";
 import {
   AgentRepository,
@@ -99,6 +115,12 @@ import {
   NoteRepository,
   WorkItemRepository,
 } from "../store/repositories.js";
+import {
+  deleteStreamTicketsForDevice,
+  findDeviceIdByStreamTicket,
+  mintStreamTicket,
+  type StreamTicket,
+} from "../store/stream_tickets.js";
 
 /** Max characters stored in answered event payload.text. */
 const ANSWER_EXCERPT_MAX = 200;
@@ -1213,5 +1235,88 @@ export class RelayService {
       this.notes.deleteAll();
       this.db.prepare(`UPDATE event_seq SET next_seq = 1 WHERE id = 1`).run();
     });
+  }
+
+  // --- Devices / pairing (LAN auth) ---------------------------------------
+
+  listDevices(): Device[] {
+    return listDevices(this.db);
+  }
+
+  getDevice(id: string): Device {
+    const device = getDevice(this.db, id);
+    if (!device) throw new NotFoundError("Device", id);
+    return device;
+  }
+
+  renameDevice(id: string, name: string): Device {
+    const trimmed = name.trim().slice(0, 120);
+    if (trimmed.length === 0) {
+      throw new ValidationError("name is required", { field: "name" });
+    }
+    const device = renameDevice(this.db, id, trimmed);
+    if (!device) throw new NotFoundError("Device", id);
+    return device;
+  }
+
+  revokeDevice(id: string): Device {
+    const device = revokeDevice(this.db, id);
+    if (!device) throw new NotFoundError("Device", id);
+    deleteStreamTicketsForDevice(this.db, id);
+    return device;
+  }
+
+  /**
+   * Resolve a bearer/device token to an active device and bump last_seen_at.
+   * Returns null when the token is missing, unknown, or revoked.
+   */
+  authenticateDeviceToken(token: string): Device | null {
+    if (!token || token.length < 16) return null;
+    const device = findDeviceByToken(this.db, token);
+    if (!device || device.revoked_at) return null;
+    touchDeviceLastSeen(this.db, device.id);
+    return { ...device, last_seen_at: new Date().toISOString() };
+  }
+
+  startPairing(input: {
+    publicUrl: string;
+    createdByDeviceId?: string | null;
+  }): PairingSession {
+    return startPairing(this.db, input);
+  }
+
+  claimPairing(input: {
+    code: string;
+    device_name: string;
+    platform: DevicePlatform;
+    clientIp: string;
+  }): CreatedDevice {
+    return claimPairing(this.db, input);
+  }
+
+  mintStreamTicket(deviceId: string): StreamTicket {
+    const device = getDevice(this.db, deviceId);
+    if (!device || device.revoked_at) {
+      throw new NotFoundError("Device", deviceId);
+    }
+    return mintStreamTicket(this.db, deviceId);
+  }
+
+  /**
+   * Resolve a short-lived EventSource ticket to an active device.
+   */
+  authenticateStreamTicket(token: string): Device | null {
+    if (!token || token.length < 16) return null;
+    const deviceId = findDeviceIdByStreamTicket(this.db, token);
+    if (!deviceId) return null;
+    const device = getDevice(this.db, deviceId);
+    if (!device || device.revoked_at) return null;
+    touchDeviceLastSeen(this.db, device.id);
+    return device;
+  }
+
+  /** Test helper: assert plaintext token was never written to devices rows. */
+  databaseContainsPlaintextToken(token: string): boolean {
+    return databaseContainsPlaintextToken(this.db, token);
   }
 }

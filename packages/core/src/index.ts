@@ -14,6 +14,7 @@ export * from "./domain/transitions.js";
 export * from "./domain/zone_time.js";
 export * from "./schemas/agent.js";
 export * from "./schemas/agent_summary.js";
+export * from "./schemas/device.js";
 export * from "./schemas/enums.js";
 export * from "./schemas/ids.js";
 export * from "./schemas/inbox.js";
@@ -24,9 +25,11 @@ export * from "./schemas/work_item.js";
 export * from "./services/relay_service.js";
 export * from "./store/agent_queries.js";
 export * from "./store/db.js";
+export * from "./store/devices.js";
 export * from "./store/event_log.js";
 export * from "./store/idempotency.js";
 export * from "./store/migrations.js";
+export * from "./store/pairing.js";
 export type { ListPageResult } from "./store/repositories.js";
 export {
   AgentRepository,
@@ -40,3 +43,5 @@ export {
   syncItemToFts,
   syncNoteToFts,
 } from "./store/search_index.js";
+export * from "./store/stream_tickets.js";
+export * from "./store/tokens.js";

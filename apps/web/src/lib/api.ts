@@ -1,15 +1,5 @@
-export type RelaySettings = {
-  timezone: string;
-  user_display_name: string;
-  user_initial: string;
-  onboarding_completed_at: string | null;
-};
-
-export type SettingsResponse = {
-  settings: RelaySettings;
-  work_item_count: number;
-};
-
+import { readDeviceToken } from "./device_token";
+import { handleUnauthorizedResponse } from "./pairing_gate";
 import type {
   Agent,
   ContextPack,
@@ -24,6 +14,33 @@ import type {
   SearchResult,
   WorkItem,
 } from "./types";
+
+export type RelaySettings = {
+  timezone: string;
+  user_display_name: string;
+  user_initial: string;
+  onboarding_completed_at: string | null;
+};
+
+export type SettingsResponse = {
+  settings: RelaySettings;
+  work_item_count: number;
+};
+
+export type RelayDevice = {
+  id: string;
+  name: string;
+  platform: "web" | "ios" | "android" | "other";
+  created_at: string;
+  last_seen_at: string;
+  revoked_at: string | null;
+};
+
+export type PairingSessionResponse = {
+  code: string;
+  expires_at: string;
+  qr: { v: 1; url: string; code: string };
+};
 
 const BASE = import.meta.env.VITE_API_URL ?? "http://127.0.0.1:7420";
 
@@ -46,16 +63,31 @@ export class ApiError extends Error {
   }
 }
 
+export type HealthResponse = {
+  ok: boolean;
+  require_token?: boolean;
+  require_token_explicit?: boolean;
+};
+
 async function request<T>(path: string, init?: RequestInit): Promise<T> {
+  const token = readDeviceToken();
   const res = await fetch(`${BASE}${path}`, {
     ...init,
     headers: {
       "Content-Type": "application/json",
       "X-Relay-Source": "ui",
+      ...(token ? { Authorization: `Bearer ${token}` } : {}),
       ...(init?.headers ?? {}),
     },
   });
   if (!res.ok) {
+    if (
+      res.status === 401 &&
+      path !== "/api/health" &&
+      path !== "/api/pair/claim"
+    ) {
+      handleUnauthorizedResponse(Boolean(token));
+    }
     const body = (await res.json().catch(() => ({}))) as {
       message?: string;
       error?:
@@ -81,7 +113,7 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
 
 export const api = {
   base: BASE,
-  health: () => request<{ ok: boolean }>("/api/health"),
+  health: () => request<HealthResponse>("/api/health"),
   agents: () => request<{ agents: Agent[] }>("/api/agents"),
   inbox: (
     view: InboxView,
@@ -171,6 +203,37 @@ export const api = {
       method: "PUT",
       body: JSON.stringify(patch),
     }),
+  listDevices: () => request<{ devices: RelayDevice[] }>("/api/devices"),
+  startPairing: () =>
+    request<PairingSessionResponse>("/api/pair/start", { method: "POST" }),
+  claimPairing: (body: {
+    code: string;
+    device_name: string;
+    platform: RelayDevice["platform"];
+  }) =>
+    request<{
+      device_id: string;
+      token: string;
+      device: RelayDevice;
+    }>("/api/pair/claim", {
+      method: "POST",
+      body: JSON.stringify(body),
+    }),
+  renameDevice: (id: string, name: string) =>
+    request<{ device: RelayDevice }>(`/api/devices/${id}`, {
+      method: "PATCH",
+      body: JSON.stringify({ name }),
+    }),
+  revokeDevice: (id: string) =>
+    request<{ device: RelayDevice }>(`/api/devices/${id}`, {
+      method: "DELETE",
+    }),
+  mintStreamTicket: () =>
+    request<{
+      access_token: string;
+      expires_at: string;
+      expires_in: number;
+    }>("/api/stream/ticket", { method: "POST" }),
   loadSampleData: (locale: "en" | "fr" | "es") =>
     request<SettingsResponse & { ok: boolean; locale: string }>("/api/seed", {
       method: "POST",

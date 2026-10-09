@@ -12,6 +12,7 @@ import { FilterBar } from "./components/FilterBar";
 import { ItemRow } from "./components/ItemRow";
 import { NoteView } from "./components/NoteView";
 import { OnboardingCard } from "./components/OnboardingCard";
+import { PairingRequired } from "./components/PairingRequired";
 import { focusSearchField } from "./components/SearchField";
 import {
   parseSettingsSection,
@@ -22,6 +23,7 @@ import { ThemeSwitch } from "./components/ThemeSwitch";
 import { VirtualItemList } from "./components/VirtualItemList";
 import { useActorLabels } from "./hooks/useActorLabels";
 import { useInboxLive } from "./hooks/useInboxLive";
+import { usePairingGate } from "./hooks/usePairingGate";
 import { useTheme } from "./hooks/useTheme";
 import { useUrlState } from "./hooks/useUrlState";
 import { useI18n, useT } from "./i18n/I18nProvider";
@@ -35,6 +37,7 @@ import { formatGroupLabel } from "./lib/group_label";
 import { appendInboxPage, INBOX_PAGE_SIZE } from "./lib/inbox_page";
 import { toPlainText } from "./lib/markdown";
 import { matchesQuery } from "./lib/normalize";
+import { refreshPairingGateFromHealth } from "./lib/pairing_gate";
 import {
   readTodoGroupBy,
   TODO_GROUP_KEY,
@@ -226,11 +229,27 @@ export default function App() {
     setFacetsOpen(false);
   }, [view]);
 
+  const pairingGate = usePairingGate();
+  const needsPairing = pairingGate.needsPairing;
+
   useEffect(() => {
-    void api.agents().then((r) => setAgents(r.agents));
+    void (async () => {
+      try {
+        const health = await api.health();
+        await refreshPairingGateFromHealth(health);
+      } catch {
+        // health is public; ignore probe failures
+      }
+    })();
   }, []);
 
   useEffect(() => {
+    if (needsPairing) return;
+    void api.agents().then((r) => setAgents(r.agents)).catch(() => {});
+  }, [needsPairing]);
+
+  useEffect(() => {
+    if (needsPairing) return;
     void api
       .getSettings()
       .then((r) => {
@@ -241,10 +260,12 @@ export default function App() {
       .catch(() => {
         setSettingsStatus("error");
       });
-  }, []);
+  }, [needsPairing]);
 
   const needsOnboarding =
-    settingsStatus === "ok" && settings.onboarding_completed_at === null;
+    !needsPairing &&
+    settingsStatus === "ok" &&
+    settings.onboarding_completed_at === null;
 
   // Keep module display/profile in sync during render so ActorMark helpers
   // see the loaded settings on the same paint (SSE no longer re-renders every
@@ -1010,16 +1031,31 @@ export default function App() {
       ? t("nav.notes")
       : VIEWS.find((v) => v.id === view)?.label ?? "Relay";
   const syncLabel =
-    syncState === "offline"
-      ? t("sync.offline")
-      : syncState === "reconnecting"
-        ? t("sync.reconnecting")
-        : t("sync.ok", {
-            relative: new Intl.RelativeTimeFormat(intlLocale, {
-              numeric: "auto",
-              style: "short",
-            }).format(-Math.max(0, syncAge.current), "second"),
-          });
+    syncState === "unpaired" || needsPairing
+      ? t("sync.unpaired")
+      : syncState === "offline"
+        ? t("sync.offline")
+        : syncState === "reconnecting"
+          ? t("sync.reconnecting")
+          : t("sync.ok", {
+              relative: new Intl.RelativeTimeFormat(intlLocale, {
+                numeric: "auto",
+                style: "short",
+              }).format(-Math.max(0, syncAge.current), "second"),
+            });
+
+  const onBrowserPaired = useCallback(() => {
+    void api
+      .getSettings()
+      .then((r) => {
+        setSettings(r.settings);
+        setWorkItemCount(r.work_item_count);
+        setSettingsStatus("ok");
+      })
+      .catch(() => {});
+    void api.agents().then((r) => setAgents(r.agents)).catch(() => {});
+    void reload();
+  }, [reload]);
 
   return (
     <div className={`app-shell${needsOnboarding ? " is-onboarding" : ""}`}>
@@ -1063,10 +1099,13 @@ export default function App() {
         <div className="rail-foot">
           <div
             className="mono sync-seal"
-            data-sync-state={syncState}
+            data-sync-state={
+              needsPairing || syncState === "unpaired" ? "unpaired" : syncState
+            }
             title={syncLabel}
             aria-label={syncLabel}
             role="status"
+            data-testid="sync-seal"
           >
             <span className="sync-seal-dot" aria-hidden="true" />
             <span className="sync-seal-label" aria-hidden="true">
@@ -1145,6 +1184,10 @@ export default function App() {
           </div>
         </header>
 
+        {needsPairing ? (
+          <PairingRequired onPaired={onBrowserPaired} />
+        ) : (
+          <>
         <FilterBar
           q={urlState.q}
           facets={urlState.facets}
@@ -1473,9 +1516,11 @@ relay web   →  http://127.0.0.1:7421`}</pre>
             ) : null}
           </div>
         ) : null}
+          </>
+        )}
       </main>
 
-      {(selectedId || selectedNoteId) && window.innerWidth < 1024 ? (
+      {!needsPairing && (selectedId || selectedNoteId) && window.innerWidth < 1024 ? (
         <div
           className="detail-scrim"
           onClick={() => {
@@ -1485,7 +1530,7 @@ relay web   →  http://127.0.0.1:7421`}</pre>
         />
       ) : null}
 
-      {needsOnboarding ? null : selectedNoteId ? (
+      {!needsOnboarding && !needsPairing && selectedNoteId ? (
         <NoteView
           noteId={selectedNoteId}
           offline={offline}
@@ -1495,7 +1540,8 @@ relay web   →  http://127.0.0.1:7421`}</pre>
           onBack={closeNote}
           onNoteChange={onNoteChange}
         />
-      ) : (
+      ) : null}
+      {!needsOnboarding && !needsPairing && !selectedNoteId ? (
         <DetailPanel
           item={selectedItem}
           agents={agents}
@@ -1510,7 +1556,7 @@ relay web   →  http://127.0.0.1:7421`}</pre>
           onOpenPickerHandled={() => setOpenPicker(null)}
           onOpenNote={openNote}
         />
-      )}
+      ) : null}
 
       {showShortcuts ? (
         <div className="modal-scrim" onClick={() => setShowShortcuts(false)}>
@@ -1556,6 +1602,7 @@ relay web   →  http://127.0.0.1:7421`}</pre>
           await persistSettings(patch);
         }}
         onThemeChange={setTheme}
+        onDevicePaired={onBrowserPaired}
       />
 
       <div className="sr-only" aria-live="polite">

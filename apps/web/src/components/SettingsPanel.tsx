@@ -16,6 +16,7 @@ import {
   listTimeZones,
   sameTimeZone,
 } from "../lib/time_zones";
+import { DevicesSettings } from "./DevicesSettings";
 import { ThemeSwitch } from "./ThemeSwitch";
 
 type Theme = "light" | "dark" | "system";
@@ -24,6 +25,7 @@ export type SettingsSection =
   | "language"
   | "timezone"
   | "theme"
+  | "devices"
   | "about";
 
 type Props = {
@@ -36,6 +38,8 @@ type Props = {
   onPatch: (patch: Partial<RelaySettings>) => Promise<void>;
   onThemeChange: (theme: Theme) => void;
   initialSection?: SettingsSection;
+  /** After registering this browser under token auth. */
+  onDevicePaired?: () => void;
 };
 
 const LANG_LABEL: Record<LocaleCode, MessageKey> = {
@@ -49,6 +53,7 @@ const SECTION_KEYS: Record<SettingsSection, MessageKey> = {
   language: "settings.section.language",
   timezone: "settings.section.timezone",
   theme: "settings.section.theme",
+  devices: "settings.section.devices",
   about: "settings.section.about",
 };
 
@@ -64,6 +69,7 @@ export function SettingsPanel({
   onPatch,
   onThemeChange,
   initialSection = "profile",
+  onDevicePaired,
 }: Props) {
   const { locale, setLocale, t, intlLocale } = useI18n();
   const [section, setSection] = useState<SettingsSection>(initialSection);
@@ -504,6 +510,19 @@ export function SettingsPanel({
             >
               <h3 id="settings-theme-h">{t("settings.section.theme")}</h3>
               <ThemeSwitch theme={theme} onChange={onThemeChange} />
+            </section>
+
+            <section
+              id="settings-devices"
+              aria-labelledby="settings-devices-h"
+              hidden={section !== "devices"}
+            >
+              <h3 id="settings-devices-h">{t("settings.section.devices")}</h3>
+              {section === "devices" ? (
+                <DevicesSettings
+                  {...(onDevicePaired ? { onPaired: onDevicePaired } : {})}
+                />
+              ) : null}
             </section>
 
             <section

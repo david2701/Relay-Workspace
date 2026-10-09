@@ -1,4 +1,12 @@
-import { ConflictError, DomainError, NotFoundError, ValidationError } from "@relay/core";
+import {
+  ConflictError,
+  DomainError,
+  ForbiddenError,
+  NotFoundError,
+  PairingRateLimitError,
+  UnauthorizedError,
+  ValidationError,
+} from "@relay/core";
 import type { Context } from "hono";
 import { ZodError } from "zod";
 
@@ -17,6 +25,15 @@ function zodMessage(err: ZodError): string {
 }
 
 export function handleError(c: Context, err: unknown): Response {
+  if (err instanceof UnauthorizedError) {
+    return c.json({ error: err.code, message: err.message }, 401);
+  }
+  if (err instanceof ForbiddenError) {
+    return c.json({ error: err.code, message: err.message }, 403);
+  }
+  if (err instanceof PairingRateLimitError) {
+    return c.json({ error: err.code, message: err.message }, 429);
+  }
   if (err instanceof ValidationError) {
     const body: { error: string; message: string; field?: string } = {
       error: err.code,

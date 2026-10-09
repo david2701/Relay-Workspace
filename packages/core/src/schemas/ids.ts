@@ -10,7 +10,7 @@ export type AgentId = z.infer<typeof AgentIdSchema>;
 
 const ALPHABET = "abcdefghijklmnopqrstuvwxyz0123456789";
 
-export function createId(prefix: "itm" | "nte" | "evt"): string {
+export function createId(prefix: "itm" | "nte" | "evt" | "dev"): string {
   let body = "";
   for (let i = 0; i < 10; i += 1) {
     body += ALPHABET[Math.floor(Math.random() * ALPHABET.length)] ?? "a";
