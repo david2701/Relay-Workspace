@@ -2,13 +2,13 @@ import {
   buildContextPack,
   contextPackToMarkdown,
 } from "../domain/context_pack.js";
+import { buildDecisionNoteTitle } from "../domain/decision_note_title.js";
 import { ConflictError, NotFoundError, ValidationError } from "../domain/errors.js";
 import { buildInboxSync, queryInbox } from "../domain/inbox_query.js";
 import type { PageParams } from "../domain/page.js";
 import { recommendInbox } from "../domain/recommend.js";
 import { type SearchDeps, searchItems, searchNotes } from "../domain/search.js";
 import { nowIso } from "../domain/time.js";
-import { buildDecisionNoteTitle } from "../domain/decision_note_title.js";
 import {
   applyStatusChange,
   askUser,
