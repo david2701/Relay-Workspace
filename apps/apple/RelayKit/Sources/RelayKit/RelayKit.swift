@@ -1,7 +1,7 @@
 /// RelayKit — shared domain for native Apple clients.
 ///
-/// This package has **no SwiftUI**. Mac and iPhone app targets will depend on it
-/// in a follow-up PR compiled on a Mac with Xcode.
+/// Pure Swift (no SwiftUI). Models, API client, §9.5 tokens, and Atención
+/// presentation helpers are covered by `swift test` on Linux.
 public enum RelayKitInfo {
     public static let moduleName = "RelayKit"
     public static let apiPrefix = "/api"

@@ -177,7 +177,7 @@ cd apps/android
 ./gradlew :app:assembleDebug :app:lintDebug :app:testDebugUnitTest
 ```
 
-SwiftUI Mac/iPhone apps are intentionally **not** in this repo yet — they need Xcode on a Mac. See `apps/apple/README.md`.
+SwiftUI Mac/iPhone apps live under `apps/apple/` (`Relay.xcodeproj`). They need Xcode on a Mac — see `apps/apple/BUILD.md`. `RelayKit` stays Linux-testable via `swift test`.
 
 ## CI (Origin)
 
