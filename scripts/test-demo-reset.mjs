@@ -3,7 +3,7 @@
  * AC3-D4 script gate: reset demo store in ≤ 30 s; leave a sibling store intact.
  */
 import { spawnSync } from "node:child_process";
-import { resolve, dirname } from "node:path";
+import { dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 
 const root = resolve(dirname(fileURLToPath(import.meta.url)), "..");
