@@ -78,8 +78,9 @@ writes (MCP stdio, CLI) therefore also fan out to push.
 - **Mute:** `push_muted` on the device row skips delivery.
 - **Dedupe:** at most one push per `(device, item, reason)` inside
   `RELAY_PUSH_DEDUPE_MS` (default 60s).
-- **Payload:** `item_id`, truncated `title` (≤80), and `reason`. No note bodies
-  or secrets. `RELAY_PUSH_REDACT=1` omits the title.
+- **Payload:** `item_id` and `reason` by default (owner **D3**: Apple/Google must
+  not see item titles). A truncated `title` (≤80) is included only when
+  `RELAY_PUSH_REDACT=0`. No note bodies or secrets.
 
 ## Provider behaviour
 

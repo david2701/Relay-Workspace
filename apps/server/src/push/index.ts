@@ -6,6 +6,7 @@ import {
   formatPushEnabledLog,
   loadPushConfig,
   type PushRuntimeConfig,
+  type parsePushRedactEnv,
 } from "./config.js";
 import { createPushDispatcher, type PushDispatcher } from "./dispatcher.js";
 import { createFcmClient } from "./fcm.js";
@@ -123,4 +124,5 @@ export {
   formatPushDisabledLog,
   formatPushEnabledLog,
   loadPushConfig,
+  type parsePushRedactEnv,
 };

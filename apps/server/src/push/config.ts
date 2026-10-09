@@ -2,14 +2,13 @@ import { existsSync, readFileSync } from "node:fs";
 import { z } from "zod";
 import type { FcmServiceAccount } from "./fcm.js";
 
-const BoolEnv = z
-  .string()
-  .optional()
-  .transform((v) => v === "1" || v?.toLowerCase() === "true");
-
 export type PushRuntimeConfig = {
   /** False when neither APNs nor FCM credentials are configured. */
   enabled: boolean;
+  /**
+   * When true (default), omit item titles from provider payloads (D3: Apple /
+   * Google must not see titles). Only `RELAY_PUSH_REDACT=0` includes titles.
+   */
   redact: boolean;
   /** D4: skip push when the device has an open SSE stream. */
   skipOpenSse: boolean;
@@ -23,6 +22,14 @@ export type PushRuntimeConfig = {
   } | null;
   fcm: FcmServiceAccount | null;
 };
+
+/** Default ON; titles only when the operator explicitly sets `0` / `false`. */
+export function parsePushRedactEnv(raw: string | undefined): boolean {
+  if (raw === undefined || raw === "") return true;
+  const v = raw.toLowerCase();
+  if (v === "0" || v === "false" || v === "off" || v === "no") return false;
+  return true;
+}
 
 function readOptionalFile(path: string | undefined): string | null {
   if (!path) return null;
@@ -53,7 +60,7 @@ function parseFcmCredentials(raw: string): FcmServiceAccount {
 export function loadPushConfig(
   env: NodeJS.ProcessEnv = process.env,
 ): PushRuntimeConfig {
-  const redact = BoolEnv.parse(env.RELAY_PUSH_REDACT) ?? false;
+  const redact = parsePushRedactEnv(env.RELAY_PUSH_REDACT);
   const skipOpenSseRaw = env.RELAY_PUSH_SKIP_OPEN_SSE;
   const skipOpenSse =
     skipOpenSseRaw === undefined || skipOpenSseRaw === ""

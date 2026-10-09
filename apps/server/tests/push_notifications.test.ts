@@ -368,9 +368,28 @@ describe("push notifications (APNs + FCM)", () => {
     expect(body.item_id).toBe(item.id);
   });
 
-  it("redact mode drops the title from the payload", async () => {
+  it("default redact omits title; RELAY_PUSH_REDACT=0 includes it", async () => {
+    await registerApns();
+    const secret = "Secret Title Body";
+    const item = svc.createItem({ title: secret }, actor, "ui");
+    svc.askUser(item.id, "Redacted by default please", agent, "mcp");
+    await waitFor(() => mockApns.requests.length >= 1);
+    await pushRuntime.dispatcher?.flush();
+    const redacted = mockApns.requests[0]?.body as {
+      reason: string;
+      item_id: string;
+      aps: { alert: { title?: string; body?: string } };
+    };
+    expect(redacted.item_id).toBe(item.id);
+    expect(redacted.reason).toBe("needs_you");
+    expect(redacted.aps.alert.body).toBeUndefined();
+    expect(JSON.stringify(redacted)).not.toContain(secret);
+    expect(logs.some((l) => l.includes("redact=1"))).toBe(true);
+
     pushRuntime.close();
+    mockApns.requests.length = 0;
     const p8Path = join(dir, "AuthKey.p8");
+    const titleLogs: string[] = [];
     pushRuntime = startPushRuntime({
       svc,
       hub,
@@ -379,31 +398,26 @@ describe("push notifications (APNs + FCM)", () => {
         RELAY_APNS_KEY_ID: apnsKey.keyId,
         RELAY_APNS_TEAM_ID: apnsKey.teamId,
         RELAY_APNS_TOPIC: "com.example.relay",
-        RELAY_PUSH_REDACT: "1",
+        RELAY_PUSH_REDACT: "0",
         RELAY_PUSH_SKIP_OPEN_SSE: "1",
         RELAY_PUSH_DEDUPE_MS: "2000",
       },
-      log: (line) => logs.push(line),
+      log: (line) => titleLogs.push(line),
       apnsAuthorities: {
         production: mockApns.authority,
         sandbox: mockApns.authority,
         rejectUnauthorized: false,
       },
     });
-    await registerApns();
-    const item = svc.createItem({ title: "Secret Title Body" }, actor, "ui");
-    svc.askUser(item.id, "Redacted please", agent, "mcp");
+    expect(titleLogs.some((l) => l.includes("redact=0"))).toBe(true);
+    const item2 = svc.createItem({ title: secret }, actor, "ui");
+    svc.askUser(item2.id, "Titles allowed when redact=0", agent, "mcp");
     await waitFor(() => mockApns.requests.length >= 1);
     await pushRuntime.dispatcher?.flush();
-    const body = mockApns.requests[0]?.body as {
-      reason: string;
-      item_id: string;
+    const withTitle = mockApns.requests[0]?.body as {
       aps: { alert: { title?: string; body?: string } };
     };
-    expect(body.item_id).toBe(item.id);
-    expect(body.reason).toBe("needs_you");
-    expect(body.aps.alert.body).toBeUndefined();
-    expect(JSON.stringify(body)).not.toContain("Secret Title Body");
+    expect(withTitle.aps.alert.body).toBe(secret);
   });
 
   it("muted device receives no push", async () => {
@@ -467,5 +481,21 @@ describe("push disabled without credentials", () => {
     hub.close();
     svc.close();
     rmSync(dir, { recursive: true, force: true });
+  });
+});
+
+describe("RELAY_PUSH_REDACT default", () => {
+  it("defaults ON; only explicit 0/false includes titles", async () => {
+    const { loadPushConfig, parsePushRedactEnv } = await import(
+      "../src/push/config.js"
+    );
+    expect(parsePushRedactEnv(undefined)).toBe(true);
+    expect(parsePushRedactEnv("")).toBe(true);
+    expect(parsePushRedactEnv("1")).toBe(true);
+    expect(parsePushRedactEnv("true")).toBe(true);
+    expect(parsePushRedactEnv("0")).toBe(false);
+    expect(parsePushRedactEnv("false")).toBe(false);
+    expect(loadPushConfig({}).redact).toBe(true);
+    expect(loadPushConfig({ RELAY_PUSH_REDACT: "0" }).redact).toBe(false);
   });
 });

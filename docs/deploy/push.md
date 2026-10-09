@@ -19,13 +19,26 @@ Push: disabled (no APNs/FCM credentials)
 | `RELAY_APNS_TEAM_ID` | for iOS | 10-char Team ID |
 | `RELAY_APNS_TOPIC` | for iOS | App bundle id / APNs topic |
 | `RELAY_FCM_CREDENTIALS_PATH` | for Android | Path to Firebase service-account JSON |
-| `RELAY_PUSH_REDACT` | no | `1` → omit item titles from payloads |
+| `RELAY_PUSH_REDACT` | no | **Default ON** (omit titles; D3). Set `0` to include a truncated title in payloads |
 | `RELAY_PUSH_SKIP_OPEN_SSE` | no | Default `1` (D4: no push while SSE open). `0` = always push |
 | `RELAY_PUSH_DEDUPE_MS` | no | Dedupe window for `(device, item, reason)` (default `60000`) |
 | `RELAY_PUSH_REMINDER_POLL_MS` | no | How often to emit `reminder_fired` (default `15000`) |
 
 Partial APNs config (some vars set, others missing) refuses to start with a
 clear error. FCM is enabled only when the credentials path is set and readable.
+
+### Keeping credentials out of git
+
+The repo `.gitignore` excludes APNs keys and common FCM service-account filenames
+so they are never committed by accident:
+
+- `*.p8` / `AuthKey_*.p8`
+- `*firebase-adminsdk*.json`
+- `fcm-credentials*.json`
+
+Prefer storing keys outside the tree (e.g. `/etc/relay/AuthKey_XXXXX.p8` with
+mode `600`) and pointing `RELAY_APNS_KEY_PATH` /
+`RELAY_FCM_CREDENTIALS_PATH` at those paths.
 
 ## Creating an APNs key
 
@@ -56,7 +69,8 @@ cached until near expiry) and sends HTTP v1 messages with
 ## Security notes
 
 - Never log provider tokens, `.p8` contents, or service-account JSON.
-- Push payloads carry only `item_id`, optional truncated title, and `reason`.
+- By default push payloads are `item_id` + `reason` only (`RELAY_PUSH_REDACT`
+  defaults on). Titles reach Apple/Google only if you set `RELAY_PUSH_REDACT=0`.
 - Revoking a device deletes its push token.
 - Prefer filesystem permissions over embedding secrets in process managers’
   world-readable env files; path-based env vars keep material out of `ps` dumps.

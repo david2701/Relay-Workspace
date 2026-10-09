@@ -39,7 +39,10 @@ const EnvSchema = z.object({
   RELAY_APNS_TOPIC: z.string().optional(),
   /** FCM HTTP v1 service-account JSON path. */
   RELAY_FCM_CREDENTIALS_PATH: z.string().optional(),
-  /** Drop item titles from push payloads (item id + reason only). */
+  /**
+   * Omit item titles from push payloads (default ON / D3). Set `0` to include
+   * a truncated title; unset/`1` keeps payloads as item id + reason only.
+   */
   RELAY_PUSH_REDACT: z.string().optional(),
   /**
    * When "1"/true (default), skip push if the device has an open SSE stream
