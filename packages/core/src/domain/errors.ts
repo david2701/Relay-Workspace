@@ -16,9 +16,15 @@ export class NotFoundError extends DomainError {
 }
 
 export class ValidationError extends DomainError {
-  constructor(message: string) {
+  /** Offending field name when known (`after_seq`, `text`, `Idempotency-Key`, …). */
+  readonly field?: string;
+
+  constructor(message: string, opts?: { field?: string }) {
     super("validation_error", message);
     this.name = "ValidationError";
+    if (opts?.field !== undefined) {
+      this.field = opts.field;
+    }
   }
 }
 

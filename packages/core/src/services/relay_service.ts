@@ -2,6 +2,7 @@ import {
   buildContextPack,
   contextPackToMarkdown,
 } from "../domain/context_pack.js";
+import { buildDecisionNoteTitle } from "../domain/decision_note_title.js";
 import { ConflictError, NotFoundError, ValidationError } from "../domain/errors.js";
 import { buildInboxSync, queryInbox } from "../domain/inbox_query.js";
 import type { PageParams } from "../domain/page.js";
@@ -745,7 +746,10 @@ export class RelayService {
       current.assignee_type === "agent" &&
       Boolean(current.assignee_id);
     const at = new Date();
-    const noteTitle = `Decisión: ${(current.needs_you_reason ?? "respuesta").slice(0, 60)}`;
+    const noteTitle = buildDecisionNoteTitle(
+      current.title,
+      input.locale ?? "en",
+    );
     const note: Note = {
       id: createId("nte"),
       title: noteTitle,

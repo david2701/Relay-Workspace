@@ -76,9 +76,12 @@ open and about once per hour while the process runs.
 
 | Field | Rules |
 | --- | --- |
-| `text` | Required, length **1..4000**. Empty or oversized → **400** `validation_error`. |
+| `text` | Required, length **1..4000**. Empty or oversized → **400** `validation_error` (`field: "text"`). |
 | `return_to` | Optional `agent` \| `none` (default `agent`) |
-| `if_updated_at` | Optional ISO datetime with offset; malformed → **400** `validation_error` |
+| `locale` | Optional `en` \| `fr` \| `es` — decision-note title prefix language (default `en`) |
+| `if_updated_at` | Optional ISO datetime with offset; malformed → **400** (`field: "if_updated_at"`) |
+
+The decision note **title** is `{Decision|Décision|Decisión}: {item title}` (word-boundary truncated). The answer `text` is stored only in the note **body**.
 
 ### Response `200`
 

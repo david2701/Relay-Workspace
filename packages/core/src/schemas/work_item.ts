@@ -74,6 +74,8 @@ export type SetStatusInput = z.infer<typeof SetStatusInputSchema>;
 export const AnswerItemInputSchema = z.object({
   text: z.string().min(1).max(4000),
   return_to: z.enum(["agent", "none"]).optional(),
+  /** UI locale for the decision-note title prefix (defaults to en). */
+  locale: z.enum(["en", "fr", "es"]).optional(),
 });
 export type AnswerItemInput = z.infer<typeof AnswerItemInputSchema>;
 

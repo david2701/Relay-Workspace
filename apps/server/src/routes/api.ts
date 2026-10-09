@@ -399,8 +399,10 @@ export function createApi(svc: RelayService, opts: CreateApiOptions = {}): Hono 
     try {
       const opts = parseEventPageQuery({
         after_seq: c.req.query("after_seq"),
+        before_seq: c.req.query("before_seq"),
         limit: c.req.query("limit"),
       });
+      // before_seq reserved for SSE resume; paging still uses after_seq.
       return c.json(svc.listEventsForItem(c.req.param("id"), opts));
     } catch (err) {
       return handleError(c, err);
@@ -411,6 +413,7 @@ export function createApi(svc: RelayService, opts: CreateApiOptions = {}): Hono 
     try {
       const opts = parseEventPageQuery({
         after_seq: c.req.query("after_seq"),
+        before_seq: c.req.query("before_seq"),
         limit: c.req.query("limit"),
       });
       return c.json(svc.listChanges(opts));
@@ -441,6 +444,7 @@ export function createApi(svc: RelayService, opts: CreateApiOptions = {}): Hono 
       const since = c.req.query("since");
       const page = parseEventPageQuery({
         after_seq: c.req.query("after_seq"),
+        before_seq: c.req.query("before_seq"),
         limit: c.req.query("limit"),
       });
       const opts: {

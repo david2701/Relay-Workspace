@@ -149,6 +149,7 @@ export const api = {
     body: {
       text: string;
       return_to?: "agent" | "none";
+      locale?: "en" | "fr" | "es";
       if_updated_at?: string;
     },
   ) =>
