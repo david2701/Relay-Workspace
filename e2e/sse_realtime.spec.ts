@@ -89,27 +89,26 @@ test.describe("SSE realtime (PR 1c)", () => {
       { timeout: 10_000 },
     );
 
-    // Kill the SSE connection while making 3 MCP changes.
+    // Abort stream *then* reload so the new EventSource fails (an already-open
+    // SSE socket is not torn down by Playwright route.abort alone).
     await page.route("**/api/stream*", (route) => route.abort());
-    await page.waitForTimeout(500);
+    await page.reload({ waitUntil: "domcontentloaded" });
+    await expect(page.locator(".sync-seal")).toBeVisible();
     await expect(page.locator(".sync-seal")).toHaveAttribute(
       "data-sync-state",
       /reconnecting|offline/,
-      { timeout: 8_000 },
+      { timeout: 10_000 },
     );
-    const sealText = await page.locator(".sync-seal").innerText();
-    expect(sealText.length).toBeGreaterThan(0);
+    await expect(page.locator(".sync-seal")).toContainText(
+      /reconect|reconnect|hors ligne|offline|sin conexión/i,
+    );
 
     const titles = [0, 1, 2].map((i) => `SSE-RECOVER-${Date.now()}-${i}`);
     stdioOps(titles.map((title) => ({ tool: "items_create", args: { title } })));
 
-    // Restore stream; EventSource / hook reconnects and replays via after_seq.
+    // Restore stream; reload opens EventSource which resumes via after_seq /
+    // Last-Event-ID (and snapshot includes the three writes).
     await page.unroute("**/api/stream*");
-    // Nudge reconnect by reloading visibility / soft navigation.
-    await page.evaluate(() => {
-      document.dispatchEvent(new Event("visibilitychange"));
-    });
-    // Force a fresh EventSource by soft-reloading the lens.
     await page.goto("/all");
 
     for (const title of titles) {
