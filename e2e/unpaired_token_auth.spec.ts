@@ -140,8 +140,9 @@ test.describe("unpaired token auth UX", () => {
     ).toBeLessThanOrEqual(3);
 
     await page.goto(`${WEB}/?settings=devices`, { waitUntil: "networkidle" });
-    await expect(page.getByTestId("devices-settings")).toBeVisible();
-    await expect(page.getByTestId("pairing-required")).toBeVisible();
+    const devices = page.getByTestId("devices-settings");
+    await expect(devices).toBeVisible();
+    await expect(devices.getByTestId("pairing-required")).toBeVisible();
     await expect(page.locator(".banner.error")).toHaveCount(0);
     await expect(page.locator(".settings-error")).toHaveCount(0);
 
@@ -177,7 +178,8 @@ test.describe("unpaired token auth UX", () => {
       "connected",
       { timeout: 15_000 },
     );
-    await expect(page.locator(".item-list, .empty, .quick-capture")).toBeVisible();
+    await expect(page.locator("#quick-capture")).toBeVisible();
+    await expect(page.getByTestId("pairing-required")).toHaveCount(0);
 
     const token = await page.evaluate(() =>
       localStorage.getItem("relay.device_token"),

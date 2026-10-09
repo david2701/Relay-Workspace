@@ -541,7 +541,9 @@ export function SettingsPanel({
             >
               <h3 id="settings-devices-h">{t("settings.section.devices")}</h3>
               {section === "devices" ? (
-                <DevicesSettings onPaired={onDevicePaired} />
+                <DevicesSettings
+                  {...(onDevicePaired ? { onPaired: onDevicePaired } : {})}
+                />
               ) : null}
             </section>
 
