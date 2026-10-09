@@ -226,7 +226,7 @@ Perfil del agente: campos de resumen más `current_items` y `handoffs` paginados
 | `current_items_limit` | int 1–200 | no (por defecto 10) |
 
 **Llamada:** `{ "id": "agent-code" }`  
-**Respuesta:** `{ "agent": { …resumen, "current_items": […], "handoffs": { "handoffs": […], "next_seq", "has_more" } } }`
+**Respuesta:** `{ "agent": { …resumen, "current_items": […], "handoffs": […], "handoffs_next_seq", "handoffs_has_more" } }`
 
 Id desconocido → `not_found`.
 

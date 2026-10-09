@@ -61,7 +61,7 @@ describe("agents HTTP + MCP", () => {
     );
   });
 
-  it("GET /api/agents/:id returns profile; unknown id is 404", async () => {
+  it("GET /api/agents/:id returns flat handoffs profile; unknown id is 404", async () => {
     seedIntoService(svc, "en", { applyDemoProfile: true });
     const res = await app.request("http://127.0.0.1/api/agents/agent-code");
     expect(res.status).toBe(200);
@@ -69,17 +69,22 @@ describe("agents HTTP + MCP", () => {
       agent: {
         id: string;
         current_items: Array<{ id: string; title: string; status: string }>;
-        handoffs: {
-          handoffs: Array<{ item_title: string; type: string; seq: number }>;
-          next_seq: number;
-          has_more: boolean;
-        };
+        handoffs: Array<{ item_title: string; type: string; seq: number }>;
+        handoffs_next_seq: number;
+        handoffs_has_more: boolean;
       };
     };
     expect(body.agent.id).toBe("agent-code");
     expect(body.agent.current_items.length).toBeGreaterThan(0);
-    expect(body.agent.handoffs.handoffs.length).toBeGreaterThan(0);
-    expect(body.agent.handoffs.handoffs[0]?.item_title.length).toBeGreaterThan(0);
+    expect(Array.isArray(body.agent.handoffs)).toBe(true);
+    expect(body.agent.handoffs.length).toBeGreaterThan(0);
+    expect(body.agent.handoffs[0]?.item_title.length).toBeGreaterThan(0);
+    expect(typeof body.agent.handoffs_next_seq).toBe("number");
+    expect(typeof body.agent.handoffs_has_more).toBe("boolean");
+    expect(
+      (body.agent as unknown as { handoffs?: { handoffs?: unknown } }).handoffs &&
+        !Array.isArray(body.agent.handoffs),
+    ).toBeFalsy();
 
     const missing = await app.request("http://127.0.0.1/api/agents/agent-nope");
     expect(missing.status).toBe(404);
@@ -96,22 +101,25 @@ describe("agents HTTP + MCP", () => {
       await app.request("http://127.0.0.1/api/agents/agent-code?limit=2")
     ).json() as {
       agent: {
-        handoffs: { handoffs: Array<{ seq: number }>; next_seq: number; has_more: boolean };
+        handoffs: Array<{ seq: number }>;
+        handoffs_next_seq: number;
+        handoffs_has_more: boolean;
       };
     };
-    expect(page1.agent.handoffs.handoffs).toHaveLength(2);
-    expect(page1.agent.handoffs.has_more).toBe(true);
+    expect(page1.agent.handoffs).toHaveLength(2);
+    expect(page1.agent.handoffs_has_more).toBe(true);
     const page2 = await (
       await app.request(
-        `http://127.0.0.1/api/agents/agent-code?limit=2&before_seq=${page1.agent.handoffs.next_seq}`,
+        `http://127.0.0.1/api/agents/agent-code?limit=2&before_seq=${page1.agent.handoffs_next_seq}`,
       )
     ).json() as {
       agent: {
-        handoffs: { handoffs: Array<{ seq: number }>; has_more: boolean };
+        handoffs: Array<{ seq: number }>;
+        handoffs_has_more: boolean;
       };
     };
-    expect(page2.agent.handoffs.handoffs).toHaveLength(1);
-    expect(page2.agent.handoffs.has_more).toBe(false);
+    expect(page2.agent.handoffs).toHaveLength(1);
+    expect(page2.agent.handoffs_has_more).toBe(false);
   });
 
   it("MCP agents_list / agents_get match HTTP", async () => {

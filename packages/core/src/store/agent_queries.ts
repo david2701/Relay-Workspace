@@ -56,8 +56,9 @@ export type ListAgentHandoffsOpts = {
 /**
  * Handoff-relevant events for an agent, newest first.
  *
- * Includes `delegated` / `assigned` / `answered` / `taken` where the agent
- * delegated, was the assignee (or previous assignee), answered, or took.
+ * - `delegated` / `assigned` involving the agent
+ * - `status_changed` by this agent to done / cancelled / needs_you / blocked
+ * - `answered` / `taken` on items assigned to the agent (or acted by the agent)
  */
 export function listAgentHandoffs(
   db: RelayDb,
@@ -73,8 +74,7 @@ export function listAgentHandoffs(
               e.payload, e.created_at, w.title AS item_title
        FROM item_events e
        JOIN work_items w ON w.id = e.item_id
-       WHERE e.type IN ('delegated', 'assigned', 'answered', 'taken')
-         AND (
+       WHERE (
            (
              e.type = 'delegated'
              AND (
@@ -91,8 +91,19 @@ export function listAgentHandoffs(
              )
            )
            OR (
-             e.type IN ('answered', 'taken')
+             e.type = 'status_changed'
+             AND e.actor_kind = 'agent'
              AND e.actor_id = ?
+             AND json_extract(e.payload, '$.to') IN (
+               'done', 'cancelled', 'needs_you', 'blocked'
+             )
+           )
+           OR (
+             e.type IN ('answered', 'taken')
+             AND (
+               e.actor_id = ?
+               OR (w.assignee_type = 'agent' AND w.assignee_id = ?)
+             )
            )
          )
          AND (? IS NULL OR e.seq > ?)
@@ -101,6 +112,8 @@ export function listAgentHandoffs(
        LIMIT ?`,
     )
     .all(
+      agentId,
+      agentId,
       agentId,
       agentId,
       agentId,

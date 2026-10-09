@@ -78,38 +78,43 @@ Query:
     "active": true,
     "counts": { "needs_you": 1, "blocked": 0, "in_progress": 1, "assigned": 0, "done": 0 },
     "current_items": [ /* WorkItem[], status priority: needs_you → blocked → in_progress → assigned */ ],
-    "handoffs": {
-      "handoffs": [
-        {
-          "id": "evt_…",
-          "seq": 12,
-          "item_id": "itm_…",
-          "type": "delegated",
-          "actor_kind": "user",
-          "actor_id": "user",
-          "payload": { "agent_id": "agent-code" },
-          "created_at": "2026-10-09T12:00:00.000Z",
-          "item_title": "Prepare demo"
-        }
-      ],
-      "next_seq": 12,
-      "has_more": false
-    }
+    "handoffs": [
+      {
+        "id": "evt_…",
+        "seq": 12,
+        "item_id": "itm_…",
+        "type": "status_changed",
+        "actor_kind": "agent",
+        "actor_id": "agent-code",
+        "payload": { "from": "assigned", "to": "needs_you", "needs_you_reason": "…" },
+        "created_at": "2026-10-09T12:00:00.000Z",
+        "item_title": "Choose the launch post headline"
+      }
+    ],
+    "handoffs_next_seq": 12,
+    "handoffs_has_more": false
   }
 }
 ```
 
 ### Handoffs
 
-Newest-first page of `item_events` where the agent:
+Newest-first page of `item_events` where the agent is involved:
 
-- **delegated** — `type = delegated` and (`actor_id` = agent or `payload.agent_id` = agent), or
-- **was assigned** — `type = assigned` and the agent is actor / `assignee_id` / `from_assignee_id`, or
-- **answered** / **took** — reserved types (`answered`, `taken`); included when `actor_id` = agent (PR 1b).
+| Type | Included when |
+| --- | --- |
+| `delegated` | `actor_id` = agent or `payload.agent_id` = agent |
+| `assigned` | agent is actor / `assignee_id` / `from_assignee_id` |
+| `status_changed` | actor is this agent and `payload.to` ∈ `done`, `cancelled`, `needs_you`, `blocked` (payload includes `from` / `to`) |
+| `answered` / `taken` | reserved (PR 1b); included when `actor_id` = agent **or** the item is currently assigned to the agent |
 
-Each row includes `item_title`. `next_seq` is the oldest `seq` in the page
-(pass as `before_seq` for the next older page). `has_more` is true when more
-older (or filtered) rows exist.
+Each row includes `item_title`. Profile fields:
+
+- `handoffs` — the event array (not nested)
+- `handoffs_next_seq` — oldest `seq` in the page (pass as `before_seq` for older)
+- `handoffs_has_more` — more older (or filtered) rows exist
+
+User-only field updates (`updated`, `reminder_set`, …) and agent `status_changed` to `in_progress` / `assigned` are **not** handoffs.
 
 ## MCP
 
@@ -128,4 +133,7 @@ older (or filtered) rows exist.
 | Yellow unread badge “1” | Client derives from `counts.needs_you` (or inbox) |
 | Status chip icons (clock / minus) | Client maps from `counts` / `current_items[0].status` |
 | Due / reminder row times on the card | From `current_items[].due_at` / `reminder_at` |
-| Handoff UI copy (“te lo pasó”, “Completado por…”) | Client maps `handoffs[].type` + actors; completed/`status_changed` history is **not** in this handoff filter |
+| “Te lo pasó” / needs-you handoff | `handoffs[]` with `type=status_changed`, `payload.to=needs_you` (actor = agent) |
+| “Completado por…” | `handoffs[]` with `type=status_changed`, `payload.to=done` (actor = agent) |
+| Handoff RD→É chip | Client maps `type` + `actor_*` / assignee payload |
+| Keyboard shortcuts strip | **missing** (UI-only) |

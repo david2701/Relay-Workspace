@@ -28,6 +28,7 @@ export const AgentHandoffSchema = ItemEventSchema.extend({
 });
 export type AgentHandoff = z.infer<typeof AgentHandoffSchema>;
 
+/** Internal page shape used by `listAgentHandoffsPage`. */
 export const AgentHandoffsPageSchema = z.object({
   handoffs: z.array(AgentHandoffSchema),
   /** Oldest `seq` in this page (use as `before_seq` to load older). */
@@ -38,6 +39,10 @@ export type AgentHandoffsPage = z.infer<typeof AgentHandoffsPageSchema>;
 
 export const AgentProfileSchema = AgentSummarySchema.extend({
   current_items: z.array(WorkItemSchema),
-  handoffs: AgentHandoffsPageSchema,
+  /** Newest-first handoff events (see `docs/api/agents.md`). */
+  handoffs: z.array(AgentHandoffSchema),
+  /** Oldest `seq` in `handoffs` (pass as `before_seq` for the next older page). */
+  handoffs_next_seq: z.number().int().nonnegative(),
+  handoffs_has_more: z.boolean(),
 });
 export type AgentProfile = z.infer<typeof AgentProfileSchema>;

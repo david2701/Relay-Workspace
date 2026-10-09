@@ -355,7 +355,7 @@ export class RelayService {
     return { handoffs, next_seq, has_more };
   }
 
-  /** Agent profile: summary + current items + paged handoffs. */
+  /** Agent profile: summary + current items + paged handoffs (flat shape). */
   getAgentProfile(id: string, opts?: AgentProfileOptions): AgentProfile {
     const agent = this.getAgent(id);
     const now = opts?.now ?? new Date();
@@ -367,10 +367,13 @@ export class RelayService {
       counts: countAssignedByStatus(items, agent.id, now),
       now,
     });
+    const page = this.listAgentHandoffsPage(agent.id, opts);
     return {
       ...summary,
       current_items: selectCurrentItems(items, agent.id, currentLimit),
-      handoffs: this.listAgentHandoffsPage(agent.id, opts),
+      handoffs: page.handoffs,
+      handoffs_next_seq: page.next_seq,
+      handoffs_has_more: page.has_more,
     };
   }
 

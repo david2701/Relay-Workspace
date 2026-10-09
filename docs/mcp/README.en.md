@@ -203,7 +203,7 @@ Agent profile: summary fields plus `current_items` and paged `handoffs` (newest 
 | `current_items_limit` | int 1–200 | no (default 10) |
 
 **Call:** `{ "id": "agent-code" }`  
-**Response:** `{ "agent": { …summary, "current_items": […], "handoffs": { "handoffs": […], "next_seq", "has_more" } } }`
+**Response:** `{ "agent": { …summary, "current_items": […], "handoffs": […], "handoffs_next_seq", "handoffs_has_more" } }`
 
 Unknown id → `not_found`.
 
