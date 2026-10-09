@@ -1,8 +1,8 @@
 # Realtime stream API (`GET /api/stream`)
 
 Server-Sent Events (SSE) over the global `item_events` log. While an app or web
-page is open it stays on this stream (owner decision **D4**); push notifications
-when the page is closed come later.
+page is open it stays on this stream (owner decision **D4**); when the stream is
+closed, [push notifications](./push.md) cover the gap (server → APNs/FCM).
 
 MCP tooling is unchanged — agents keep using `changes_list` / `inbox_query` /
 `context_get`.

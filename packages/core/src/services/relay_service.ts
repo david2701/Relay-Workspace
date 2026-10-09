@@ -37,7 +37,12 @@ import type {
   AgentProfile,
   AgentSummary,
 } from "../schemas/agent_summary.js";
-import type { Device, DevicePlatform } from "../schemas/device.js";
+import type {
+  Device,
+  DevicePlatform,
+  DevicePushTarget,
+  RegisterPushInput,
+} from "../schemas/device.js";
 import {
   type InboxView,
   type Source,
@@ -87,10 +92,14 @@ import {
 import { openDatabase, type RelayDb, readSqliteDataVersion } from "../store/db.js";
 import {
   type CreatedDevice,
+  clearDevicePush,
+  clearDevicePushByToken,
   databaseContainsPlaintextToken,
   findDeviceByToken,
   getDevice,
+  listDevicePushTargets,
   listDevices,
+  registerDevicePush,
   renameDevice,
   revokeDevice,
   touchDeviceLastSeen,
@@ -1264,6 +1273,73 @@ export class RelayService {
     if (!device) throw new NotFoundError("Device", id);
     deleteStreamTicketsForDevice(this.db, id);
     return device;
+  }
+
+  registerDevicePush(deviceId: string, input: RegisterPushInput): Device {
+    const device = registerDevicePush(this.db, deviceId, input);
+    if (!device) throw new NotFoundError("Device", deviceId);
+    return device;
+  }
+
+  clearDevicePush(deviceId: string): Device {
+    const device = clearDevicePush(this.db, deviceId);
+    if (!device) throw new NotFoundError("Device", deviceId);
+    return device;
+  }
+
+  /** Active push targets for the dispatcher (includes provider tokens). */
+  listDevicePushTargets(): DevicePushTarget[] {
+    return listDevicePushTargets(this.db);
+  }
+
+  /** Drop a provider token after 410 / UNREGISTERED. */
+  clearDevicePushByToken(pushToken: string): number {
+    return clearDevicePushByToken(this.db, pushToken);
+  }
+
+  /**
+   * Emit `reminder_fired` for open items whose reminder_at is due and not yet
+   * notified for that reminder timestamp. Returns the emitted events.
+   */
+  fireDueReminders(now: Date = new Date()): ItemEvent[] {
+    const nowIsoStr = now.toISOString();
+    const rows = this.db
+      .prepare(
+        `SELECT id, title, reminder_at, reminder_intent
+         FROM work_items
+         WHERE reminder_at IS NOT NULL
+           AND reminder_at <= ?
+           AND status NOT IN ('done', 'cancelled')
+           AND NOT EXISTS (
+             SELECT 1 FROM item_events e
+             WHERE e.item_id = work_items.id
+               AND e.type = 'reminder_fired'
+               AND json_extract(e.payload, '$.reminder_at') = work_items.reminder_at
+           )
+         ORDER BY reminder_at ASC
+         LIMIT 100`,
+      )
+      .all(nowIsoStr) as Array<{
+      id: string;
+      title: string;
+      reminder_at: string;
+      reminder_intent: string | null;
+    }>;
+    if (rows.length === 0) return [];
+    const actor: Actor = { type: "system", id: "system" };
+    const emitted: ItemEvent[] = [];
+    this.runInWriteTx(() => {
+      for (const row of rows) {
+        emitted.push(
+          this.emitItemEvent(row.id, "reminder_fired", actor, {
+            reminder_at: row.reminder_at,
+            reminder_intent: row.reminder_intent,
+            title: row.title,
+          }),
+        );
+      }
+    });
+    return emitted;
   }
 
   /**

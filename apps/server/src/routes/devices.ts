@@ -1,6 +1,8 @@
 import {
   DevicePlatformSchema,
+  RegisterPushInputSchema,
   type RelayService,
+  UnauthorizedError,
   ValidationError,
 } from "@relay/core";
 import { Hono } from "hono";
@@ -109,6 +111,45 @@ export function createDeviceRoutes(
         access_token: ticket.token,
         expires_at: ticket.expires_at,
         expires_in: ticket.expires_in,
+      });
+    } catch (err) {
+      return handleError(c, err);
+    }
+  });
+
+  app.post("/devices/me/push", async (c) => {
+    try {
+      const device = c.get("relayDevice");
+      if (!device) {
+        throw new UnauthorizedError("Device authentication required");
+      }
+      const body = RegisterPushInputSchema.parse(await c.req.json());
+      const updated = svc.registerDevicePush(device.id, body);
+      return c.json({
+        device: updated,
+        push: {
+          platform: updated.push_platform,
+          environment: updated.push_environment,
+          topic: updated.push_topic,
+          muted: updated.push_muted ?? false,
+          registered: updated.has_push_token ?? false,
+        },
+      });
+    } catch (err) {
+      return handleError(c, err);
+    }
+  });
+
+  app.delete("/devices/me/push", (c) => {
+    try {
+      const device = c.get("relayDevice");
+      if (!device) {
+        throw new UnauthorizedError("Device authentication required");
+      }
+      const updated = svc.clearDevicePush(device.id);
+      return c.json({
+        device: updated,
+        push: { registered: false },
       });
     } catch (err) {
       return handleError(c, err);

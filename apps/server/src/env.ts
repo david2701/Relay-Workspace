@@ -32,6 +32,24 @@ const EnvSchema = z.object({
   RELAY_REQUIRE_TOKEN: z.string().optional(),
   /** Base URL embedded in pairing QR (e.g. http://192.168.1.10:7420). */
   RELAY_PUBLIC_URL: z.string().optional(),
+  /** APNs token-auth (.p8) — see docs/deploy/push.md. Never commit keys. */
+  RELAY_APNS_KEY_PATH: z.string().optional(),
+  RELAY_APNS_KEY_ID: z.string().optional(),
+  RELAY_APNS_TEAM_ID: z.string().optional(),
+  RELAY_APNS_TOPIC: z.string().optional(),
+  /** FCM HTTP v1 service-account JSON path. */
+  RELAY_FCM_CREDENTIALS_PATH: z.string().optional(),
+  /** Drop item titles from push payloads (item id + reason only). */
+  RELAY_PUSH_REDACT: z.string().optional(),
+  /**
+   * When "1"/true (default), skip push if the device has an open SSE stream
+   * (owner decision D4). Set "0" to always push.
+   */
+  RELAY_PUSH_SKIP_OPEN_SSE: z.string().optional(),
+  /** Dedupe window for (device, item, reason) in ms (default 60000). */
+  RELAY_PUSH_DEDUPE_MS: z.string().optional(),
+  /** How often to emit reminder_fired for due reminders (ms, default 15000). */
+  RELAY_PUSH_REMINDER_POLL_MS: z.string().optional(),
 });
 
 export type Env = z.infer<typeof EnvSchema> & {
