@@ -25,3 +25,4 @@ uploads/
 *.db-shm
 *.db-wal
 apps/server/data/
+artifacts/demo-boot-ready.txt
