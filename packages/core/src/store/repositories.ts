@@ -211,6 +211,55 @@ export class WorkItemRepository {
     syncItemToFts(this.db, item);
   }
 
+  /**
+   * Update item only when current updated_at matches expected.
+   * Returns false on conflict (row missing or stamp mismatch).
+   */
+  updateIfUnchanged(item: WorkItem, expectedUpdatedAt: string): boolean {
+    const result = this.db
+      .prepare(
+        `UPDATE work_items SET
+          title = @title, goal = @goal, status = @status,
+          assignee_type = @assignee_type, assignee_id = @assignee_id,
+          due_at = @due_at, reminder_at = @reminder_at,
+          reminder_intent = @reminder_intent, priority = @priority,
+          blocked_reason = @blocked_reason, needs_you_reason = @needs_you_reason,
+          source = @source, updated_at = @updated_at,
+          started_at = @started_at, completed_at = @completed_at,
+          completed_by_type = @completed_by_type, completed_by_id = @completed_by_id,
+          last_actor_type = @last_actor_type, last_actor_id = @last_actor_id,
+          list_id = @list_id
+         WHERE id = @id AND updated_at = @expected`,
+      )
+      .run({
+        id: item.id,
+        title: item.title,
+        goal: item.goal,
+        status: item.status,
+        assignee_type: item.assignee_type,
+        assignee_id: item.assignee_id,
+        due_at: item.due_at,
+        reminder_at: item.reminder_at,
+        reminder_intent: item.reminder_intent,
+        priority: item.priority,
+        blocked_reason: item.blocked_reason,
+        needs_you_reason: item.needs_you_reason,
+        source: item.source,
+        updated_at: item.updated_at,
+        started_at: item.started_at,
+        completed_at: item.completed_at,
+        completed_by_type: item.completed_by_type,
+        completed_by_id: item.completed_by_id,
+        last_actor_type: item.last_actor_type,
+        last_actor_id: item.last_actor_id,
+        list_id: item.list_id,
+        expected: expectedUpdatedAt,
+      });
+    if (result.changes === 0) return false;
+    syncItemToFts(this.db, item);
+    return true;
+  }
+
   rebuildFts(): void {
     rebuildSearchFts(this.db);
   }

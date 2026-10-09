@@ -138,6 +138,26 @@ export const api = {
         assignee_id: "user",
       }),
     }),
+  answer: (
+    id: string,
+    body: {
+      text: string;
+      return_to?: "agent" | "none";
+      if_updated_at?: string;
+    },
+  ) =>
+    request<{ item: WorkItem; note: Note; seq: number }>(
+      `/api/items/${id}/answer`,
+      {
+        method: "POST",
+        body: JSON.stringify(body),
+      },
+    ),
+  take: (id: string, opts?: { if_updated_at?: string }) =>
+    request<{ item: WorkItem; seq: number }>(`/api/items/${id}/take`, {
+      method: "POST",
+      body: JSON.stringify(opts ?? {}),
+    }),
   getSettings: () => request<SettingsResponse>("/api/settings"),
   updateSettings: (patch: Partial<RelaySettings>) =>
     request<SettingsResponse>("/api/settings", {

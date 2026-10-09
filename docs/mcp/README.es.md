@@ -590,7 +590,7 @@ Busca ítems de trabajo por título, objetivo, motivos, intención del recordato
 4. **Marcar un bloqueo o preguntar al usuario.**
    - Si estás bloqueado, llama a `items_set_status` con `status: "blocked"` y un `blocked_reason` de 3 caracteres o más.
    - Si necesitas a David, llama a `items_ask_user` con un `reason`. El responsable no cambia.
-5. **Esperar a que el usuario pulse «Devolver a …».** David pulsa «Devolver a {agente}» en la interfaz web y, si quiere, escribe una nota de decisión (rol `decision`). El ítem vuelve a `assigned` con el mismo responsable. Consulta `inbox_query` / `items_get` cada cierto tiempo (*polling*) hasta ver otra vez `assigned`. Después, llama a `context_get` para leer la nota de decisión nueva, si la hay.
+5. **Esperar a que el usuario pulse «Devolver a …».** David pulsa «Devolver a {agente}» con una respuesta. El servidor (`POST /api/items/:id/answer`) crea una nota de decisión + evento `answered` (y `status_changed` → `assigned`) en una sola transacción. No hay herramientas MCP `items_answer` / `items_take`: consulta `inbox_query` / `items_get` hasta ver otra vez `assigned`, luego `context_get` para la nota de decisión y los eventos recientes.
 6. **Completar.** Si hace falta, pasa el ítem a `in_progress` con `items_set_status`. Después, llama a `items_complete`.
 
 Para probar el flujo, los datos de ejemplo ya incluyen un ítem que espera al usuario: «Elegir titular del post de lanzamiento» (`needs_you`).

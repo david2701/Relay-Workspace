@@ -31,16 +31,21 @@ Global monotonic event log for work-item mutations. Foundation for SSE (`seq` /
 | --- | --- | --- |
 | `created` | `createItem` | `title`, `status`, `assignee_*` |
 | `updated` | field patch (or timezone re-anchor) | `changed: string[]` |
-| `status_changed` | `setStatus` / `complete` / `reopen` / `askUser` | `from`, `to`, reasons |
+| `status_changed` | `setStatus` / `complete` / `reopen` / `askUser` / answer return | `from`, `to`, reasons |
 | `assigned` | update that only changes assignee to user/unassigned | `assignee_*`, previous assignee |
 | `delegated` | `delegate` or update assignee → agent | `agent_id`, previous assignee |
 | `note_linked` / `note_unlinked` | link/unlink | `note_id`, `role` (link) |
 | `reminder_set` | update that only changes reminder fields | `reminder_at`, `reminder_intent` |
-| `answered` | **reserved** (PR 1b — «Responder») | — |
-| `taken` | **reserved** | — |
+| `answered` | `POST …/answer` («Responder») | `note_id`, `text` (excerpt ≤ 200) |
+| `taken` | `POST …/take` («Lo hago yo») | `from_*` / `to_*` assignee + status |
 
-Every mutating HTTP/MCP path that touches an item emits exactly one event in the
-same transaction. A rolled-back write leaves no event.
+Most mutating HTTP/MCP paths that touch an item emit exactly one event in the
+same transaction. **Answer** may emit `answered` plus `status_changed` when
+returning to the agent; the decision note link is part of that write (no
+separate `note_linked`). A rolled-back write leaves no event (and no note).
+
+See also [writes.md](./writes.md) for answer/take, `if_updated_at`, and
+`Idempotency-Key`.
 
 ## Endpoints
 
@@ -85,13 +90,18 @@ Clients store `next_seq` and pass it as the next `after_seq` (and later as
 
 | Tool | Role |
 | --- | --- |
-| `context_get` | Includes recent `events` (default 20, oldest first). |
+| `context_get` | Includes recent `events` (default 20, oldest first) and linked notes (decision notes from «Responder» appear here — no MCP answer/take tools). |
 | `items_events` | Same as `/api/items/:id/events`. |
 | `changes_list` | Same as `/api/changes`. |
 | `inbox_query` | Accepts `after_seq`; responses include `seq`. |
+
+Answer and take are **user/UI** writes (`POST /api/items/:id/answer|take`). Agents
+poll or reload `context_get` after the user replies.
 
 ## Migration
 
 Schema version **6**: `item_events` + `event_seq` counter. Existing rows get one
 synthetic `created` event (`payload.backfill: 1`) so history is never empty after
 upgrade.
+
+Schema version **7**: `idempotency_keys` (24 h HTTP Idempotency-Key cache).

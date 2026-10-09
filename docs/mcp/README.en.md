@@ -567,7 +567,7 @@ Search work items (title, goal, reasons, reminder intent, linked notes).
 4. **Blocked or ask user**
    - Blocked: `items_set_status` with `status: "blocked"` and `blocked_reason` (≥3 chars).
    - Need David: `items_ask_user` with `reason` (assignee unchanged).
-5. **User replies «Devolver a …»** — In the web UI David clicks «Devolver a {agent}» (optionally writes a decision note). Status returns to `assigned` with the same assignee. Poll `inbox_query` / `items_get` until you see `assigned` again, then `context_get` for any new decision note.
+5. **User replies «Devolver a …»** — In the web UI David clicks «Devolver a {agent}» with a reply. The server `POST /api/items/:id/answer` creates a decision note + `answered` event (and `status_changed` → `assigned`) in one transaction. There is no MCP `items_answer` / `items_take` — poll `inbox_query` / `items_get` until you see `assigned` again, then `context_get` for the new decision note and recent events.
 6. **Complete** — `items_set_status` → `in_progress` if needed, then `items_complete`.
 
 Seed demo that already waits on the user: item «Elegir titular del post de lanzamiento» (`needs_you`).

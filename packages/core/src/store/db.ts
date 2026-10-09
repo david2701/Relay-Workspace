@@ -2,6 +2,7 @@ import { mkdirSync } from "node:fs";
 import { dirname } from "node:path";
 import { DatabaseSync } from "node:sqlite";
 import { DEFAULT_AGENTS } from "../schemas/agent.js";
+import { cleanupExpiredIdempotencyKeys } from "./idempotency.js";
 import { MIGRATIONS } from "./migrations.js";
 import { rebuildSearchFts } from "./search_index.js";
 
@@ -27,6 +28,7 @@ export function openDatabase(dbPath: string): RelayDb {
   db.exec("PRAGMA busy_timeout = 5000;");
   migrate(db);
   seedAgents(db);
+  cleanupExpiredIdempotencyKeys(db);
   return db;
 }
 

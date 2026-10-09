@@ -21,6 +21,7 @@ export * from "./schemas/work_item.js";
 export * from "./services/relay_service.js";
 export * from "./store/db.js";
 export * from "./store/event_log.js";
+export * from "./store/idempotency.js";
 export * from "./store/migrations.js";
 export type { ListPageResult } from "./store/repositories.js";
 export {

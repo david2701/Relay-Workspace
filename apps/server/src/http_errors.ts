@@ -10,7 +10,12 @@ export function handleError(c: Context, err: unknown): Response {
   }
   if (err instanceof ConflictError) {
     const body: {
-      error: { code: string; message: string; current_updated_at?: string };
+      error: {
+        code: string;
+        message: string;
+        current_updated_at?: string;
+        item?: unknown;
+      };
     } = {
       error: {
         code: "conflict",
@@ -19,6 +24,9 @@ export function handleError(c: Context, err: unknown): Response {
     };
     if (err.current_updated_at !== undefined) {
       body.error.current_updated_at = err.current_updated_at;
+    }
+    if (err.item !== undefined) {
+      body.error.item = err.item;
     }
     return c.json(body, 409);
   }

@@ -70,6 +70,13 @@ export const SetStatusInputSchema = z.object({
 });
 export type SetStatusInput = z.infer<typeof SetStatusInputSchema>;
 
+/** «Responder» — decision note + answered event (+ optional return to agent). */
+export const AnswerItemInputSchema = z.object({
+  text: z.string().min(1).max(4000),
+  return_to: z.enum(["agent", "none"]).optional(),
+});
+export type AnswerItemInput = z.infer<typeof AnswerItemInputSchema>;
+
 export const ActorSchema = z.object({
   type: ActorTypeSchema,
   id: z.string().min(1),
