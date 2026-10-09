@@ -15,6 +15,7 @@ import { Hono } from "hono";
 import { z } from "zod";
 import { actorFromRequest, sourceFromRequest } from "../actor.js";
 import type { AuthOptions } from "../auth.js";
+import { rejectUnlessE2eLoopback } from "../e2e_gate.js";
 import { parseEventPageQuery } from "../event_query.js";
 import { handleError } from "../http_errors.js";
 import type { SseHub } from "../sse_hub.js";
@@ -70,6 +71,11 @@ export type CreateApiOptions = {
   streamHub?: SseHub;
   /** LAN auth options (defaults: no token required — loopback). */
   auth?: AuthOptions;
+  /**
+   * When true (RELAY_E2E=1), register POST /store/e2e-reset.
+   * The handler still requires a trusted loopback peer.
+   */
+  e2eMode?: boolean;
 };
 
 export function createApi(svc: RelayService, opts: CreateApiOptions = {}): Hono {
@@ -593,11 +599,14 @@ export function createApi(svc: RelayService, opts: CreateApiOptions = {}): Hono 
       const seeded = seedIntoService(svc, body.locale, {
         applyDemoProfile: false,
       });
+      // Seq rewind must not poison live SSE cursors / watcher head.
+      opts.streamHub?.reset();
       return c.json({
         ok: true,
         locale: seeded.locale,
         work_item_count: svc.countWorkItems(),
         settings: svc.getSettings(),
+        seq: svc.latestSeq(),
       });
     } catch (err) {
       return handleError(c, err);
@@ -623,16 +632,54 @@ export function createApi(svc: RelayService, opts: CreateApiOptions = {}): Hono 
         seedIntoService(svc, body.locale, { applyDemoProfile: false });
       }
       svc.prepareOnboardingProfile();
+      opts.streamHub?.reset();
       return c.json({
         ok: true,
         variant: body.variant,
         work_item_count: svc.countWorkItems(),
         settings: svc.getSettings(),
+        seq: svc.latestSeq(),
       });
     } catch (err) {
       return handleError(c, err);
     }
   });
+
+  const E2eResetBodySchema = z.object({
+    locale: z.enum(["en", "fr", "es"]).default("en"),
+  });
+
+  /**
+   * Playwright isolation: reseed demo baseline, complete onboarding, and
+   * drop every SSE client so the next spec starts with a clean hub + DB.
+   * Registered only when `e2eMode` is true; handler requires loopback.
+   */
+  if (opts.e2eMode) {
+    app.post("/store/e2e-reset", async (c) => {
+      const denied = rejectUnlessE2eLoopback(c, opts.auth);
+      if (denied) return denied;
+      try {
+        const body = E2eResetBodySchema.parse(
+          (await c.req.json().catch(() => ({}))) ?? {},
+        );
+        const { seedIntoService } = await import("../seed/demo_seed.js");
+        const seeded = seedIntoService(svc, body.locale, {
+          applyDemoProfile: true,
+        });
+        opts.streamHub?.reset();
+        return c.json({
+          ok: true,
+          locale: seeded.locale,
+          work_item_count: svc.countWorkItems(),
+          settings: svc.getSettings(),
+          seq: svc.latestSeq(),
+          sse_clients: opts.streamHub?.size ?? 0,
+        });
+      } catch (err) {
+        return handleError(c, err);
+      }
+    });
+  }
 
   return app;
 }

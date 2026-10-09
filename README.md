@@ -153,7 +153,7 @@ To drive the live web session (mutates the live DB):
 RELAY_API=http://127.0.0.1:7420 pnpm demo:ac3 -- --variant=needs_you
 ```
 
-`pnpm seed` always reset-and-seeds `RELAY_DB` (default `data/relay.db`). Playwright uses `/tmp/relay-e2e.db` on ports 7430/7431.
+`pnpm seed` always reset-and-seeds `RELAY_DB` (default `data/relay.db`). Playwright uses a worker-scoped DB (`/tmp/relay-e2e-w0.db`) on ports 7430/7431 with `RELAY_E2E=1` isolation — see `e2e/README.md`.
 
 ## Verify
 

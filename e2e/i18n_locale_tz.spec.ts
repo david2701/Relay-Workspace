@@ -1,6 +1,6 @@
-import { expect, test, type APIRequestContext, type Page } from "@playwright/test";
+import { expect, test, type APIRequestContext, type Page, E2E_API } from "./fixtures";
 
-const API = "http://127.0.0.1:7430";
+const API = E2E_API;
 
 async function clearLocale(page: Page): Promise<void> {
   await page.addInitScript(() => {
@@ -82,7 +82,7 @@ async function putSettings(
 
 async function todayDateOnlyIso(page: Page, timeZone: string): Promise<string> {
   return page.evaluate(async (tz) => {
-    const r = await fetch("http://127.0.0.1:7430/api/settings");
+    const r = await fetch(`${API}/api/settings`);
     void r;
     const fmt = new Intl.DateTimeFormat("en-GB", {
       timeZone: tz,

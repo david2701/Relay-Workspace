@@ -1,4 +1,4 @@
-import { expect, test } from "@playwright/test";
+import { expect, test, E2E_API } from "./fixtures";
 import {
   expectAgentMarksAreSquares,
   expectHechosOnlyTerminal,
@@ -9,7 +9,7 @@ import {
   waitInboxView,
 } from "./helpers";
 
-const API = "http://127.0.0.1:7430";
+const API = E2E_API;
 const SLA_MS = 2000;
 
 async function mcp(

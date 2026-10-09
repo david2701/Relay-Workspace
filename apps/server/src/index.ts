@@ -57,6 +57,11 @@ export type CreateAppOptions = {
   publicUrl?: string;
   /** Override client IP resolution (tests). */
   resolveClientIp?: ClientIpResolver;
+  /**
+   * Expose POST /api/store/e2e-reset (still loopback-gated).
+   * Set from RELAY_E2E=1 in main(); never enable in production.
+   */
+  e2eMode?: boolean;
 };
 
 function buildAuthOptions(
@@ -102,7 +107,14 @@ export function createApp(
   );
   app.use("/api/*", createAuthMiddleware(svc, auth));
   app.use("/api/*", idempotencyMiddleware(svc));
-  app.route("/api", createApi(svc, { streamHub, auth }));
+  app.route(
+    "/api",
+    createApi(svc, {
+      streamHub,
+      auth,
+      e2eMode: opts.e2eMode ?? false,
+    }),
+  );
   // Stash for tests / graceful shutdown.
   (app as Hono & { streamHub: SseHub }).streamHub = streamHub;
   const mcpAuth = createMcpAuthMiddleware(svc, auth);
@@ -173,6 +185,7 @@ async function main(): Promise<void> {
     requireToken: env.auth.requireToken,
     requireTokenExplicit: env.auth.requireTokenExplicit,
     publicUrl: env.auth.publicUrl,
+    e2eMode: env.e2eMode,
   });
   serve(
     {
@@ -185,6 +198,11 @@ async function main(): Promise<void> {
         `Relay API+MCP listening on http://${env.RELAY_HOST}:${info.port}`,
       );
       console.info(`SQLite: ${env.RELAY_DB}`);
+      if (env.e2eMode) {
+        console.info(
+          "RELAY_E2E=1: POST /api/store/e2e-reset enabled (loopback only)",
+        );
+      }
       console.info(
         `Auth: require_token=${env.auth.requireToken} explicit=${env.auth.requireTokenExplicit} public_url=${env.auth.publicUrl}`,
       );

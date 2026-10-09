@@ -1,4 +1,4 @@
-import { expect, type Page, test } from "@playwright/test";
+import { expect, type Page, test } from "./fixtures";
 
 /** Fixed wall clock so shortcut preview strings (and widths) stay stable. */
 const FROZEN_NOW = new Date("2026-10-08T12:00:00.000Z");

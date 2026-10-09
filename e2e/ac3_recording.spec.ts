@@ -1,5 +1,4 @@
-import { expect, test } from "@playwright/test";
-import { execSync } from "node:child_process";
+import { expect, test, E2E_API } from "./fixtures";
 import { mkdirSync, copyFileSync, existsSync, writeFileSync } from "node:fs";
 import { resolve } from "node:path";
 import {
@@ -10,18 +9,23 @@ import {
   waitInboxView,
 } from "./helpers";
 
-const API = "http://127.0.0.1:7430";
+const API = E2E_API;
 const ART = "/opt/cursor/artifacts";
-const E2E_DB = "/tmp/relay-e2e.db";
 const SLA_MS = 2000;
 
 type Stamp = { label: string; tMs: number };
 
-function reseedCleanDemo(): void {
-  execSync(
-    `RELAY_DB=${E2E_DB} pnpm --filter @relay/server exec tsx scripts/seed.ts`,
-    { cwd: resolve(import.meta.dirname, ".."), stdio: "inherit" },
-  );
+async function reseedCleanDemo(): Promise<void> {
+  // Prefer HTTP e2e-reset so the live SSE hub drops clients and resyncs seq
+  // (CLI seed on the same file would rewind item_events without notifying the hub).
+  const res = await fetch(`${API}/api/store/e2e-reset`, {
+    method: "POST",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify({ locale: "en" }),
+  });
+  if (!res.ok) {
+    throw new Error(`e2e-reset failed: ${res.status} ${await res.text()}`);
+  }
 }
 
 async function mcp(
@@ -55,7 +59,7 @@ test.use({
 
 test("AC3 paced loop on clean seed", async ({ page }) => {
   mkdirSync(ART, { recursive: true });
-  reseedCleanDemo();
+  await reseedCleanDemo();
   const stamps: Stamp[] = [];
   const t0 = Date.now();
   const mark = (label: string) => {

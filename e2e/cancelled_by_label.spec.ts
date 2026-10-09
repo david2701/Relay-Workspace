@@ -1,6 +1,6 @@
-import { expect, test, type APIRequestContext, type Page } from "@playwright/test";
+import { expect, test, type APIRequestContext, type Page, E2E_API } from "./fixtures";
 
-const API = "http://127.0.0.1:7430";
+const API = E2E_API;
 
 type Locale = "en" | "fr" | "es";
 
