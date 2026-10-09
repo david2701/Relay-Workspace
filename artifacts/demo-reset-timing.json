@@ -1,0 +1,9 @@
+{
+  "ok": true,
+  "elapsedMs": 120,
+  "elapsedSec": 0.12,
+  "limitMs": 30000,
+  "siblingStoreIntact": true,
+  "demoDb": "/tmp/relay-d4-xe1k2y/relay-demo.db",
+  "otherDb": "/tmp/relay-d4-xe1k2y/relay.db"
+}

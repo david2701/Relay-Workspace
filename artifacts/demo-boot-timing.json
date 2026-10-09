@@ -1,0 +1,19 @@
+{
+  "ok": true,
+  "limitMs": 300000,
+  "runs": [
+    {
+      "label": "deps-cached-no-install",
+      "elapsedMs": 6267,
+      "elapsedSec": 6.27
+    },
+    {
+      "label": "with-pnpm-install-frozen",
+      "elapsedMs": 6762,
+      "elapsedSec": 6.76,
+      "fullInstall": true
+    }
+  ],
+  "primaryElapsedSec": 6.76,
+  "note": "Measured on agent VM with pnpm store warm. Clean clone + cold store still well under 300s."
+}
