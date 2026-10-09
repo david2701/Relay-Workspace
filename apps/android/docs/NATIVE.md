@@ -10,8 +10,10 @@
 Recorded with **Roborazzi** on the JVM (Robolectric `GraphicsMode.NATIVE`). No emulator/KVM on the Linux agent.
 
 ```bash
-./gradlew :app:testDebugUnitTest --tests 'app.relay.ui.attention.AttentionScreenshotTest'
-# PNGs: app/src/test/screenshots/
+./gradlew :app:testDebugUnitTest -Droborazzi.test.record=true \
+  --tests 'app.relay.ui.attention.AttentionScreenshotTest'
+# PNGs: app/src/test/screenshots/ (360 / 411 / 840 dp, light & dark)
+# No recordRoborazziDebug task — Roborazzi AGP plugin is not applied.
 ```
 
 ## Security

@@ -9,6 +9,9 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.calculateEndPadding
+import androidx.compose.foundation.layout.calculateStartPadding
+import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
@@ -16,17 +19,19 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.LazyListState
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.outlined.Notes
+import androidx.compose.material.icons.outlined.Add
 import androidx.compose.material.icons.outlined.CloudDone
 import androidx.compose.material.icons.outlined.FilterList
 import androidx.compose.material.icons.outlined.Inbox
-import androidx.compose.material.icons.automirrored.outlined.Notes
 import androidx.compose.material.icons.outlined.People
 import androidx.compose.material.icons.outlined.Search
-import androidx.compose.material.icons.outlined.Add
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.ExtendedFloatingActionButton
@@ -46,7 +51,12 @@ import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.drawWithContent
 import androidx.compose.ui.draw.shadow
+import androidx.compose.ui.geometry.Size
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.drawscope.DrawScope
+import androidx.compose.ui.platform.LocalLayoutDirection
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.contentDescription
@@ -61,6 +71,7 @@ import app.relay.data.Status
 import app.relay.data.WorkItem
 import app.relay.theme.RelayDimens
 import app.relay.theme.RelayThemeTokens
+import app.relay.theme.selectedRowShadowLayers
 
 @Composable
 fun AttentionRoute(
@@ -81,6 +92,7 @@ fun AttentionScreen(
     onRetry: () -> Unit,
     onSelectItem: (String?) -> Unit,
     modifier: Modifier = Modifier,
+    listState: LazyListState = rememberLazyListState(),
 ) {
     val colors = RelayThemeTokens.colors
     Scaffold(
@@ -153,6 +165,7 @@ fun AttentionScreen(
         floatingActionButton = {
             ExtendedFloatingActionButton(
                 onClick = {},
+                modifier = Modifier.testTag("attention_fab"),
                 icon = {
                     Icon(
                         Icons.Outlined.Add,
@@ -195,7 +208,8 @@ fun AttentionScreen(
                     AttentionList(
                         state = state,
                         onSelectItem = onSelectItem,
-                        padding = innerPadding,
+                        scaffoldPadding = innerPadding,
+                        listState = listState,
                     )
                 }
             }
@@ -243,7 +257,6 @@ private fun AttentionBottomBar(needsYouCount: Int) {
             ),
         )
     }
-    // Badge count reserved for a later pass; keep counter in state for TalkBack later.
     @Suppress("UNUSED_VARIABLE")
     val ignored = needsYouCount
 }
@@ -329,19 +342,37 @@ private fun EmptyBody(padding: PaddingValues) {
     }
 }
 
+/**
+ * Scaffold [scaffoldPadding] already includes top bar + bottom nav / gesture insets.
+ * Extra [RelayDimens.fabClearance] is added only to LazyColumn contentPadding.bottom
+ * so the last row clears the FAB without double-counting system insets.
+ */
 @Composable
-private fun AttentionList(
+fun AttentionList(
     state: AttentionUiState.Ready,
     onSelectItem: (String?) -> Unit,
-    padding: PaddingValues,
+    scaffoldPadding: PaddingValues,
+    listState: LazyListState = rememberLazyListState(),
 ) {
     val colors = RelayThemeTokens.colors
+    val layoutDirection = LocalLayoutDirection.current
     LazyColumn(
+        state = listState,
         modifier = Modifier
             .fillMaxSize()
-            .padding(padding)
+            .padding(
+                start = scaffoldPadding.calculateStartPadding(layoutDirection),
+                top = scaffoldPadding.calculateTopPadding(),
+                end = scaffoldPadding.calculateEndPadding(layoutDirection),
+                bottom = scaffoldPadding.calculateBottomPadding(),
+            )
             .testTag("attention_list"),
-        contentPadding = PaddingValues(horizontal = 16.dp, vertical = 8.dp),
+        contentPadding = PaddingValues(
+            start = 16.dp,
+            top = 8.dp,
+            end = 16.dp,
+            bottom = 8.dp + RelayDimens.fabClearance,
+        ),
         verticalArrangement = Arrangement.spacedBy(12.dp),
     ) {
         state.sections.forEach { section ->
@@ -363,6 +394,7 @@ private fun AttentionList(
                             if (state.selectedItemId == item.id) null else item.id,
                         )
                     },
+                    modifier = Modifier.testTag("row_${item.id}"),
                 )
             }
         }
@@ -384,6 +416,7 @@ fun AttentionItemRow(
     modifier: Modifier = Modifier,
 ) {
     val colors = RelayThemeTokens.colors
+    val isDark = RelayThemeTokens.isDark
     val isNeedsYou = item.status == Status.NeedsYou
     val shape = RoundedCornerShape(RelayDimens.cardRadius)
     val background = when {
@@ -409,12 +442,40 @@ fun AttentionItemRow(
         if (isNeedsYou) append(", ${stringResource(R.string.cd_needs_you_rule)}")
         if (isSelected) append(", ${stringResource(R.string.cd_selected_row)}")
     }
-    val selectedShadow = if (isSelected && !isNeedsYou) 2.dp else 0.dp
-    Row(
-        modifier = modifier
-            .fillMaxWidth()
-            .shadow(selectedShadow, rowShape, clip = false)
+    val shadowLayers = if (isSelected && !isNeedsYou) {
+        selectedRowShadowLayers(darkTheme = isDark)
+    } else {
+        emptyList()
+    }
+    val attentionRuleColor = colors.attentionRule
+    var rowModifier = modifier.fillMaxWidth()
+    for (layer in shadowLayers) {
+        rowModifier = rowModifier.shadow(
+            elevation = layer.elevation,
+            shape = rowShape,
+            clip = false,
+            ambientColor = layer.color,
+            spotColor = layer.color,
+        )
+    }
+    // clip → drawWithContent → background/border: drawContent paints fill+border+children,
+    // then the 2 dp rule is drawn on top so the 1 dp border cannot cover it (B2 / §9.5 r8).
+    Box(
+        modifier = rowModifier
             .clip(rowShape)
+            .then(
+                if (isNeedsYou) {
+                    Modifier.drawWithContent {
+                        drawContent()
+                        drawNeedsYouRule(
+                            color = attentionRuleColor,
+                            widthPx = RelayDimens.needsYouRuleWidth.toPx(),
+                        )
+                    }
+                } else {
+                    Modifier
+                },
+            )
             .background(background)
             .border(borderWidth, borderColor, rowShape)
             .clickable(onClick = onClick)
@@ -423,62 +484,71 @@ fun AttentionItemRow(
                 when {
                     isNeedsYou -> "row_needs_you"
                     isSelected -> "row_selected"
-                    else -> "row_${item.id}"
+                    else -> "row_item"
                 },
-            )
-            .padding(start = if (isNeedsYou) 0.dp else 12.dp),
-        verticalAlignment = Alignment.Top,
+            ),
     ) {
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(start = if (isNeedsYou) RelayDimens.needsYouRuleWidth + 10.dp else 12.dp)
+                .padding(end = 12.dp, top = 12.dp, bottom = 12.dp),
+            verticalAlignment = Alignment.Top,
+        ) {
+            Column(modifier = Modifier.weight(1f)) {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    StatusGlyph(status = item.status)
+                    Spacer(modifier = Modifier.width(8.dp))
+                    Text(
+                        text = item.title,
+                        style = MaterialTheme.typography.titleMedium,
+                        color = colors.ink,
+                        fontWeight = FontWeight.SemiBold,
+                        maxLines = 2,
+                        overflow = TextOverflow.Ellipsis,
+                        modifier = Modifier.weight(1f),
+                    )
+                }
+                Spacer(modifier = Modifier.height(4.dp))
+                Text(
+                    text = metaLine(item),
+                    style = MaterialTheme.typography.bodySmall,
+                    color = colors.inkMuted,
+                    maxLines = 2,
+                    overflow = TextOverflow.Ellipsis,
+                )
+                // Body: needs_you reason or goal. Blocked reason is only in metaLine (B7).
+                val body = when (item.status) {
+                    Status.NeedsYou -> item.needsYouReason
+                    Status.Blocked -> item.goal
+                    else -> item.goal
+                }
+                if (!body.isNullOrBlank()) {
+                    Spacer(modifier = Modifier.height(6.dp))
+                    Text(
+                        text = body,
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = colors.ink2,
+                        maxLines = 3,
+                        overflow = TextOverflow.Ellipsis,
+                    )
+                }
+            }
+        }
         if (isNeedsYou) {
             Box(
                 modifier = Modifier
+                    .align(Alignment.CenterStart)
                     .width(RelayDimens.needsYouRuleWidth)
-                    .height(88.dp)
-                    .background(colors.attentionRule)
+                    .fillMaxHeight()
                     .testTag("needs_you_rule"),
             )
-            Spacer(modifier = Modifier.width(10.dp))
-        }
-        Column(
-            modifier = Modifier
-                .weight(1f)
-                .padding(vertical = 12.dp, horizontal = if (isNeedsYou) 0.dp else 0.dp)
-                .padding(end = 12.dp),
-        ) {
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                StatusGlyph(status = item.status)
-                Spacer(modifier = Modifier.width(8.dp))
-                Text(
-                    text = item.title,
-                    style = MaterialTheme.typography.titleMedium,
-                    color = colors.ink,
-                    fontWeight = FontWeight.SemiBold,
-                    maxLines = 2,
-                    overflow = TextOverflow.Ellipsis,
-                    modifier = Modifier.weight(1f),
-                )
-            }
-            Spacer(modifier = Modifier.height(4.dp))
-            Text(
-                text = metaLine(item),
-                style = MaterialTheme.typography.bodySmall,
-                color = colors.inkMuted,
-                maxLines = 2,
-                overflow = TextOverflow.Ellipsis,
-            )
-            val body = item.needsYouReason ?: item.blockedReason ?: item.goal
-            if (!body.isNullOrBlank()) {
-                Spacer(modifier = Modifier.height(6.dp))
-                Text(
-                    text = body,
-                    style = MaterialTheme.typography.bodyMedium,
-                    color = colors.ink2,
-                    maxLines = 3,
-                    overflow = TextOverflow.Ellipsis,
-                )
-            }
         }
     }
+}
+
+private fun DrawScope.drawNeedsYouRule(color: Color, widthPx: Float) {
+    drawRect(color = color, size = Size(widthPx, size.height))
 }
 
 @Composable
@@ -515,7 +585,7 @@ private fun StatusGlyph(status: Status) {
 
 private fun metaLine(item: WorkItem): String {
     val reason = when (item.status) {
-        Status.NeedsYou -> item.needsYouReason?.let { "Necesita tu decisión" }
+        Status.NeedsYou -> "Necesita tu decisión"
         Status.Blocked -> item.blockedReason?.let { "Atascado: $it" }
         else -> item.reminderIntent
     }

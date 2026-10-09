@@ -23,12 +23,15 @@ cd apps/android
 ./gradlew :app:testDebugUnitTest
 ```
 
-Screenshot (Roborazzi, JVM — no emulator/KVM required):
+Screenshot (Roborazzi, JVM — no emulator/KVM required). The Roborazzi **Gradle plugin is not applied** (AGP 9); recording is driven by the unit-test system property already set in `app/build.gradle.kts`:
 
 ```bash
-./gradlew :app:recordRoborazziDebug
+./gradlew :app:testDebugUnitTest -Droborazzi.test.record=true
 # PNGs under app/src/test/screenshots/
+# Widths: 360 / 411 phone + 840 tablet/foldable (light & dark, top + scrolled end)
 ```
+
+There are no `recordRoborazziDebug` / `verifyRoborazziDebug` tasks in this project.
 
 ## API base URL
 
@@ -39,5 +42,6 @@ No auth tokens yet — URL is a preference, not a vault secret. Future credentia
 
 ## Design
 
-Tokens from ui-spec-v0.3 §9.5 (yellow `#F8ED60` fill + ochres; r8 selected row = raised + 1 px control border).
+Tokens from ui-spec-v0.3 §9.5 (yellow `#F8ED60` fill + ochres; r8 selected row = raised + 1 px control border; dark selected has no shadow; light `--shadow-float` is two layers).
+`AttentionList` bottom content padding = FAB height + edge margin on top of Scaffold `innerPadding` (no double-counting of nav/gesture insets).
 Atención screen follows Android home renders (A+C yellow direction).

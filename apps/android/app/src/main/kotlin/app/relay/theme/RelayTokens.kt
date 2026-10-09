@@ -9,6 +9,7 @@ import androidx.compose.ui.unit.dp
  * `--hl` (#F8ED60) is fill-only with `--on-hl` (#1F1D17) on top.
  * Selected row: elevated `--raised` + 1 dp `--control` border + 8 dp radius (not accent tint).
  * needs_you row: `--accent-tint` + 2 dp `--attention-rule`.
+ * Light `--shadow-float`: two layers (web `tokens.css`); dark: none.
  */
 data class RelayColorTokens(
     val paper: Color,
@@ -84,11 +85,40 @@ data class RelayColorTokens(
     }
 }
 
+/** One layer of web `--shadow-float` (light only). */
+data class ShadowLayer(
+    val elevation: Dp,
+    val color: Color,
+)
+
 object RelayDimens {
     val selectedRowRadius: Dp = 8.dp
     val needsYouRuleWidth: Dp = 2.dp
     val selectedRowBorderWidth: Dp = 1.dp
     val cardRadius: Dp = 12.dp
+
+    /**
+     * Extended FAB (~56 dp) + Scaffold FAB edge margin (16 dp).
+     * Applied as LazyColumn contentPadding.bottom on top of Scaffold innerPadding
+     * (nav bar / gesture insets) — not double-counted with system bars.
+     */
+    val fabHeight: Dp = 56.dp
+    val fabEdgeMargin: Dp = 16.dp
+    val fabClearance: Dp = fabHeight + fabEdgeMargin
+}
+
+/**
+ * Light selected-row shadow mirrors web:
+ * `0 1px 2px rgb(31 29 23 / .06), 0 4px 12px rgb(31 29 23 / .08)`.
+ * Dark returns empty (r8: `--shadow-float: none`).
+ */
+fun selectedRowShadowLayers(darkTheme: Boolean): List<ShadowLayer> {
+    if (darkTheme) return emptyList()
+    val ink = Color(0xFF1F1D17)
+    return listOf(
+        ShadowLayer(elevation = 2.dp, color = ink.copy(alpha = 0.06f)),
+        ShadowLayer(elevation = 6.dp, color = ink.copy(alpha = 0.08f)),
+    )
 }
 
 /** WCAG 2.x contrast helpers for token tests. */
