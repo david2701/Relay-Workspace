@@ -6,7 +6,9 @@ import androidx.compose.foundation.layout.requiredSize
 import androidx.compose.foundation.lazy.LazyListState
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.testTag
+import androidx.compose.ui.test.isDisplayed
 import androidx.compose.ui.test.junit4.createAndroidComposeRule
+import androidx.compose.ui.test.onAllNodesWithTag
 import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.unit.dp
 import app.relay.data.ActorType
@@ -75,7 +77,11 @@ class AttentionFabOverlapTest(
             runBlocking { listState.scrollToItem(lastIndex) }
         }
         composeRule.waitForIdle()
-        val fab = composeRule.onNodeWithTag("attention_fab").fetchSemanticsNode().boundsInRoot
+        val fab = composeRule
+            .onAllNodesWithTag("attention_fab")
+            .fetchSemanticsNodes()
+            .map { it.boundsInRoot }
+            .maxBy { it.width * it.height }
         val lastRow = composeRule.onNodeWithTag("row_$lastId").fetchSemanticsNode().boundsInRoot
         assertFalse(
             "last row $lastRow must not intersect FAB $fab at ${widthDp}x${heightDp}dp",

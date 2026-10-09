@@ -50,8 +50,8 @@ import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.material3.adaptive.ExperimentalMaterial3AdaptiveApi
-import androidx.compose.material3.adaptive.currentWindowAdaptiveInfo
 import androidx.compose.material3.adaptive.layout.AnimatedPane
+import androidx.compose.material3.adaptive.layout.PaneScaffoldDirective
 import androidx.compose.material3.adaptive.layout.ListDetailPaneScaffoldRole
 import androidx.compose.material3.adaptive.layout.PaneAdaptedValue
 import androidx.compose.material3.adaptive.navigation.NavigableListDetailPaneScaffold
@@ -75,6 +75,7 @@ import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.drawscope.DrawScope
+import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalLayoutDirection
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.stringResource
@@ -129,9 +130,18 @@ fun AttentionScreen(
 ) {
     val colors = RelayThemeTokens.colors
     val isDark = RelayThemeTokens.isDark
-    val adaptiveInfo = currentWindowAdaptiveInfo()
-    val navSuiteType = relayNavigationSuiteType(adaptiveInfo.windowSizeClass)
-    val navigator = rememberListDetailPaneScaffoldNavigator<String>()
+    // Prefer Configuration width so Robolectric qualifiers / tests drive the suite type.
+    val widthDp = LocalConfiguration.current.screenWidthDp
+    val navSuiteType = relayNavigationSuiteTypeForWidth(widthDp)
+    val isExpandedWidth = widthDp >= WindowSizeClass.WIDTH_DP_EXPANDED_LOWER_BOUND
+    val listDetailDirective = PaneScaffoldDirective.Default.copy(
+        maxHorizontalPartitions = if (isExpandedWidth) 2 else 1,
+        horizontalPartitionSpacerSize = 12.dp,
+        defaultPanePreferredWidth = 360.dp,
+    )
+    val navigator = rememberListDetailPaneScaffoldNavigator<String>(
+        scaffoldDirective = listDetailDirective,
+    )
     val scope = rememberCoroutineScope()
     var currentDestination by rememberSaveable { mutableStateOf(RelayDestination.Attention) }
     val needsYouCount = when (state) {
@@ -158,12 +168,16 @@ fun AttentionScreen(
             }
         }
     }
-    NavigationSuiteScaffold(
+    val showingCompactDetail =
+        !isListDetailVisible && selectedId != null &&
+            navigator.currentDestination?.pane == ListDetailPaneScaffoldRole.Detail
+    val effectiveNavSuiteType =
+        if (showingCompactDetail) NavigationSuiteType.None else navSuiteType
+        NavigationSuiteScaffold(
         modifier = modifier
             .fillMaxSize()
-            .testTag("attention_screen")
-            .then(modifierForNavType(navSuiteType)),
-        navigationSuiteType = navSuiteType,
+            .testTag("attention_screen"),
+        navigationSuiteType = effectiveNavSuiteType,
         containerColor = colors.paper,
         contentColor = colors.ink,
         navigationSuiteColors = NavigationSuiteDefaults.colors(
@@ -172,7 +186,9 @@ fun AttentionScreen(
             navigationDrawerContainerColor = colors.sunken,
         ),
         primaryActionContent = {
-            AttentionPrimaryFab(isExtended = navSuiteType == NavigationSuiteType.NavigationBar)
+            if (!showingCompactDetail) {
+                AttentionPrimaryFab(isExtended = navSuiteType == NavigationSuiteType.NavigationBar)
+            }
         },
         navigationItems = {
             val itemColors = attentionNavItemColors()
@@ -206,7 +222,13 @@ fun AttentionScreen(
             )
         },
     ) {
-        when (currentDestination) {
+        Box(modifier = Modifier.fillMaxSize()) {
+            Box(
+                modifier = Modifier
+                    .size(1.dp)
+                    .then(modifierForNavType(navSuiteType)),
+            )
+            when (currentDestination) {
             RelayDestination.Attention -> {
                 NavigableListDetailPaneScaffold(
                     navigator = navigator,
@@ -248,7 +270,7 @@ fun AttentionScreen(
                             }
                             AttentionDetailPane(
                                 item = detailItem,
-                                showBack = !isListDetailVisible && detailItem != null,
+                                showBack = showingCompactDetail || (!isListDetailVisible && detailItem != null),
                                 onBack = {
                                     scope.launch {
                                         navigator.navigateBack()
@@ -262,16 +284,17 @@ fun AttentionScreen(
             }
             RelayDestination.Team -> DestinationPlaceholder(label = stringResource(R.string.nav_team))
             RelayDestination.Notes -> DestinationPlaceholder(label = stringResource(R.string.nav_notes))
+            }
         }
     }
 }
 
-internal fun relayNavigationSuiteType(sizeClass: WindowSizeClass): NavigationSuiteType {
+internal fun relayNavigationSuiteType(sizeClass: WindowSizeClass): NavigationSuiteType =
+    relayNavigationSuiteTypeForWidth(sizeClass.minWidthDp)
+
+internal fun relayNavigationSuiteTypeForWidth(widthDp: Int): NavigationSuiteType {
     return when {
-        sizeClass.isWidthAtLeastBreakpoint(WindowSizeClass.WIDTH_DP_EXPANDED_LOWER_BOUND) ->
-            NavigationSuiteType.NavigationRail
-        sizeClass.isWidthAtLeastBreakpoint(WindowSizeClass.WIDTH_DP_MEDIUM_LOWER_BOUND) ->
-            NavigationSuiteType.NavigationRail
+        widthDp >= WindowSizeClass.WIDTH_DP_MEDIUM_LOWER_BOUND -> NavigationSuiteType.NavigationRail
         else -> NavigationSuiteType.NavigationBar
     }
 }

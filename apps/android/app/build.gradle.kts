@@ -1,3 +1,7 @@
+import org.gradle.api.tasks.testing.TestDescriptor
+import org.gradle.api.tasks.testing.TestListener
+import org.gradle.api.tasks.testing.TestResult
+
 plugins {
     alias(libs.plugins.android.application)
     // AGP 9+ ships built-in Kotlin — do not apply org.jetbrains.kotlin.android
@@ -95,4 +99,18 @@ tasks.withType<Test>().configureEach {
     // Roborazzi without AGP plugin (AGP 9 drops TestedExtension used by older plugin).
     systemProperty("roborazzi.test.record", System.getProperty("roborazzi.test.record", "true"))
     systemProperty("robolectric.graphicsMode", "NATIVE")
+    addTestListener(object : TestListener {
+        override fun beforeSuite(suite: TestDescriptor) = Unit
+        override fun afterSuite(suite: TestDescriptor, result: TestResult) {
+            if (suite.parent == null) {
+                logger.lifecycle(
+                    "${result.testCount} tests completed, " +
+                        "${result.failedTestCount} failed, " +
+                        "${result.skippedTestCount} skipped",
+                )
+            }
+        }
+        override fun beforeTest(testDescriptor: TestDescriptor) = Unit
+        override fun afterTest(testDescriptor: TestDescriptor, result: TestResult) = Unit
+    })
 }

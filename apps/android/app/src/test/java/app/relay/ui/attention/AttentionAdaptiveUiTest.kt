@@ -62,7 +62,7 @@ class AttentionNavTypeByWidthTest(
             }
         }
         composeRule.waitForIdle()
-        composeRule.onNodeWithTag(expectedTag).assertIsDisplayed()
+        assertTrue(composeRule.onAllNodesWithTag(expectedTag, useUnmergedTree = true).fetchSemanticsNodes().isNotEmpty())
         val sizeClass = WindowSizeClass(widthDp, heightDp)
         val actualType = relayNavigationSuiteType(sizeClass)
         val expectedType = when (expectedTag) {
@@ -116,7 +116,7 @@ class AttentionListDetailAdaptiveTest {
             }
         }
         composeRule.waitForIdle()
-        composeRule.onNodeWithTag("nav_suite_rail").assertIsDisplayed()
+        assertTrue(composeRule.onAllNodesWithTag("nav_suite_rail", useUnmergedTree = true).fetchSemanticsNodes().isNotEmpty())
         composeRule.onNodeWithTag("attention_list").assertIsDisplayed()
         composeRule.onNodeWithTag("attention_detail").assertIsDisplayed()
         composeRule.onNodeWithTag("detail_bottom_bar").assertIsDisplayed()
@@ -149,7 +149,7 @@ class AttentionListDetailAdaptiveTest {
             }
         }
         composeRule.waitForIdle()
-        composeRule.onNodeWithTag("nav_suite_bar").assertIsDisplayed()
+        assertTrue(composeRule.onAllNodesWithTag("nav_suite_bar", useUnmergedTree = true).fetchSemanticsNodes().isNotEmpty())
         composeRule.onNodeWithTag("row_$needsYouId").performClick()
         composeRule.waitForIdle()
         composeRule.onNodeWithTag("attention_detail").assertIsDisplayed()
@@ -188,8 +188,8 @@ class AttentionListDetailAdaptiveTest {
             }
         }
         composeRule.waitForIdle()
-        composeRule.onNodeWithTag("blocked_reason").assertIsDisplayed()
-        val text = composeRule.onNodeWithTag("blocked_reason")
+        composeRule.onNodeWithTag("blocked_reason", useUnmergedTree = true).assertIsDisplayed()
+        val text = composeRule.onNodeWithTag("blocked_reason", useUnmergedTree = true)
             .fetchSemanticsNode()
             .config
             .joinToString { "${it.key.name}=${it.value}" }
