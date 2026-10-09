@@ -186,3 +186,120 @@ describe("answer / take / idempotency HTTP", () => {
     expect(pack.events.some((e) => e.type === "answered")).toBe(true);
   });
 });
+
+describe("write validation → 400 validation_error", () => {
+  let dir: string;
+  let svc: RelayService;
+  let app: ReturnType<typeof createApp>;
+  const actor = { type: "user" as const, id: USER_ACTOR_ID };
+
+  beforeEach(() => {
+    dir = mkdtempSync(join(tmpdir(), "relay-write-400-"));
+    svc = new RelayService({ dbPath: join(dir, "t.db") });
+    app = createApp(svc, "http://127.0.0.1:7421");
+  });
+
+  afterEach(() => {
+    svc.close();
+    rmSync(dir, { recursive: true, force: true });
+  });
+
+  async function seedNeedsYou(): Promise<string> {
+    const item = svc.createItem(
+      {
+        title: "Decide",
+        assignee_type: "agent",
+        assignee_id: "agent-code",
+      },
+      actor,
+      "ui",
+    );
+    svc.askUser(item.id, "Ship Friday?", actor, "ui");
+    return item.id;
+  }
+
+  async function expectValidation400(
+    res: Response,
+  ): Promise<{ error: string; message: string }> {
+    expect(res.status).toBe(400);
+    const body = (await res.json()) as { error: string; message: string };
+    expect(body).toEqual({
+      error: "validation_error",
+      message: expect.any(String),
+    });
+    expect(body.message.length).toBeGreaterThan(0);
+    return body;
+  }
+
+  it("answer rejects empty and oversized text with 400 validation_error", async () => {
+    const id = await seedNeedsYou();
+    const empty = await app.request(`http://127.0.0.1/api/items/${id}/answer`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ text: "" }),
+    });
+    await expectValidation400(empty);
+
+    const oversized = await app.request(
+      `http://127.0.0.1/api/items/${id}/answer`,
+      {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ text: "x".repeat(4001) }),
+      },
+    );
+    await expectValidation400(oversized);
+  });
+
+  it("answer/take/PATCH reject malformed if_updated_at with 400 validation_error", async () => {
+    const id = await seedNeedsYou();
+    const bad = "not-a-timestamp";
+    const cases: Array<{ method: string; path: string; body: unknown }> = [
+      {
+        method: "POST",
+        path: `/api/items/${id}/answer`,
+        body: { text: "ok", if_updated_at: bad },
+      },
+      {
+        method: "POST",
+        path: `/api/items/${id}/take`,
+        body: { if_updated_at: bad },
+      },
+      {
+        method: "PATCH",
+        path: `/api/items/${id}`,
+        body: { title: "x", if_updated_at: bad },
+      },
+      {
+        method: "POST",
+        path: `/api/items/${id}/status`,
+        body: { status: "in_progress", if_updated_at: bad },
+      },
+    ];
+    for (const row of cases) {
+      const res = await app.request(`http://127.0.0.1${row.path}`, {
+        method: row.method,
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(row.body),
+      });
+      await expectValidation400(res);
+    }
+  });
+
+  it("malformed Idempotency-Key returns 400 validation_error (never 500)", async () => {
+    const id = await seedNeedsYou();
+    // Fetch Headers reject CR/LF; cover embedded spaces and oversize.
+    const badKeys = ["has space", "a".repeat(257)];
+    for (const key of badKeys) {
+      const res = await app.request(`http://127.0.0.1/api/items/${id}/take`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "Idempotency-Key": key,
+        },
+        body: "{}",
+      });
+      await expectValidation400(res);
+    }
+  });
+});

@@ -30,24 +30,27 @@ const ActorBodySchema = z
 
 const PageLimitSchema = z.coerce.number().int().min(1).max(200);
 
+/** Optimistic concurrency stamp — ISO datetime with offset (same as WorkItem.updated_at). */
+const IfUpdatedAtSchema = z.string().datetime({ offset: true });
+
 const NotePatchSchema = UpdateNoteInputSchema.extend({
-  if_updated_at: z.string().optional(),
+  if_updated_at: IfUpdatedAtSchema.optional(),
 });
 
 const ItemPatchSchema = UpdateItemInputSchema.extend({
-  if_updated_at: z.string().optional(),
+  if_updated_at: IfUpdatedAtSchema.optional(),
 });
 
 const StatusBodySchema = SetStatusInputSchema.extend({
-  if_updated_at: z.string().optional(),
+  if_updated_at: IfUpdatedAtSchema.optional(),
 });
 
 const AnswerBodySchema = AnswerItemInputSchema.extend({
-  if_updated_at: z.string().optional(),
+  if_updated_at: IfUpdatedAtSchema.optional(),
 });
 
 const TakeBodySchema = z.object({
-  if_updated_at: z.string().optional(),
+  if_updated_at: IfUpdatedAtSchema.optional(),
 });
 
 function parseSearchFromQuery(query: Record<string, string>) {
