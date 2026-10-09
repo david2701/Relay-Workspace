@@ -6,7 +6,9 @@ import androidx.compose.foundation.layout.requiredSize
 import androidx.compose.foundation.lazy.LazyListState
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.testTag
+import androidx.compose.ui.test.isDisplayed
 import androidx.compose.ui.test.junit4.createAndroidComposeRule
+import androidx.compose.ui.test.onAllNodesWithTag
 import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.unit.dp
 import app.relay.data.ActorType
@@ -33,7 +35,8 @@ import org.robolectric.annotation.GraphicsMode
 
 /**
  * B1: scrolled to the end, the last row must not intersect the FAB
- * (list bottom content padding = FAB height + margin atop Scaffold insets).
+ * (list bottom content padding = FAB height + margin atop Scaffold insets on compact).
+ * On rail widths the FAB lives in the rail header and must still not overlap the list.
  */
 @RunWith(ParameterizedRobolectricTestRunner::class)
 @GraphicsMode(GraphicsMode.Mode.NATIVE)
@@ -74,16 +77,22 @@ class AttentionFabOverlapTest(
             runBlocking { listState.scrollToItem(lastIndex) }
         }
         composeRule.waitForIdle()
-        val fab = composeRule.onNodeWithTag("attention_fab").fetchSemanticsNode().boundsInRoot
+        val fab = composeRule
+            .onAllNodesWithTag("attention_fab")
+            .fetchSemanticsNodes()
+            .map { it.boundsInRoot }
+            .maxBy { it.width * it.height }
         val lastRow = composeRule.onNodeWithTag("row_$lastId").fetchSemanticsNode().boundsInRoot
         assertFalse(
             "last row $lastRow must not intersect FAB $fab at ${widthDp}x${heightDp}dp",
             fab.overlaps(lastRow),
         )
-        assertTrue(
-            "last row bottom (${lastRow.bottom}) should sit above FAB top (${fab.top})",
-            lastRow.bottom <= fab.top + 0.5f,
-        )
+        if (widthDp < 600) {
+            assertTrue(
+                "last row bottom (${lastRow.bottom}) should sit above FAB top (${fab.top})",
+                lastRow.bottom <= fab.top + 0.5f,
+            )
+        }
     }
 
     companion object {
@@ -91,7 +100,7 @@ class AttentionFabOverlapTest(
         @ParameterizedRobolectricTestRunner.Parameters(name = "{0}x{1}dp")
         fun sizes(): List<Array<Int>> = listOf(
             arrayOf(360, 640),
-            arrayOf(411, 891),
+            arrayOf(600, 900),
             arrayOf(840, 1200),
         )
 

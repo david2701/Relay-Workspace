@@ -28,10 +28,13 @@ Screenshot (Roborazzi, JVM — no emulator/KVM required). The Roborazzi **Gradle
 ```bash
 ./gradlew :app:testDebugUnitTest -Droborazzi.test.record=true
 # PNGs under app/src/test/screenshots/
-# Widths: 360 / 411 phone + 840 tablet/foldable (light & dark, top + scrolled end)
+# Widths: 360 / 600 / 840 (light & dark) — Attention, detail, and `_end` (24-item list)
+# Verify mode (compare against recorded goldens):
+./gradlew :app:testDebugUnitTest -Droborazzi.test.verify=true -Droborazzi.test.record=false
 ```
 
-There are no `recordRoborazziDebug` / `verifyRoborazziDebug` tasks in this project.
+There are no `recordRoborazziDebug` / `verifyRoborazziDebug` AGP-plugin tasks in this project
+(Roborazzi AGP plugin is not applied under AGP 9). Use the system properties above.
 
 ## API base URL
 

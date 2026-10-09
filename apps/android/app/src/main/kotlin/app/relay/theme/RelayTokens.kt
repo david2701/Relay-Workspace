@@ -105,6 +105,16 @@ object RelayDimens {
     val fabHeight: Dp = 56.dp
     val fabEdgeMargin: Dp = 16.dp
     val fabClearance: Dp = fabHeight + fabEdgeMargin
+
+    /** Dual-pane (840) density — Penpot list/detail breathing room. */
+    val dualPaneListSpacing: Dp = 12.dp
+    val dualPaneRowVerticalPadding: Dp = 12.dp
+    val compactListSpacing: Dp = 12.dp
+    val compactRowVerticalPadding: Dp = 12.dp
+    val detailHorizontalPadding: Dp = 24.dp
+    val detailVerticalPadding: Dp = 16.dp
+    val detailSectionSpacing: Dp = 20.dp
+    val decisionCardPadding: Dp = 20.dp
 }
 
 /**

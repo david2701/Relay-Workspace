@@ -31,14 +31,20 @@ class AttentionTabletScreenshotTest {
     fun attentionTabletLight() {
         val inbox = RelayApiClient("http://127.0.0.1:7420")
             .decodeInbox(FixtureLoader.read("inbox_attention.json"))
-        val blockedId = inbox.sections.orEmpty()
-            .first { it.key == AttentionSectionKey.Blocked }
+        val needsYouId = inbox.sections.orEmpty()
+            .first { it.key == AttentionSectionKey.NeedsYou }
             .items.first().id
         composeRule.captureAttention(
             dark = false,
             widthDp = 840,
             heightDp = 1200,
-            state = AttentionUiState.Ready(inbox = inbox, selectedItemId = blockedId),
+            state = AttentionUiState.Ready(
+                inbox = inbox,
+                selectedItemId = needsYouId,
+                agentsById = screenshotAgentsById(),
+                lastSyncedAtMillis = ScreenshotSyncedAtMillis,
+                presentationNowMillis = ScreenshotNowMillis,
+            ),
             fileName = "attention_tablet_light",
         )
     }

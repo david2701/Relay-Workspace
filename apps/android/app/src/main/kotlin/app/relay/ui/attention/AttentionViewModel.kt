@@ -3,6 +3,7 @@ package app.relay.ui.attention
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.viewModelScope
+import app.relay.data.Agent
 import app.relay.data.AttentionRepository
 import app.relay.data.AttentionSection
 import app.relay.data.InboxQueryResult
@@ -18,12 +19,19 @@ sealed interface AttentionUiState {
     data class Ready(
         val inbox: InboxQueryResult,
         val selectedItemId: String? = null,
-        val agentsById: Map<String, String> = emptyMap(),
+        val agentsById: Map<String, Agent> = emptyMap(),
+        val lastSyncedAtMillis: Long? = null,
+        val presentationNowMillis: Long = System.currentTimeMillis(),
     ) : AttentionUiState {
         val sections: List<AttentionSection>
             get() = inbox.sections.orEmpty()
         val isEmpty: Boolean
             get() = sections.all { it.items.isEmpty() } && inbox.items.isEmpty()
+        val syncSubtitle: String
+            get() = RelativeTimeFormat.formatSyncSubtitle(
+                lastSuccessAtMillis = lastSyncedAtMillis,
+                nowMillis = presentationNowMillis,
+            )
     }
 
     data class Error(
@@ -46,7 +54,15 @@ class AttentionViewModel(
         viewModelScope.launch {
             try {
                 val inbox = repository.loadAttention()
-                mutableState.value = AttentionUiState.Ready(inbox = inbox)
+                // Agents endpoint exists on RelayApiClient; empty map is OK if it fails.
+                val agents = runCatching { repository.loadAgents() }.getOrDefault(emptyList())
+                val syncedAt = System.currentTimeMillis()
+                mutableState.value = AttentionUiState.Ready(
+                    inbox = inbox,
+                    agentsById = agents.associateBy { it.id },
+                    lastSyncedAtMillis = syncedAt,
+                    presentationNowMillis = syncedAt,
+                )
             } catch (err: Exception) {
                 mutableState.value = AttentionUiState.Error(
                     message = err.message ?: "Unknown error",
