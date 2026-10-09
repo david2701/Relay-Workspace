@@ -34,6 +34,18 @@ class TokenContrastTest {
     }
 
     @Test
+    fun selectedRowShadowIsTwoLayersInLightAndNoneInDark() {
+        val lightLayers = selectedRowShadowLayers(darkTheme = false)
+        assertEquals(2, lightLayers.size)
+        assertEquals(2.0f, lightLayers[0].elevation.value)
+        assertEquals(0.06f, lightLayers[0].color.alpha, 0.001f)
+        assertEquals(6.0f, lightLayers[1].elevation.value)
+        assertEquals(0.08f, lightLayers[1].color.alpha, 0.001f)
+        assertTrue(selectedRowShadowLayers(darkTheme = true).isEmpty())
+        assertEquals(72.0f, RelayDimens.fabClearance.value)
+    }
+
+    @Test
     fun lightOchresAndDarkYellowMeetSpecFloors() {
         val light = RelayColorTokens.Light
         assertTrue(ContrastMath.contrastRatio(light.accentInk, light.paper) >= 4.5)

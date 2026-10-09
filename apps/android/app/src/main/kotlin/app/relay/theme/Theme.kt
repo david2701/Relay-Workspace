@@ -12,6 +12,8 @@ import androidx.compose.ui.graphics.Color
 
 val LocalRelayColors = staticCompositionLocalOf { RelayColorTokens.Light }
 
+val LocalRelayDarkTheme = staticCompositionLocalOf { false }
+
 @Composable
 fun RelayTheme(
     darkTheme: Boolean = isSystemInDarkTheme(),
@@ -61,7 +63,10 @@ fun RelayTheme(
             onPrimaryContainer = tokens.ink,
         )
     }
-    CompositionLocalProvider(LocalRelayColors provides tokens) {
+    CompositionLocalProvider(
+        LocalRelayColors provides tokens,
+        LocalRelayDarkTheme provides darkTheme,
+    ) {
         MaterialTheme(
             colorScheme = colorScheme,
             typography = MaterialTheme.typography,
@@ -75,4 +80,9 @@ object RelayThemeTokens {
         @Composable
         @ReadOnlyComposable
         get() = LocalRelayColors.current
+
+    val isDark: Boolean
+        @Composable
+        @ReadOnlyComposable
+        get() = LocalRelayDarkTheme.current
 }
