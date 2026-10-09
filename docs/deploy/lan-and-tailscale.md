@@ -20,14 +20,15 @@ pnpm --filter @relay/server start
 
 Or bind only the Tailscale interface IP. Pair phones with Settings → Devices
 (from a trusted loopback session) or `pnpm relay:pair` on the host when
-`RELAY_REQUIRE_TOKEN=1` is set explicitly.
+`RELAY_REQUIRE_TOKEN=1` is set explicitly (or when a loopback bind uses a
+non-loopback `RELAY_PUBLIC_URL`).
 
 ### mDNS `relay.local`
 
 Not implemented in this release (keeps dependencies light). Use the LAN IP or
 Tailscale MagicDNS. A future pass can add a tiny mDNS advertiser if needed.
 
-## `tailscale serve` / reverse proxies — you MUST set `RELAY_REQUIRE_TOKEN=1`
+## `tailscale serve` / reverse proxies — set `RELAY_REQUIRE_TOKEN=1` (and a public URL)
 
 ```bash
 RELAY_HOST=127.0.0.1 \
@@ -44,7 +45,8 @@ localhost. Every request’s TCP peer is `127.0.0.1`, so the old “loopback nee
 no token / can start pairing” rule would let **anyone on the tailnet** in
 without a device token and start pairing codes.
 
-With `RELAY_REQUIRE_TOKEN=1`:
+With `RELAY_REQUIRE_TOKEN=1` (or a non-loopback `RELAY_PUBLIC_URL` on this
+loopback bind — same effective policy):
 
 - No HTTP loopback exemption — Bearer token on `/api/*`, `/mcp`, and
   `/mcp/invoke`.
@@ -55,17 +57,24 @@ With `RELAY_REQUIRE_TOKEN=1`:
 
 Relay also treats proxy headers (`X-Forwarded-For`, `Forwarded`,
 `Tailscale-*`, …) as **remote** even under the default loopback bind with no
-`RELAY_REQUIRE_TOKEN` — tokens required, `pair/start` refused. That is defence
-in depth only. **Every proxy / `tailscale serve` example must set
-`RELAY_REQUIRE_TOKEN=1`**; never document `tailscale serve` against a
-loopback bind without that flag.
+`RELAY_REQUIRE_TOKEN` — tokens required, `pair/start` refused. **Additionally**,
+a non-loopback `RELAY_PUBLIC_URL` on a loopback bind enforces tokens even when
+the proxy adds **no** forwarded headers. That closes the residual where a
+minimal reverse proxy would otherwise leave the API open. Still document
+**`RELAY_REQUIRE_TOKEN=1`** for every proxy / `tailscale serve` example; never
+document `tailscale serve` against a loopback bind without that flag (or an
+equivalent non-loopback public URL).
+
+`RELAY_REQUIRE_TOKEN=0` together with a non-loopback bind **or** non-loopback
+`RELAY_PUBLIC_URL` **refuses to start**.
 
 ## Threat note
 
 | Threat | Mitigation |
 | --- | --- |
-| Attacker on the tailnet hits `tailscale serve` → localhost | `RELAY_REQUIRE_TOKEN=1` + per-device tokens; proxy headers disable loopback exemption |
-| Attacker triggers `pair/start` via proxied “loopback” | Explicit flag → CLI-only bootstrap; otherwise proxy headers → 401 |
+| Attacker on the tailnet hits `tailscale serve` → localhost | `RELAY_REQUIRE_TOKEN=1` **or** non-loopback `RELAY_PUBLIC_URL` on loopback bind → per-device tokens; proxy headers disable loopback exemption |
+| Proxy adds **no** forwarded headers (still peer `127.0.0.1`) | Non-loopback `RELAY_PUBLIC_URL` auto-enforces tokens (as `RELAY_REQUIRE_TOKEN=1`); operator docs still require the explicit flag |
+| Attacker triggers `pair/start` via proxied “loopback” | Explicit flag / non-loopback public URL → CLI-only bootstrap; otherwise proxy headers → 401 |
 | Stolen phone / browser | Revoke device in Settings → Devices |
 | Token in URL / logs | Stream tickets for EventSource; never log codes/tokens |
 
@@ -93,8 +102,10 @@ panel is the host-side pairing surface today.
 ## Security checklist (operators)
 
 - Prefer binding the Tailscale IP / `0.0.0.0` over `tailscale serve` when possible.
-- If you use `tailscale serve` or any reverse proxy, set **`RELAY_REQUIRE_TOKEN=1`**.
-- Do not set `RELAY_REQUIRE_TOKEN=0` on a non-loopback bind (server exits).
+- If you use `tailscale serve` or any reverse proxy, set **`RELAY_REQUIRE_TOKEN=1`**
+  (and set `RELAY_PUBLIC_URL` to the public hostname).
+- Do not set `RELAY_REQUIRE_TOKEN=0` on a non-loopback bind or with a non-loopback
+  `RELAY_PUBLIC_URL` (server exits).
 - Do not put long-lived tokens in URLs; use stream tickets for EventSource.
 - Revoke lost phones from Settings → Devices.
 - Prefer Tailscale over port-forwarding the router to the public internet.

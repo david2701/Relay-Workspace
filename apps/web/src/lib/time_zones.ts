@@ -21,6 +21,9 @@ const UTC_EQUIVALENT_ALIASES: readonly string[] = [
   "Etc/GMT+0",
   "Etc/GMT-0",
   "Etc/GMT0",
+  // Chromium `timezoneId: "GMT"` / some engines surface offset forms:
+  "+00:00",
+  "+0000",
 ];
 
 const UTC_EQUIVALENT_SET: ReadonlySet<string> = new Set(UTC_EQUIVALENT_ALIASES);

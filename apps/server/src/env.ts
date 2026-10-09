@@ -26,11 +26,15 @@ const EnvSchema = z.object({
   /** Server-side MAX(seq) poll for cross-process fan-out (ms). */
   RELAY_SSE_WATCH_MS: z.coerce.number().int().positive().default(250),
   /**
-   * Force token auth on/off. Default: true when bind is non-loopback,
-   * false on loopback. Non-loopback + false is rejected at startup.
+   * Force token auth on/off. Default: true when bind is non-loopback or
+   * RELAY_PUBLIC_URL is a non-loopback host; false on pure loopback.
+   * Non-loopback bind/public URL + false is rejected at startup.
    */
   RELAY_REQUIRE_TOKEN: z.string().optional(),
-  /** Base URL embedded in pairing QR (e.g. http://192.168.1.10:7420). */
+  /**
+   * Base URL embedded in pairing QR (e.g. http://192.168.1.10:7420).
+   * A non-loopback value on a loopback bind enforces token auth.
+   */
   RELAY_PUBLIC_URL: z.string().optional(),
 });
 

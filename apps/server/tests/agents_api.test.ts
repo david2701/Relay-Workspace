@@ -88,6 +88,39 @@ describe("agents HTTP + MCP", () => {
 
     const missing = await app.request("http://127.0.0.1/api/agents/agent-nope");
     expect(missing.status).toBe(404);
+    const missingBody = (await missing.json()) as {
+      error: string;
+      message: string;
+    };
+    expect(missingBody.error).toBe("not_found");
+    expect(missingBody.message).toMatch(/Agent not found/i);
+  });
+
+  it("unknown agent is 404 not_found over HTTP and MCP invoke", async () => {
+    const http = await app.request("http://127.0.0.1/api/agents/agent-missing");
+    expect(http.status).toBe(404);
+    const httpBody = (await http.json()) as { error: string; message: string };
+    expect(httpBody.error).toBe("not_found");
+
+    await expect(
+      invokeMcpTool(svc, "agents_get", { id: "agent-missing" }),
+    ).rejects.toMatchObject({ code: "not_found", name: "NotFoundError" });
+
+    const mcpInvoke = await app.request("http://127.0.0.1/mcp/invoke", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        name: "agents_get",
+        arguments: { id: "agent-missing" },
+      }),
+    });
+    expect(mcpInvoke.status).toBe(404);
+    const mcpBody = (await mcpInvoke.json()) as {
+      error: string;
+      message: string;
+    };
+    expect(mcpBody.error).toBe("not_found");
+    expect(mcpBody.message).toMatch(/Agent not found/i);
   });
 
   it("handoffs paging via before_seq on HTTP", async () => {

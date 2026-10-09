@@ -136,3 +136,24 @@ test.describe("UTC alias equivalence — control Paris vs Etc/UTC", () => {
     ).toBeVisible();
   });
 });
+
+test.describe("UTC alias equivalence — browser GMT / +00:00, saved UTC", () => {
+  test.use({ timezoneId: "GMT" });
+
+  test("(d) Settings shows no mismatch for Chromium GMT / offset aliases", async ({
+    page,
+    request,
+  }) => {
+    await putSettings(request, "UTC");
+    await openTimezoneSettings(page);
+    const browserZone = await page.evaluate(
+      () => Intl.DateTimeFormat().resolvedOptions().timeZone,
+    );
+    // Chromium may report GMT, UTC, or an offset form for timezoneId GMT.
+    expect(["GMT", "UTC", "Etc/UTC", "+00:00", "+0000"]).toContain(browserZone);
+    await expect(page.locator(".settings-tz-diff")).toHaveCount(0);
+    await expect(page.getByRole("dialog")).not.toContainText(
+      /Your browser is set to/i,
+    );
+  });
+});

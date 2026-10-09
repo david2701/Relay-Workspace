@@ -259,14 +259,45 @@ describe("GET /api/stream SSE", () => {
       headers: { "Last-Event-ID": "not-an-int" },
     });
     expect(bad.status).toBe(400);
-    const body = (await bad.json()) as { error: string; message: string };
+    const body = (await bad.json()) as {
+      error: string;
+      message: string;
+      field?: string;
+    };
     expect(body.error).toBe("validation_error");
-    expect(body.message).toMatch(/Last-Event-ID|after_seq|safe integer/i);
+    expect(body.field).toBe("Last-Event-ID");
+    expect(body.message).toMatch(/Last-Event-ID|safe integer/i);
 
     const sci = await app.request("http://127.0.0.1/api/stream?after_seq=1e21");
     expect(sci.status).toBe(400);
 
     const neg = await app.request("http://127.0.0.1/api/stream?after_seq=-1");
     expect(neg.status).toBe(400);
+  });
+
+  it("returns 400 for empty after_seq= and empty Last-Event-ID naming the field", async () => {
+    const emptyQuery = await app.request("http://127.0.0.1/api/stream?after_seq=");
+    expect(emptyQuery.status).toBe(400);
+    const qBody = (await emptyQuery.json()) as {
+      error: string;
+      message: string;
+      field?: string;
+    };
+    expect(qBody.error).toBe("validation_error");
+    expect(qBody.field).toBe("after_seq");
+    expect(qBody.message).toMatch(/after_seq/i);
+
+    const emptyHeader = await app.request("http://127.0.0.1/api/stream", {
+      headers: { "Last-Event-ID": "" },
+    });
+    expect(emptyHeader.status).toBe(400);
+    const hBody = (await emptyHeader.json()) as {
+      error: string;
+      message: string;
+      field?: string;
+    };
+    expect(hBody.error).toBe("validation_error");
+    expect(hBody.field).toBe("Last-Event-ID");
+    expect(hBody.message).toMatch(/Last-Event-ID/i);
   });
 });

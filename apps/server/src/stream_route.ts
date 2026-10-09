@@ -31,23 +31,34 @@ export function authorizeStream(
 
 /**
  * Parse cursor from `Last-Event-ID` or `?after_seq=` (same rules as event pages).
+ * Empty `Last-Event-ID` / `after_seq=` → 400 naming the field (omit for default 0).
  */
 export function parseStreamAfterSeq(c: Context): number {
   const header = c.req.header("Last-Event-ID");
-  const query = c.req.query("after_seq");
-  const raw = header !== undefined && header !== "" ? header : query;
-  if (raw === undefined || raw === "") return 0;
-  try {
-    const parsed = parseEventPageQuery({ after_seq: raw });
-    return parsed.after_seq ?? 0;
-  } catch (err) {
-    if (err instanceof ValidationError) {
+  if (header !== undefined) {
+    if (header.trim() === "") {
       throw new ValidationError(
-        `Last-Event-ID/after_seq must be a safe integer between 0 and ${MAX_AFTER_SEQ}`,
+        "Last-Event-ID must not be empty (omit the header for the default)",
+        { field: "Last-Event-ID" },
       );
     }
-    throw err;
+    try {
+      const parsed = parseEventPageQuery({ after_seq: header });
+      return parsed.after_seq ?? 0;
+    } catch (err) {
+      if (err instanceof ValidationError) {
+        throw new ValidationError(
+          `Last-Event-ID must be a safe integer between 0 and ${MAX_AFTER_SEQ}`,
+          { field: "Last-Event-ID" },
+        );
+      }
+      throw err;
+    }
   }
+  const query = c.req.query("after_seq");
+  if (query === undefined) return 0;
+  const parsed = parseEventPageQuery({ after_seq: query });
+  return parsed.after_seq ?? 0;
 }
 
 export function createStreamHandler(
@@ -63,7 +74,12 @@ export function createStreamHandler(
       afterSeq = parseStreamAfterSeq(c);
     } catch (err) {
       if (err instanceof ValidationError) {
-        return c.json({ error: err.code, message: err.message }, 400);
+        const body: { error: string; message: string; field?: string } = {
+          error: err.code,
+          message: err.message,
+        };
+        if (err.field !== undefined) body.field = err.field;
+        return c.json(body, 400);
       }
       throw err;
     }

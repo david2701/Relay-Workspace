@@ -1,26 +1,35 @@
 # Device auth & pairing
 
 Relay stores data on your own machine. On **loopback** (`127.0.0.1` /
-`localhost`) the API stays open for the local web UI and MCP stdio — same as
-before — **unless** a proxy header is present or `RELAY_REQUIRE_TOKEN=1` is set.
-When the server listens on **anything else** (LAN `0.0.0.0`, a LAN IP),
-**every request needs a per-device token**.
+`localhost`) with no public URL (or a loopback `RELAY_PUBLIC_URL`) the API stays
+open for the local web UI and MCP stdio — same as before — **unless** a proxy
+header is present or `RELAY_REQUIRE_TOKEN=1` is set.
+
+When the server listens on **anything else** (LAN `0.0.0.0`, a LAN IP), **or**
+when `RELAY_PUBLIC_URL` points at a **non-loopback** host (typical reverse-proxy
+/ `tailscale serve` setup even while binding `127.0.0.1`), **every request needs
+a per-device token**. A non-loopback public URL on a loopback bind is treated
+**as if `RELAY_REQUIRE_TOKEN=1`** (no HTTP loopback exemption for `pair/start`).
 
 Tailscale is the supported way to reach the server from outside the house.
 Nothing is hosted externally. See [lan-and-tailscale.md](../deploy/lan-and-tailscale.md).
 
 ## Policy
 
-| Bind | Default `RELAY_REQUIRE_TOKEN` | Behaviour |
+| Bind / public URL | Default `RELAY_REQUIRE_TOKEN` | Behaviour |
 | --- | --- | --- |
-| `127.0.0.1` / `localhost` / `::1` | `false` | No token required (local web + MCP), **unless** proxy headers are present |
+| `127.0.0.1` / `localhost` / `::1`, no public URL or loopback public URL | `false` | No token required (local web + MCP), **unless** proxy headers are present |
 | `0.0.0.0` or LAN IP | `true` | Bearer token required on `/api/*`, `/mcp`, and `/mcp/invoke` |
+| Loopback bind + non-loopback `RELAY_PUBLIC_URL` | `true` (as explicit `1`) | Same as `RELAY_REQUIRE_TOKEN=1` — tokens required; `pair/start` has no HTTP loopback exemption |
 
 - Override with `RELAY_REQUIRE_TOKEN=0` or `1`.
-- Non-loopback + `RELAY_REQUIRE_TOKEN=0` **refuses to start**.
+- Non-loopback bind **or** non-loopback `RELAY_PUBLIC_URL` + `RELAY_REQUIRE_TOKEN=0`
+  **refuses to start** with a clear security message.
 - Public without a token (even when required): `GET /api/health`,
   `POST /api/pair/claim`.
 - `GET /api/health` also reports `{ require_token, require_token_explicit }`.
+- Startup logs a one-line **auth mode** notice (never tokens), e.g.
+  `Auth mode: tokens required (non-loopback RELAY_PUBLIC_URL; as RELAY_REQUIRE_TOKEN=1)`.
 
 ### Route auth coverage
 
@@ -28,7 +37,7 @@ Nothing is hosted externally. See [lan-and-tailscale.md](../deploy/lan-and-tails
 | --- | --- |
 | `GET /api/health` | Public |
 | `POST /api/pair/claim` | Public |
-| `POST /api/pair/start` | Device token, or trusted loopback (never with proxy headers / explicit flag) |
+| `POST /api/pair/start` | Device token, or trusted loopback (never with proxy headers / explicit flag / non-loopback public URL on loopback bind) |
 | `GET/PATCH/DELETE /api/*` (rest) | Device token (Bearer); `/api/stream` also accepts stream ticket |
 | `GET /api/stream` | Device token or `?access_token=` stream ticket |
 | `POST /api/stream/ticket` | Device token |
@@ -44,9 +53,14 @@ If a request carries any of `Forwarded`, `X-Forwarded-For`, `X-Forwarded-Host`,
 the loopback exemption for `pair/start` is refused. This closes the hole where
 `tailscale serve` (or any reverse proxy) makes every peer look like `127.0.0.1`.
 
+**Also:** setting a non-loopback `RELAY_PUBLIC_URL` while binding loopback enforces
+tokens even when the proxy adds **no** forwarded headers (defence in depth for
+minimal proxies). Prefer `RELAY_REQUIRE_TOKEN=1` explicitly in operator docs too.
+
 ### Explicit `RELAY_REQUIRE_TOKEN=1`
 
-When the operator sets the flag explicitly:
+When the operator sets the flag explicitly (or when a non-loopback
+`RELAY_PUBLIC_URL` forces the same policy on a loopback bind):
 
 - **No** HTTP loopback exemption at all — every `/api/*` (except public),
   `/mcp`, and `/mcp/invoke` needs a valid device token.
@@ -113,7 +127,8 @@ proxy logs). Tickets are hashed at rest like device tokens.
 ### `POST /api/pair/start`
 
 Trusted loopback **or** Bearer device required — never when
-`RELAY_REQUIRE_TOKEN=1` is explicit (use `pnpm relay:pair`), and never when
+`RELAY_REQUIRE_TOKEN=1` is explicit (or when a non-loopback `RELAY_PUBLIC_URL`
+forces that policy on a loopback bind — use `pnpm relay:pair`), and never when
 proxy headers are present.
 
 ```json
@@ -155,7 +170,7 @@ Successful auth sets the actor to the human user and updates `last_seen_at`.
 | Variable | Meaning |
 | --- | --- |
 | `RELAY_HOST` | Bind address (`127.0.0.1`, `0.0.0.0`, LAN IP, Tailscale IP) |
-| `RELAY_REQUIRE_TOKEN` | Force token auth (`0`/`1`); default from bind. Explicit `1` disables HTTP loopback pairing. |
-| `RELAY_PUBLIC_URL` | Base URL in pairing QR (no trailing slash) |
+| `RELAY_REQUIRE_TOKEN` | Force token auth (`0`/`1`); default from bind **and** public URL. Explicit `1` (or non-loopback public URL on loopback bind) disables HTTP loopback pairing. |
+| `RELAY_PUBLIC_URL` | Base URL in pairing QR (no trailing slash). Non-loopback value on a loopback bind enforces tokens. |
 
 Never commit tokens or pairing codes. Never log them.

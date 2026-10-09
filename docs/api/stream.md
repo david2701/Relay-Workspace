@@ -18,8 +18,12 @@ Last-Event-ID: <seq>   # optional; preferred over query when both are set
 | Status | When |
 | --- | --- |
 | `200` | Stream open (`Content-Type: text/event-stream`) |
-| `400` | Bad `Last-Event-ID` / `after_seq` (same rules as [events.md](./events.md)) |
+| `400` | Bad or **empty** `Last-Event-ID` / `after_seq` (same rules as [events.md](./events.md); response names the field) |
 | `503` | Concurrent connection cap exceeded (default **50**, `RELAY_SSE_MAX_CONNECTIONS`) |
+
+Empty values (`after_seq=`, `Last-Event-ID:` with a blank value) return **400**
+`validation_error` with `field` set to `after_seq` or `Last-Event-ID`. Omit the
+parameter/header to start from `0`.
 
 ### Auth
 
@@ -76,6 +80,7 @@ Clients should refetch the inbox (snapshot) and continue from `head_seq`.
 ## Connect / resume (no gap, no duplicate)
 
 1. Honour `Last-Event-ID` or `?after_seq=` (integer `0…MAX_SAFE_INTEGER`).
+   Prefer `Last-Event-ID` when present. Empty values are **400**, not `0`.
 2. **Subscribe first** and buffer live fan-out.
 3. Replay missed rows from `item_events` in order (paged).
 4. Flush the buffer, **dedupe by `seq`**, then stay live.
