@@ -135,9 +135,43 @@ async function main() {
     }
 
     await browser.close();
+
+    // Token-required bootstrap UI (separate server with RELAY_REQUIRE_TOKEN=1).
+    server.kill("SIGTERM");
+    await new Promise((r) => setTimeout(r, 500));
+    const tokenServer = start(
+      `RELAY_DB=${DB} RELAY_HOST=127.0.0.1 RELAY_PORT=7450 RELAY_REQUIRE_TOKEN=1 RELAY_PUBLIC_URL=http://127.0.0.1:7450 RELAY_WEB_ORIGIN=${WEB} pnpm --filter @relay/server exec tsx src/index.ts`,
+      { RELAY_DB: DB, RELAY_REQUIRE_TOKEN: "1" },
+    );
+    try {
+      await waitOk(`${API}/api/health`);
+      const browser2 = await chromium.launch({ headless: true });
+      const page2 = await browser2.newPage();
+      await page2.addInitScript(() => {
+        localStorage.setItem("relay.locale", "en");
+        localStorage.removeItem("relay.device_token");
+      });
+      for (const w of WIDTHS) {
+        await page2.setViewportSize({ width: w, height: 900 });
+        await page2.goto(`${WEB}/?settings=devices`, {
+          waitUntil: "networkidle",
+        });
+        await page2.getByTestId("devices-cli-bootstrap").waitFor({
+          timeout: 15_000,
+        });
+        await page2.screenshot({
+          path: `${OUT}/devices-cli-bootstrap-${w}.png`,
+          fullPage: true,
+        });
+      }
+      await browser2.close();
+    } finally {
+      tokenServer.kill("SIGTERM");
+    }
+
     writeFileSync(
       `${OUT}/devices-capture-note.txt`,
-      "390 viewport may show the known detail-pane overlay depending on prior navigation; captures open Settings via ?settings=devices.\n",
+      "390 viewport may show the known detail-pane overlay depending on prior navigation; captures open Settings via ?settings=devices. CLI bootstrap shots use RELAY_REQUIRE_TOKEN=1.\n",
     );
     console.log("Wrote screenshots to", OUT);
   } finally {
