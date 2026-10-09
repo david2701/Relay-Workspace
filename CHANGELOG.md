@@ -16,6 +16,8 @@ Heading toward **0.3.0** («Enseñable»).
 - `contrast` gate in `scripts/ci.sh` and both workflow files (same order as README Verify).
 - i18n base (EN/FR/ES): typed JSON locale files, Intl formats, language detection + selector, configurable timezone, non-hardcoded human user.
 - Real `check:i18n-missing-keys` and `check:hardcoded-strings` CI gates (AC3-L2 / AC3-L3).
+- Minimal first-run onboarding card (ui-spec §3 / AC3-O1): empty + preloaded variants, sample seed by locale, `onboarding_completed_at` on the server.
+- Settings gaps closed versus ui-spec §2: name/initial validation + counter, autosave, timezone combobox, theme, version, keyboard (`G S`, `Esc`, `?settings=`).
 
 ### Changed
 

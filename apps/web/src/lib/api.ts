@@ -2,6 +2,12 @@ export type RelaySettings = {
   timezone: string;
   user_display_name: string;
   user_initial: string;
+  onboarding_completed_at: string | null;
+};
+
+export type SettingsResponse = {
+  settings: RelaySettings;
+  work_item_count: number;
 };
 
 import type {
@@ -132,11 +138,23 @@ export const api = {
         assignee_id: "user",
       }),
     }),
-  getSettings: () => request<{ settings: RelaySettings }>("/api/settings"),
+  getSettings: () => request<SettingsResponse>("/api/settings"),
   updateSettings: (patch: Partial<RelaySettings>) =>
-    request<{ settings: RelaySettings }>("/api/settings", {
+    request<SettingsResponse>("/api/settings", {
       method: "PUT",
       body: JSON.stringify(patch),
+    }),
+  loadSampleData: (locale: "en" | "fr" | "es") =>
+    request<SettingsResponse & { ok: boolean; locale: string }>("/api/seed", {
+      method: "POST",
+      body: JSON.stringify({ locale }),
+    }),
+  prepareOnboarding: (variant: "empty" | "preloaded", locale: "en" | "fr" | "es" = "en") =>
+    request<
+      SettingsResponse & { ok: boolean; variant: "empty" | "preloaded" }
+    >("/api/store/prepare-onboarding", {
+      method: "POST",
+      body: JSON.stringify({ variant, locale }),
     }),
   notes: () => request<{ notes: Note[] }>("/api/notes"),
   getNote: (id: string) =>
