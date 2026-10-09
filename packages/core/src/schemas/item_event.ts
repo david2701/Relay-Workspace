@@ -12,6 +12,7 @@ export const ItemEventTypeSchema = z.enum([
   "note_linked",
   "note_unlinked",
   "reminder_set",
+  "reminder_fired",
   "answered",
   "taken",
 ]);

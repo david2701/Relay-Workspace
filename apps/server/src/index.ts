@@ -14,6 +14,10 @@ import { type ClientIpResolver, createClientIpResolver } from "./client_ip.js";
 import { loadEnv } from "./env.js";
 import { idempotencyMiddleware } from "./idempotency_middleware.js";
 import { createMcpHttpHandler, invokeMcpTool } from "./mcp/http.js";
+import {
+  type PushRuntime,
+  startPushRuntime,
+} from "./push/index.js";
 import { createApi } from "./routes/api.js";
 import { createSseHub, type SseHub, type SseHubOptions } from "./sse_hub.js";
 
@@ -57,6 +61,11 @@ export type CreateAppOptions = {
   publicUrl?: string;
   /** Override client IP resolution (tests). */
   resolveClientIp?: ClientIpResolver;
+  /**
+   * Optional push runtime (tests inject a pre-wired dispatcher). Production
+   * `main()` starts push after createApp via `startPushRuntime`.
+   */
+  pushRuntime?: PushRuntime | null;
 };
 
 function buildAuthOptions(
@@ -104,7 +113,12 @@ export function createApp(
   app.use("/api/*", idempotencyMiddleware(svc));
   app.route("/api", createApi(svc, { streamHub, auth }));
   // Stash for tests / graceful shutdown.
-  (app as Hono & { streamHub: SseHub }).streamHub = streamHub;
+  const appWithHub = app as Hono & {
+    streamHub: SseHub;
+    pushRuntime: PushRuntime | null;
+  };
+  appWithHub.streamHub = streamHub;
+  appWithHub.pushRuntime = opts.pushRuntime ?? null;
   const mcpAuth = createMcpAuthMiddleware(svc, auth);
   const mcpHandler = createMcpHttpHandler(svc);
   app.all("/mcp", mcpAuth, mcpHandler);
@@ -167,9 +181,15 @@ async function main(): Promise<void> {
     resyncThreshold: env.RELAY_SSE_RESYNC_THRESHOLD,
     watchIntervalMs: env.RELAY_SSE_WATCH_MS,
   });
+  const pushRuntime = startPushRuntime({
+    svc,
+    hub: streamHub,
+    env: process.env,
+  });
   const app = createApp(svc, env.RELAY_WEB_ORIGIN, {
     webDist,
     streamHub,
+    pushRuntime,
     requireToken: env.auth.requireToken,
     requireTokenExplicit: env.auth.requireTokenExplicit,
     publicUrl: env.auth.publicUrl,

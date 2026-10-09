@@ -36,6 +36,7 @@ Global monotonic event log for work-item mutations. Foundation for SSE (`seq` /
 | `delegated` | `delegate` or update assignee → agent | `agent_id`, previous assignee |
 | `note_linked` / `note_unlinked` | link/unlink | `note_id`, `role` (link) |
 | `reminder_set` | update that only changes reminder fields | `reminder_at`, `reminder_intent` |
+| `reminder_fired` | server reminder watcher when `reminder_at` is due | `reminder_at`, `reminder_intent`, `title` |
 | `answered` | `POST …/answer` («Responder») | `note_id`, `text` (excerpt ≤ 200) |
 | `taken` | `POST …/take` («Lo hago yo») | `from_*` / `to_*` assignee + status |
 

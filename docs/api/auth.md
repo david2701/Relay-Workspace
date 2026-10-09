@@ -32,6 +32,8 @@ Nothing is hosted externally. See [lan-and-tailscale.md](../deploy/lan-and-tails
 | `GET/PATCH/DELETE /api/*` (rest) | Device token (Bearer); `/api/stream` also accepts stream ticket |
 | `GET /api/stream` | Device token or `?access_token=` stream ticket |
 | `POST /api/stream/ticket` | Device token |
+| `POST /api/devices/me/push` | Device token (registers APNs/FCM token on **this** device) |
+| `DELETE /api/devices/me/push` | Device token |
 | `ALL /mcp` (Streamable HTTP) | Device token |
 | `POST /mcp/invoke` | Device token |
 | Static SPA / `/` | Not an API surface |
@@ -72,8 +74,9 @@ an HTTP surface for pairing start.
   once from `pair/claim` and never written to the DB or logs.
 - Send as `Authorization: Bearer <token>`.
 - Revoke with `DELETE /api/devices/:id` → subsequent requests get `401`, open
-  SSE streams for that device close immediately, and its stream tickets are
-  deleted.
+  SSE streams for that device close immediately, its stream tickets are
+  deleted, and any APNs/FCM push token on the row is cleared. See
+  [push.md](./push.md).
 
 ### Web browser under token auth
 
