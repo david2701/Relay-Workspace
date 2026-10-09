@@ -72,7 +72,7 @@ describe("LAN auth + pairing", () => {
     expect(mcp.status).toBe(200);
   });
 
-  it("RELAY_REQUIRE_TOKEN=1 → 401 without token on /api, /api/stream, /mcp/invoke", async () => {
+  it("RELAY_REQUIRE_TOKEN=1 → 401 without token on /api, /api/stream, /mcp, /mcp/invoke", async () => {
     const app = createApp(svc, "http://127.0.0.1:7421", {
       requireToken: true,
       requireTokenExplicit: true,
@@ -80,6 +80,24 @@ describe("LAN auth + pairing", () => {
     });
     expect((await app.request("http://127.0.0.1/api/items")).status).toBe(401);
     expect((await app.request("http://127.0.0.1/api/stream")).status).toBe(401);
+    expect(
+      (
+        await app.request("http://127.0.0.1/mcp", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            jsonrpc: "2.0",
+            id: 1,
+            method: "initialize",
+            params: {
+              protocolVersion: "2024-11-05",
+              capabilities: {},
+              clientInfo: { name: "t", version: "0" },
+            },
+          }),
+        })
+      ).status,
+    ).toBe(401);
     expect(
       (
         await app.request("http://127.0.0.1/mcp/invoke", {

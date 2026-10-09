@@ -46,16 +46,19 @@ without a device token and start pairing codes.
 
 With `RELAY_REQUIRE_TOKEN=1`:
 
-- No HTTP loopback exemption — Bearer token on `/api/*` and `/mcp/invoke`.
+- No HTTP loopback exemption — Bearer token on `/api/*`, `/mcp`, and
+  `/mcp/invoke`.
 - Start pairing with **`pnpm relay:pair`** on the host (writes to SQLite
   directly; not reachable through the proxy), or from an already-paired device.
 - Register the local web browser via Settings → Devices (enter the CLI code);
   the token is kept in `localStorage`.
 
-Relay also refuses the loopback exemption when proxy headers are present
-(`X-Forwarded-For`, `Forwarded`, `Tailscale-*`, …) even if you forgot the env
-flag — defence in depth. **Still set `RELAY_REQUIRE_TOKEN=1`** when using a
-proxy so pairing cannot be started over HTTP from loopback-looking peers.
+Relay also treats proxy headers (`X-Forwarded-For`, `Forwarded`,
+`Tailscale-*`, …) as **remote** even under the default loopback bind with no
+`RELAY_REQUIRE_TOKEN` — tokens required, `pair/start` refused. That is defence
+in depth only. **Every proxy / `tailscale serve` example must set
+`RELAY_REQUIRE_TOKEN=1`**; never document `tailscale serve` against a
+loopback bind without that flag.
 
 ## Threat note
 

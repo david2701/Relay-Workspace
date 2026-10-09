@@ -116,6 +116,7 @@ import {
   WorkItemRepository,
 } from "../store/repositories.js";
 import {
+  deleteStreamTicketsForDevice,
   findDeviceIdByStreamTicket,
   mintStreamTicket,
   type StreamTicket,
@@ -1261,6 +1262,7 @@ export class RelayService {
   revokeDevice(id: string): Device {
     const device = revokeDevice(this.db, id);
     if (!device) throw new NotFoundError("Device", id);
+    deleteStreamTicketsForDevice(this.db, id);
     return device;
   }
 

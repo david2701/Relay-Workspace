@@ -20,9 +20,11 @@ describe("proxy + explicit token security", () => {
     rmSync(dir, { recursive: true, force: true });
   });
 
-  it("(a) loopback + X-Forwarded-For → 401 on /api, stream, mcp/invoke; pair/start refused", async () => {
+  it("(a) DEFAULT loopback (no REQUIRE_TOKEN) + X-Forwarded-For → remote: 401 on /api, stream, /mcp, mcp/invoke; pair/start refused", async () => {
+    // Exactly the default config: RELAY_HOST=127.0.0.1, unset RELAY_REQUIRE_TOKEN.
     const app = createApp(svc, "http://127.0.0.1:7421", {
       requireToken: false,
+      requireTokenExplicit: false,
     });
     const headers = { "X-Forwarded-For": "100.64.1.2" };
     expect(
@@ -30,6 +32,20 @@ describe("proxy + explicit token security", () => {
     ).toBe(401);
     expect(
       (await app.request("http://127.0.0.1/api/stream", { headers })).status,
+    ).toBe(401);
+    expect(
+      (
+        await app.request("http://127.0.0.1/mcp", {
+          method: "POST",
+          headers: { ...headers, "Content-Type": "application/json" },
+          body: JSON.stringify({
+            jsonrpc: "2.0",
+            id: 1,
+            method: "tools/list",
+            params: {},
+          }),
+        })
+      ).status,
     ).toBe(401);
     expect(
       (

@@ -14,13 +14,27 @@ Nothing is hosted externally. See [lan-and-tailscale.md](../deploy/lan-and-tails
 | Bind | Default `RELAY_REQUIRE_TOKEN` | Behaviour |
 | --- | --- | --- |
 | `127.0.0.1` / `localhost` / `::1` | `false` | No token required (local web + MCP), **unless** proxy headers are present |
-| `0.0.0.0` or LAN IP | `true` | Bearer token required on `/api/*` and `/mcp/invoke` |
+| `0.0.0.0` or LAN IP | `true` | Bearer token required on `/api/*`, `/mcp`, and `/mcp/invoke` |
 
 - Override with `RELAY_REQUIRE_TOKEN=0` or `1`.
 - Non-loopback + `RELAY_REQUIRE_TOKEN=0` **refuses to start**.
 - Public without a token (even when required): `GET /api/health`,
   `POST /api/pair/claim`.
 - `GET /api/health` also reports `{ require_token, require_token_explicit }`.
+
+### Route auth coverage
+
+| Route | Auth when tokens required |
+| --- | --- |
+| `GET /api/health` | Public |
+| `POST /api/pair/claim` | Public |
+| `POST /api/pair/start` | Device token, or trusted loopback (never with proxy headers / explicit flag) |
+| `GET/PATCH/DELETE /api/*` (rest) | Device token (Bearer); `/api/stream` also accepts stream ticket |
+| `GET /api/stream` | Device token or `?access_token=` stream ticket |
+| `POST /api/stream/ticket` | Device token |
+| `ALL /mcp` (Streamable HTTP) | Device token |
+| `POST /mcp/invoke` | Device token |
+| Static SPA / `/` | Not an API surface |
 
 ### Proxy headers (no loopback spoofing)
 
@@ -34,8 +48,8 @@ the loopback exemption for `pair/start` is refused. This closes the hole where
 
 When the operator sets the flag explicitly:
 
-- **No** HTTP loopback exemption at all — every `/api/*` (except public) and
-  `/mcp/invoke` needs a valid device token.
+- **No** HTTP loopback exemption at all — every `/api/*` (except public),
+  `/mcp`, and `/mcp/invoke` needs a valid device token.
 - `POST /api/pair/start` requires an **already-authenticated device**.
 - Bootstrap a new code from the host with the local admin CLI (talks to SQLite
   directly — unreachable through a proxy):
@@ -57,7 +71,9 @@ an HTTP surface for pairing start.
 - Stored as **SHA-256 hex** only (`devices.token_hash`). Plaintext is returned
   once from `pair/claim` and never written to the DB or logs.
 - Send as `Authorization: Bearer <token>`.
-- Revoke with `DELETE /api/devices/:id` → subsequent requests get `401`.
+- Revoke with `DELETE /api/devices/:id` → subsequent requests get `401`, open
+  SSE streams for that device close immediately, and its stream tickets are
+  deleted.
 
 ### Web browser under token auth
 

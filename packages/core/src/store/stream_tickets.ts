@@ -59,3 +59,11 @@ export function findDeviceIdByStreamTicket(
   }
   return null;
 }
+
+/** Drop all stream tickets for a device (call on revoke). */
+export function deleteStreamTicketsForDevice(
+  db: RelayDb,
+  deviceId: string,
+): void {
+  db.prepare(`DELETE FROM stream_tickets WHERE device_id = ?`).run(deviceId);
+}

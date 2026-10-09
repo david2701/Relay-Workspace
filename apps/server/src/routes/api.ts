@@ -103,7 +103,7 @@ export function createApi(svc: RelayService, opts: CreateApiOptions = {}): Hono 
   }
 
   if (opts.auth) {
-    app.route("/", createDeviceRoutes(svc, opts.auth));
+    app.route("/", createDeviceRoutes(svc, opts.auth, opts.streamHub));
   }
 
   app.get("/agents", (c) => c.json({ agents: svc.listAgentSummaries() }));

@@ -56,6 +56,22 @@ describe("devices + pairing", () => {
     expect(svc.authenticateDeviceToken(created.token)).toBeNull();
   });
 
+  it("revoke deletes stream tickets for that device", () => {
+    const session = svc.startPairing({ publicUrl: "http://127.0.0.1:7420" });
+    const created = svc.claimPairing({
+      code: session.code,
+      device_name: "Ticket Phone",
+      platform: "android",
+      clientIp: "127.0.0.1",
+    });
+    const ticket = svc.mintStreamTicket(created.device.id);
+    expect(svc.authenticateStreamTicket(ticket.token)?.id).toBe(
+      created.device.id,
+    );
+    svc.revokeDevice(created.device.id);
+    expect(svc.authenticateStreamTicket(ticket.token)).toBeNull();
+  });
+
   it("pairing code is single-use", () => {
     const session = svc.startPairing({ publicUrl: "http://127.0.0.1:7420" });
     svc.claimPairing({

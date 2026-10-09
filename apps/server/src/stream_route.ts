@@ -79,6 +79,7 @@ export function createStreamHandler(
     }
 
     const clientId = newClientId();
+    const deviceId = c.get("relayDevice")?.id ?? null;
     const encoder = new TextEncoder();
     let cleaned = false;
 
@@ -105,7 +106,7 @@ export function createStreamHandler(
             }
           },
         };
-        void hub.attach(sink, afterSeq).catch(() => {
+        void hub.attach(sink, afterSeq, { deviceId }).catch(() => {
           cleanup();
           try {
             controller.close();

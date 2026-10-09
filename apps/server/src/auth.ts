@@ -153,13 +153,18 @@ export function createAuthMiddleware(
 }
 
 /**
- * MCP invoke helper — same token gate when tokens are required.
+ * MCP transports (`/mcp` Streamable HTTP + `/mcp/invoke`) — same token gate
+ * as `/api/*` when tokens are required (env or proxy headers).
  */
-export function createMcpInvokeAuthMiddleware(
+export function createMcpAuthMiddleware(
   svc: RelayService,
   opts: AuthOptions,
 ): MiddlewareHandler {
   return async (c: Context, next: Next) => {
+    if (c.req.method === "OPTIONS") {
+      await next();
+      return;
+    }
     if (!requestRequiresToken(c, opts)) {
       const device = authenticateRequest(c, svc);
       if (device) c.set("relayDevice", device);
@@ -174,6 +179,9 @@ export function createMcpInvokeAuthMiddleware(
     await next();
   };
 }
+
+/** @deprecated Prefer createMcpAuthMiddleware — same implementation. */
+export const createMcpInvokeAuthMiddleware = createMcpAuthMiddleware;
 
 /**
  * Stream auth hook for `authorizeStream`. Returns a 401 Response or null.

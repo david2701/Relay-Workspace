@@ -105,6 +105,7 @@ export function DevicesSettings({ onPaired }: Props) {
     setBusy(true);
     try {
       const session = await api.startPairing();
+      setNowMs(Date.now());
       setPairing(session);
       setHint(null);
     } catch (err) {

@@ -8,7 +8,7 @@ import { cors } from "hono/cors";
 import {
   type AuthOptions,
   createAuthMiddleware,
-  createMcpInvokeAuthMiddleware,
+  createMcpAuthMiddleware,
 } from "./auth.js";
 import { type ClientIpResolver, createClientIpResolver } from "./client_ip.js";
 import { loadEnv } from "./env.js";
@@ -44,8 +44,8 @@ export type CreateAppOptions = {
   streamHub?: SseHub;
   streamOptions?: SseHubOptions;
   /**
-   * When true, every /api (except public) and /mcp/invoke requires a device
-   * token. Default false so existing loopback e2e/tests stay unchanged.
+   * When true, every /api (except public), /mcp, and /mcp/invoke requires a
+   * device token. Default false so existing loopback e2e/tests stay unchanged.
    */
   requireToken?: boolean;
   /**
@@ -105,11 +105,12 @@ export function createApp(
   app.route("/api", createApi(svc, { streamHub, auth }));
   // Stash for tests / graceful shutdown.
   (app as Hono & { streamHub: SseHub }).streamHub = streamHub;
+  const mcpAuth = createMcpAuthMiddleware(svc, auth);
   const mcpHandler = createMcpHttpHandler(svc);
-  app.all("/mcp", mcpHandler);
+  app.all("/mcp", mcpAuth, mcpHandler);
   app.post(
     "/mcp/invoke",
-    createMcpInvokeAuthMiddleware(svc, auth),
+    mcpAuth,
     async (c) => {
       try {
         const body = await c.req.json();

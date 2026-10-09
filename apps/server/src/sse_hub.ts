@@ -19,11 +19,22 @@ export type SseClientSink = {
   close: () => void;
 };
 
+export type SseAttachOptions = {
+  /** Authenticated device id — used to close streams on revoke. */
+  deviceId?: string | null;
+};
+
 export type SseHub = {
   readonly size: number;
   readonly maxConnections: number;
-  attach(client: SseClientSink, afterSeq: number): Promise<void>;
+  attach(
+    client: SseClientSink,
+    afterSeq: number,
+    opts?: SseAttachOptions,
+  ): Promise<void>;
   detach(clientId: string): void;
+  /** Close every open SSE connection for this device (revoke). */
+  closeDevice(deviceId: string): void;
   /** Test helper: force one watcher tick. */
   pollOnce(): void;
   close(): void;
@@ -34,6 +45,7 @@ type LiveClient = SseClientSink & {
   cursor: number;
   /** Buffer while replay is in progress (subscribe-first handover). */
   buffer: ItemEvent[] | null;
+  deviceId: string | null;
 };
 
 export function formatSseEvent(opts: {
@@ -211,11 +223,13 @@ export function createSseHub(
   async function attach(
     client: SseClientSink,
     afterSeq: number,
+    opts: SseAttachOptions = {},
   ): Promise<void> {
     const live: LiveClient = {
       ...client,
       cursor: afterSeq,
       buffer: [],
+      deviceId: opts.deviceId ?? null,
     };
     clients.set(client.id, live);
     ensureTimers();
@@ -247,6 +261,14 @@ export function createSseHub(
     stopTimersIfIdle();
   }
 
+  function closeDevice(deviceId: string): void {
+    for (const client of [...clients.values()]) {
+      if (client.deviceId === deviceId) {
+        detach(client.id);
+      }
+    }
+  }
+
   function close(): void {
     for (const id of [...clients.keys()]) {
       detach(id);
@@ -261,6 +283,7 @@ export function createSseHub(
     maxConnections,
     attach,
     detach,
+    closeDevice,
     pollOnce,
     close,
   };

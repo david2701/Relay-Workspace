@@ -10,6 +10,7 @@ import {
   assertPairStartAllowed,
 } from "../auth.js";
 import { handleError } from "../http_errors.js";
+import type { SseHub } from "../sse_hub.js";
 
 const ClaimBodySchema = z.object({
   code: z.string().min(1).max(16),
@@ -24,6 +25,7 @@ const RenameBodySchema = z.object({
 export function createDeviceRoutes(
   svc: RelayService,
   auth: AuthOptions,
+  streamHub?: SseHub,
 ): Hono {
   const app = new Hono();
 
@@ -88,6 +90,8 @@ export function createDeviceRoutes(
     try {
       const id = c.req.param("id");
       const device = svc.revokeDevice(id);
+      // Drop open SSE immediately; tickets already deleted in revokeDevice.
+      streamHub?.closeDevice(id);
       return c.json({ device });
     } catch (err) {
       return handleError(c, err);

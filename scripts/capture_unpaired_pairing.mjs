@@ -93,7 +93,10 @@ async function main() {
     for (const w of WIDTHS) {
       await page.setViewportSize({ width: w, height: 900 });
       await page.goto(`${WEB}/?settings=devices`, { waitUntil: "networkidle" });
-      await page.getByTestId("pairing-required").waitFor({ timeout: 15_000 });
+      await page
+        .getByTestId("devices-settings")
+        .getByTestId("pairing-required")
+        .waitFor({ timeout: 15_000 });
       await page.screenshot({
         path: `${OUT}/unpaired-settings-${w}.png`,
         fullPage: false,
@@ -127,6 +130,7 @@ async function main() {
       waitUntil: "networkidle",
     });
     await pageLegacy
+      .getByTestId("devices-settings")
       .getByTestId("pairing-required")
       .waitFor({ timeout: 15_000 });
     await pageLegacy.screenshot({
