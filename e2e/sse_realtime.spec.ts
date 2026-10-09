@@ -165,27 +165,36 @@ test.describe("SSE realtime (PR 1c)", () => {
       async function assertCompactState(
         state: "connected" | "reconnecting" | "offline",
       ): Promise<void> {
-        await expect(seal).toHaveAttribute("data-sync-state", state, {
-          timeout: 15_000,
-        });
+        // Poll one DOM snapshot — abort/reload can flip state between
+        // sequential getAttribute calls.
+        await expect
+          .poll(
+            async () => {
+              const snap = await seal.evaluate((el: HTMLElement) => ({
+                state: el.getAttribute("data-sync-state"),
+                aria: el.getAttribute("aria-label") ?? "",
+                title: el.getAttribute("title") ?? "",
+                scrollWidth: el.scrollWidth,
+                clientWidth: el.clientWidth,
+                painted: (el.innerText ?? "").trim(),
+              }));
+              const labelsOk =
+                labelRe[state].test(snap.aria) &&
+                labelRe[state].test(snap.title) &&
+                snap.aria === snap.title;
+              const unclipped =
+                snap.scrollWidth <= snap.clientWidth + 1;
+              return (
+                snap.state === state &&
+                labelsOk &&
+                unclipped &&
+                snap.painted === ""
+              );
+            },
+            { timeout: 15_000 },
+          )
+          .toBe(true);
         await expect(label).toBeHidden();
-        const aria = (await seal.getAttribute("aria-label")) ?? "";
-        const title = (await seal.getAttribute("title")) ?? "";
-        expect(aria, `${locale}/${state} aria-label`).toMatch(labelRe[state]);
-        expect(title, `${locale}/${state} title`).toMatch(labelRe[state]);
-        expect(aria).toBe(title);
-        const metrics = await seal.evaluate((el: HTMLElement) => ({
-          scrollWidth: el.scrollWidth,
-          clientWidth: el.clientWidth,
-          // innerText ignores display:none .sync-seal-label
-          painted: (el.innerText ?? "").trim(),
-        }));
-        expect(
-          metrics.scrollWidth,
-          `${locale}/${state} clipped: sw=${metrics.scrollWidth} cw=${metrics.clientWidth}`,
-        ).toBeLessThanOrEqual(metrics.clientWidth + 1);
-        // Collapsed rail paints the dot only — never mid-word fragments like «Up to».
-        expect(metrics.painted).toBe("");
       }
 
       await assertCompactState("connected");
