@@ -111,6 +111,10 @@
   background: var(--crit);
 }
 
+.sync-seal[data-sync-state="unpaired"] .sync-seal-dot {
+  background: var(--ink-muted);
+}
+
 .sync-seal-label {
   min-width: 0;
   overflow: hidden;
@@ -686,6 +690,34 @@
   margin-bottom: 12px;
   padding-bottom: 12px;
   border-bottom: 1px solid var(--line);
+}
+
+.pairing-required {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 10px;
+}
+
+.pairing-required.empty {
+  padding: 24px 16px;
+  max-width: 52ch;
+  color: var(--ink-2);
+  font-size: var(--step-body);
+}
+
+.pairing-required.is-compact {
+  margin-top: 8px;
+  padding-bottom: 12px;
+  border-bottom: 1px solid var(--line);
+}
+
+.pairing-required .settings-field {
+  width: min(100%, 28ch);
+}
+
+.pairing-required .btn-primary {
+  margin-top: 4px;
 }
 
 .devices-cli-cmd {

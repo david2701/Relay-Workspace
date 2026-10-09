@@ -156,7 +156,7 @@ async function main() {
         await page2.goto(`${WEB}/?settings=devices`, {
           waitUntil: "networkidle",
         });
-        await page2.getByTestId("devices-cli-bootstrap").waitFor({
+        await page2.getByTestId("pairing-required").waitFor({
           timeout: 15_000,
         });
         await page2.screenshot({

@@ -33,6 +33,8 @@ type Props = {
   onPatch: (patch: Partial<RelaySettings>) => Promise<void>;
   onThemeChange: (theme: Theme) => void;
   initialSection?: SettingsSection;
+  /** After registering this browser under token auth. */
+  onDevicePaired?: () => void;
 };
 
 const LANG_LABEL: Record<LocaleCode, MessageKey> = {
@@ -89,6 +91,7 @@ export function SettingsPanel({
   onPatch,
   onThemeChange,
   initialSection = "profile",
+  onDevicePaired,
 }: Props) {
   const { locale, setLocale, t, intlLocale } = useI18n();
   const [section, setSection] = useState<SettingsSection>(initialSection);
@@ -537,7 +540,9 @@ export function SettingsPanel({
               hidden={section !== "devices"}
             >
               <h3 id="settings-devices-h">{t("settings.section.devices")}</h3>
-              {section === "devices" ? <DevicesSettings /> : null}
+              {section === "devices" ? (
+                <DevicesSettings onPaired={onDevicePaired} />
+              ) : null}
             </section>
 
             <section

@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from "react";
-import { api } from "../lib/api";
+import { ApiError, api } from "../lib/api";
 import { readDeviceToken } from "../lib/device_token";
 import {
   applyInboxDelta,
@@ -10,12 +10,20 @@ import {
   ATTENTION_PAGE_SIZE,
   INBOX_PAGE_SIZE,
 } from "../lib/inbox_page";
+import {
+  getPairingGate,
+  subscribePairingGate,
+} from "../lib/pairing_gate";
 import type { InboxResult, InboxView, ItemEvent } from "../lib/types";
 
 const OFFLINE_FAILS = 3;
 const RECONNECT_BASE_MS = 3000;
 
-export type SyncState = "connected" | "reconnecting" | "offline";
+export type SyncState =
+  | "connected"
+  | "reconnecting"
+  | "offline"
+  | "unpaired";
 
 export type UseInboxLiveResult = {
   data: InboxResult | null;
@@ -50,29 +58,22 @@ async function resolveStreamUrl(afterSeq: number): Promise<string> {
   try {
     const ticket = await api.mintStreamTicket();
     return streamUrl(afterSeq, ticket.access_token);
-  } catch {
-    // Fall back without ticket (loopback / tokens not required).
+  } catch (err) {
+    if (err instanceof ApiError && err.status === 401) {
+      throw err;
+    }
     return streamUrl(afterSeq);
   }
 }
 
-const EVENT_TYPES = [
-  "created",
-  "updated",
-  "status_changed",
-  "assigned",
-  "delegated",
-  "note_linked",
-  "note_unlinked",
-  "reminder_set",
-  "answered",
-  "taken",
-  "resync",
-] as const;
+function isUnauthorized(err: unknown): boolean {
+  return err instanceof ApiError && err.status === 401;
+}
 
 /**
  * Inbox snapshot + SSE-driven deltas. No polling loop for normal operation;
  * EventSource reconnects with Last-Event-ID / after_seq to recover gaps.
+ * On 401 / unpaired gate: stop the stream (no reconnect loop).
  */
 export function useInboxLive(inboxView: InboxView): UseInboxLiveResult {
   const [data, setDataState] = useState<InboxResult | null>(null);
@@ -92,6 +93,23 @@ export function useInboxLive(inboxView: InboxView): UseInboxLiveResult {
   const esRef = useRef<EventSource | null>(null);
   const inboxViewRef = useRef(inboxView);
   inboxViewRef.current = inboxView;
+  const stopStreamRef = useRef(false);
+  const [authEpoch, setAuthEpoch] = useState(0);
+
+  useEffect(() => {
+    let wasNeeds = getPairingGate().needsPairing;
+    return subscribePairingGate(() => {
+      const nowNeeds = getPairingGate().needsPairing;
+      if (wasNeeds && !nowNeeds) {
+        stopStreamRef.current = false;
+        setAuthEpoch((n) => n + 1);
+      }
+      if (nowNeeds) enterUnpairedRef.current();
+      wasNeeds = nowNeeds;
+    });
+  }, []);
+
+  const enterUnpairedRef = useRef<() => void>(() => {});
 
   const setData = useCallback(
     (
@@ -109,8 +127,25 @@ export function useInboxLive(inboxView: InboxView): UseInboxLiveResult {
     [],
   );
 
+  const enterUnpaired = useCallback(() => {
+    stopStreamRef.current = true;
+    if (esRef.current) {
+      esRef.current.close();
+      esRef.current = null;
+    }
+    setError(null);
+    setSyncState("unpaired");
+    setDataState(null);
+    inboxStateRef.current = null;
+  }, []);
+  enterUnpairedRef.current = enterUnpaired;
+
   const reload = useCallback(async () => {
     if (typeof document !== "undefined" && document.hidden) return;
+    if (getPairingGate().needsPairing) {
+      enterUnpaired();
+      return;
+    }
     if (inFlight.current) {
       pendingReload.current = true;
       return;
@@ -135,8 +170,13 @@ export function useInboxLive(inboxView: InboxView): UseInboxLiveResult {
       setError(null);
       setSyncState("connected");
       setLastOkAt(Date.now());
+      stopStreamRef.current = false;
     } catch (err) {
       if (gen !== generation.current) return;
+      if (isUnauthorized(err) || getPairingGate().needsPairing) {
+        enterUnpaired();
+        return;
+      }
       fails.current += 1;
       setError(err instanceof Error ? err.message : "Error");
       setSyncState(fails.current >= OFFLINE_FAILS ? "offline" : "reconnecting");
@@ -147,13 +187,17 @@ export function useInboxLive(inboxView: InboxView): UseInboxLiveResult {
         void reload();
       }
     }
-  }, []);
+  }, [enterUnpaired]);
 
   const handleStreamSignalRef = useRef<
     (opts: { event?: ItemEvent; resync?: boolean }) => Promise<void>
   >(async () => {});
 
   handleStreamSignalRef.current = async (opts) => {
+    if (getPairingGate().needsPairing) {
+      enterUnpaired();
+      return;
+    }
     if (inFlight.current) {
       pendingDelta.current = true;
       return;
@@ -197,16 +241,14 @@ export function useInboxLive(inboxView: InboxView): UseInboxLiveResult {
           setLastOkAt(Date.now());
           return;
         }
-      } catch {
-        // Fall through.
+        await reload();
+      } catch (err) {
+        if (isUnauthorized(err) || getPairingGate().needsPairing) {
+          enterUnpaired();
+          return;
+        }
+        await reload();
       }
-      if (gen !== generation.current) return;
-      await reload();
-    } catch (err) {
-      if (gen !== generation.current) return;
-      fails.current += 1;
-      setError(err instanceof Error ? err.message : "Error");
-      setSyncState(fails.current >= OFFLINE_FAILS ? "offline" : "reconnecting");
     } finally {
       inFlight.current = false;
       if (pendingReload.current && gen === generation.current) {
@@ -228,70 +270,136 @@ export function useInboxLive(inboxView: InboxView): UseInboxLiveResult {
     setDataState(null);
     setSeq(0);
     setLastEventItemIds([]);
+    stopStreamRef.current = false;
+
+    if (getPairingGate().needsPairing) {
+      setSyncState("unpaired");
+      setError(null);
+      return;
+    }
     setSyncState("reconnecting");
 
     let closed = false;
     let reconnectTimer: number | null = null;
 
     const openStream = () => {
-      if (closed || gen !== generation.current) return;
+      if (closed || gen !== generation.current || stopStreamRef.current) return;
+      if (getPairingGate().needsPairing) {
+        enterUnpaired();
+        return;
+      }
       if (esRef.current) {
         esRef.current.close();
         esRef.current = null;
       }
-      void resolveStreamUrl(seqRef.current).then((url) => {
-        if (closed || gen !== generation.current) return;
-        const es = new EventSource(url);
-        esRef.current = es;
-
-        es.onopen = () => {
-          if (closed || gen !== generation.current) return;
-          fails.current = 0;
-          setSyncState("connected");
-          setLastOkAt(Date.now());
-          setError(null);
-        };
-
-        const onPayload = (ev: MessageEvent, type: string) => {
-          if (closed || gen !== generation.current) return;
-          if (type === "resync") {
-            void handleStreamSignalRef.current({ resync: true });
+      void resolveStreamUrl(seqRef.current)
+        .then((url) => {
+          if (
+            closed ||
+            gen !== generation.current ||
+            stopStreamRef.current ||
+            getPairingGate().needsPairing
+          ) {
             return;
           }
-          try {
-            const parsed = JSON.parse(String(ev.data)) as ItemEvent;
-            if (typeof parsed.seq === "number") {
-              void handleStreamSignalRef.current({ event: parsed });
+          const es = new EventSource(url);
+          esRef.current = es;
+
+          es.onopen = () => {
+            if (closed || gen !== generation.current) return;
+            fails.current = 0;
+            setSyncState("connected");
+            setLastOkAt(Date.now());
+            setError(null);
+          };
+
+          const onPayload = (ev: MessageEvent, type: string) => {
+            if (closed || gen !== generation.current) return;
+            if (type === "resync") {
+              void handleStreamSignalRef.current({ resync: true });
+              return;
             }
-          } catch {
-            // ignore malformed frames
-          }
-        };
+            try {
+              const parsed = JSON.parse(String(ev.data)) as ItemEvent;
+              if (typeof parsed.seq === "number") {
+                void handleStreamSignalRef.current({ event: parsed });
+              }
+            } catch {
+              // ignore malformed frames
+            }
+          };
 
-        for (const t of EVENT_TYPES) {
-          es.addEventListener(t, (ev) => {
-            onPayload(ev as MessageEvent, t);
-          });
-        }
-        es.onmessage = (ev) => onPayload(ev, "message");
-
-        es.onerror = () => {
-          if (closed || gen !== generation.current) return;
-          fails.current += 1;
-          if (fails.current >= OFFLINE_FAILS) {
-            setSyncState("offline");
-          } else {
-            setSyncState("reconnecting");
+          for (const t of [
+            "created",
+            "updated",
+            "status_changed",
+            "assigned",
+            "delegated",
+            "note_linked",
+            "note_unlinked",
+            "reminder_set",
+            "answered",
+            "taken",
+            "resync",
+          ] as const) {
+            es.addEventListener(t, (ev) => {
+              onPayload(ev as MessageEvent, t);
+            });
           }
-          if (es.readyState === EventSource.CLOSED) {
+          es.onmessage = (ev) => onPayload(ev, "message");
+
+          es.onerror = () => {
+            if (closed || gen !== generation.current) return;
+            // Close immediately so the browser cannot auto-reconnect on 401
+            // while we probe auth.
+            es.close();
             esRef.current = null;
-            if (reconnectTimer !== null) window.clearTimeout(reconnectTimer);
-            reconnectTimer = window.setTimeout(() => {
-              openStream();
-            }, RECONNECT_BASE_MS);
+            if (stopStreamRef.current || getPairingGate().needsPairing) {
+              enterUnpaired();
+              return;
+            }
+            void (async () => {
+              try {
+                await api.health();
+                if (getPairingGate().needsPairing) {
+                  enterUnpaired();
+                  return;
+                }
+                if (readDeviceToken() || getPairingGate().requireToken) {
+                  await api.listDevices();
+                }
+              } catch (err) {
+                if (isUnauthorized(err) || getPairingGate().needsPairing) {
+                  enterUnpaired();
+                  return;
+                }
+              }
+              if (
+                closed ||
+                gen !== generation.current ||
+                stopStreamRef.current ||
+                getPairingGate().needsPairing
+              ) {
+                return;
+              }
+              fails.current += 1;
+              if (fails.current >= OFFLINE_FAILS) {
+                setSyncState("offline");
+              } else {
+                setSyncState("reconnecting");
+              }
+              if (reconnectTimer !== null) window.clearTimeout(reconnectTimer);
+              reconnectTimer = window.setTimeout(() => {
+                openStream();
+              }, RECONNECT_BASE_MS);
+            })();
+          };
+        })
+        .catch((err) => {
+          if (isUnauthorized(err) || getPairingGate().needsPairing) {
+            enterUnpaired();
           }
-        };
-      });
+        });
     };
 
     void (async () => {
@@ -316,6 +424,10 @@ export function useInboxLive(inboxView: InboxView): UseInboxLiveResult {
         openStream();
       } catch (err) {
         if (gen !== generation.current) return;
+        if (isUnauthorized(err) || getPairingGate().needsPairing) {
+          enterUnpaired();
+          return;
+        }
         fails.current += 1;
         setError(err instanceof Error ? err.message : "Error");
         setSyncState(
@@ -339,7 +451,7 @@ export function useInboxLive(inboxView: InboxView): UseInboxLiveResult {
         esRef.current = null;
       }
     };
-  }, [inboxView, reload]);
+  }, [inboxView, reload, enterUnpaired, authEpoch]);
 
   return {
     data,

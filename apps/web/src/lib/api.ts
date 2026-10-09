@@ -1,4 +1,5 @@
 import { readDeviceToken } from "./device_token";
+import { handleUnauthorizedResponse } from "./pairing_gate";
 import type {
   Agent,
   ContextPack,
@@ -80,6 +81,13 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
     },
   });
   if (!res.ok) {
+    if (
+      res.status === 401 &&
+      path !== "/api/health" &&
+      path !== "/api/pair/claim"
+    ) {
+      handleUnauthorizedResponse(Boolean(token));
+    }
     const body = (await res.json().catch(() => ({}))) as {
       message?: string;
       error?:
