@@ -66,7 +66,42 @@ export function createApi(svc: RelayService): Hono {
 
   app.get("/health", (c) => c.json({ ok: true }));
 
-  app.get("/agents", (c) => c.json({ agents: svc.listAgents() }));
+  app.get("/agents", (c) => c.json({ agents: svc.listAgentSummaries() }));
+
+  app.get("/agents/:id", (c) => {
+    try {
+      const page = parseEventPageQuery({
+        after_seq: c.req.query("after_seq"),
+        before_seq: c.req.query("before_seq"),
+        limit: c.req.query("limit"),
+      });
+      const currentRaw = c.req.query("current_items_limit");
+      const opts: {
+        after_seq?: number;
+        before_seq?: number;
+        limit?: number;
+        current_items_limit?: number;
+      } = {};
+      if (page.after_seq !== undefined) opts.after_seq = page.after_seq;
+      if (page.before_seq !== undefined) opts.before_seq = page.before_seq;
+      if (page.limit !== undefined) opts.limit = page.limit;
+      if (currentRaw !== undefined) {
+        // Reuse the same limit bounds as event paging (1…200).
+        const currentPage = parseEventPageQuery({ limit: currentRaw });
+        if (currentPage.limit !== undefined) {
+          opts.current_items_limit = currentPage.limit;
+        }
+      }
+      return c.json({
+        agent: svc.getAgentProfile(
+          c.req.param("id"),
+          Object.keys(opts).length > 0 ? opts : undefined,
+        ),
+      });
+    } catch (err) {
+      return handleError(c, err);
+    }
+  });
 
   app.get("/items", (c) => {
     try {
