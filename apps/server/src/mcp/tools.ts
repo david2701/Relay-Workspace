@@ -47,6 +47,54 @@ export type McpToolDef = {
 export function createMcpTools(svc: RelayService): McpToolDef[] {
   return [
     {
+      name: "agents_list",
+      description:
+        "List agents with last_seen_at, active presence, and assigned-item counts",
+      inputSchema: z.object({}),
+      handler: () => ({ agents: svc.listAgentSummaries() }),
+    },
+    {
+      name: "agents_get",
+      description:
+        "Agent profile: presence, counts, current items, and paged handoffs",
+      inputSchema: z.object({
+        id: z.string(),
+        after_seq: z.number().int().nonnegative().optional(),
+        before_seq: z.number().int().nonnegative().optional(),
+        limit: z.number().int().min(1).max(200).optional(),
+        current_items_limit: z.number().int().min(1).max(200).optional(),
+      }),
+      handler: (raw) => {
+        const parsed = z
+          .object({
+            id: z.string(),
+            after_seq: z.number().int().nonnegative().optional(),
+            before_seq: z.number().int().nonnegative().optional(),
+            limit: z.number().int().min(1).max(200).optional(),
+            current_items_limit: z.number().int().min(1).max(200).optional(),
+          })
+          .parse(raw);
+        const opts: {
+          after_seq?: number;
+          before_seq?: number;
+          limit?: number;
+          current_items_limit?: number;
+        } = {};
+        if (parsed.after_seq !== undefined) opts.after_seq = parsed.after_seq;
+        if (parsed.before_seq !== undefined) opts.before_seq = parsed.before_seq;
+        if (parsed.limit !== undefined) opts.limit = parsed.limit;
+        if (parsed.current_items_limit !== undefined) {
+          opts.current_items_limit = parsed.current_items_limit;
+        }
+        return {
+          agent: svc.getAgentProfile(
+            parsed.id,
+            Object.keys(opts).length > 0 ? opts : undefined,
+          ),
+        };
+      },
+    },
+    {
       name: "items_list",
       description: "List work items (optional limit/cursor pagination)",
       inputSchema: PageArgsSchema,

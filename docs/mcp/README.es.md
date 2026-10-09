@@ -200,6 +200,36 @@ Prioridades: `none` | `low` | `medium` | `high`
 Roles de nota: `context` | `reference` | `decision`  
 Vistas de la bandeja (*inbox*): `attention` | `agent_wip` | `upcoming` | `done` | `all`
 
+### `agents_list`
+
+Lista los agentes del catálogo con presencia (`last_seen_at`, `active`) y `counts` de ítems asignados.
+
+| Parámetro | Tipo | Obligatorio |
+|-----------|------|-------------|
+| — | — | — |
+
+**Llamada:** `{}`  
+**Respuesta:** `{ "agents": [ { "id", "display_name", "monogram", "last_seen_at", "active", "counts": { "needs_you", "blocked", "in_progress", "assigned", "done" } } ] }`
+
+Ver [`docs/api/agents.md`](../api/agents.md).
+
+### `agents_get`
+
+Perfil del agente: campos de resumen más `current_items` y `handoffs` paginados (más recientes primero).
+
+| Parámetro | Tipo | Obligatorio |
+|-----------|------|-------------|
+| `id` | string (agente) | sí |
+| `after_seq` | int ≥0 | no |
+| `before_seq` | int ≥0 | no |
+| `limit` | int 1–200 | no (por defecto 50) |
+| `current_items_limit` | int 1–200 | no (por defecto 10) |
+
+**Llamada:** `{ "id": "agent-code" }`  
+**Respuesta:** `{ "agent": { …resumen, "current_items": […], "handoffs": { "handoffs": […], "next_seq", "has_more" } } }`
+
+Id desconocido → `not_found`.
+
 ### `items_list`
 
 Lista los ítems. La paginación es opcional.

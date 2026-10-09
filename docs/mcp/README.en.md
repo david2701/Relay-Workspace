@@ -177,6 +177,36 @@ Priorities: `none` | `low` | `medium` | `high`
 Note roles: `context` | `reference` | `decision`  
 Inbox views: `attention` | `agent_wip` | `upcoming` | `done` | `all`
 
+### `agents_list`
+
+List catalog agents with presence (`last_seen_at`, `active`) and assigned-item `counts`.
+
+| Param | Type | Required |
+|-------|------|----------|
+| — | — | — |
+
+**Call:** `{}`  
+**Response:** `{ "agents": [ { "id", "display_name", "monogram", "last_seen_at", "active", "counts": { "needs_you", "blocked", "in_progress", "assigned", "done" } } ] }`
+
+See [`docs/api/agents.md`](../api/agents.md).
+
+### `agents_get`
+
+Agent profile: summary fields plus `current_items` and paged `handoffs` (newest first).
+
+| Param | Type | Required |
+|-------|------|----------|
+| `id` | string (agent) | yes |
+| `after_seq` | int ≥0 | no |
+| `before_seq` | int ≥0 | no |
+| `limit` | int 1–200 | no (default 50) |
+| `current_items_limit` | int 1–200 | no (default 10) |
+
+**Call:** `{ "id": "agent-code" }`  
+**Response:** `{ "agent": { …summary, "current_items": […], "handoffs": { "handoffs": […], "next_seq", "has_more" } } }`
+
+Unknown id → `not_found`.
+
 ### `items_list`
 
 List work items. Optional pagination.

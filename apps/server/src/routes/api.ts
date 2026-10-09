@@ -45,7 +45,42 @@ export function createApi(svc: RelayService): Hono {
 
   app.get("/health", (c) => c.json({ ok: true }));
 
-  app.get("/agents", (c) => c.json({ agents: svc.listAgents() }));
+  app.get("/agents", (c) => c.json({ agents: svc.listAgentSummaries() }));
+
+  app.get("/agents/:id", (c) => {
+    try {
+      const afterRaw = c.req.query("after_seq");
+      const beforeRaw = c.req.query("before_seq");
+      const limitRaw = c.req.query("limit");
+      const currentRaw = c.req.query("current_items_limit");
+      const opts: {
+        after_seq?: number;
+        before_seq?: number;
+        limit?: number;
+        current_items_limit?: number;
+      } = {};
+      if (afterRaw !== undefined) {
+        opts.after_seq = z.coerce.number().int().nonnegative().parse(afterRaw);
+      }
+      if (beforeRaw !== undefined) {
+        opts.before_seq = z.coerce.number().int().nonnegative().parse(beforeRaw);
+      }
+      if (limitRaw !== undefined) {
+        opts.limit = PageLimitSchema.parse(limitRaw);
+      }
+      if (currentRaw !== undefined) {
+        opts.current_items_limit = PageLimitSchema.parse(currentRaw);
+      }
+      return c.json({
+        agent: svc.getAgentProfile(
+          c.req.param("id"),
+          Object.keys(opts).length > 0 ? opts : undefined,
+        ),
+      });
+    } catch (err) {
+      return handleError(c, err);
+    }
+  });
 
   app.get("/items", (c) => {
     try {

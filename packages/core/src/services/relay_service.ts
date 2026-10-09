@@ -1,4 +1,11 @@
 import {
+  buildAgentSummary,
+  countAssignedByStatus,
+  DEFAULT_CURRENT_ITEMS_LIMIT,
+  DEFAULT_HANDOFFS_LIMIT,
+  selectCurrentItems,
+} from "../domain/agent_presence.js";
+import {
   buildContextPack,
   contextPackToMarkdown,
 } from "../domain/context_pack.js";
@@ -22,6 +29,11 @@ import {
   toZoneParts,
 } from "../domain/zone_time.js";
 import { type Agent, DEFAULT_AGENTS } from "../schemas/agent.js";
+import type {
+  AgentHandoffsPage,
+  AgentProfile,
+  AgentSummary,
+} from "../schemas/agent_summary.js";
 import {
   type InboxView,
   type Source,
@@ -63,6 +75,10 @@ import type {
   UpdateItemInput,
   WorkItem,
 } from "../schemas/work_item.js";
+import {
+  latestAgentEventAt,
+  listAgentHandoffs,
+} from "../store/agent_queries.js";
 import { openDatabase, type RelayDb, readSqliteDataVersion } from "../store/db.js";
 import {
   appendItemEvent,
@@ -112,6 +128,17 @@ export type InboxQueryOptions = {
 export type EventPageOptions = {
   after_seq?: number;
   limit?: number;
+};
+
+export type AgentHandoffsOptions = {
+  after_seq?: number;
+  before_seq?: number;
+  limit?: number;
+  now?: Date;
+};
+
+export type AgentProfileOptions = AgentHandoffsOptions & {
+  current_items_limit?: number;
 };
 
 export class RelayService {
@@ -283,6 +310,68 @@ export class RelayService {
 
   listAgents(): Agent[] {
     return this.agents.list();
+  }
+
+  getAgent(id: string): Agent {
+    const agent = this.agents.get(id);
+    if (!agent) throw new NotFoundError("Agent", id);
+    return agent;
+  }
+
+  /** Team list: catalog agents plus presence and assigned-item counts. */
+  listAgentSummaries(now: Date = new Date()): AgentSummary[] {
+    const items = this.listAllItems();
+    return this.agents.list().map((agent) =>
+      buildAgentSummary({
+        agent,
+        last_seen_at: latestAgentEventAt(this.db, agent.id),
+        counts: countAssignedByStatus(items, agent.id, now),
+        now,
+      }),
+    );
+  }
+
+  listAgentHandoffsPage(
+    agentId: string,
+    opts?: AgentHandoffsOptions,
+  ): AgentHandoffsPage {
+    this.getAgent(agentId);
+    const afterSeq = opts?.after_seq;
+    const beforeSeq = opts?.before_seq;
+    if (afterSeq !== undefined && beforeSeq !== undefined && afterSeq >= beforeSeq) {
+      throw new ValidationError("after_seq must be less than before_seq");
+    }
+    const limit = opts?.limit ?? DEFAULT_HANDOFFS_LIMIT;
+    const { handoffs, has_more } = listAgentHandoffs(this.db, {
+      agentId,
+      ...(afterSeq !== undefined ? { afterSeq } : {}),
+      ...(beforeSeq !== undefined ? { beforeSeq } : {}),
+      limit,
+    });
+    const next_seq =
+      handoffs.length > 0
+        ? (handoffs[handoffs.length - 1]?.seq ?? 0)
+        : (beforeSeq ?? afterSeq ?? 0);
+    return { handoffs, next_seq, has_more };
+  }
+
+  /** Agent profile: summary + current items + paged handoffs. */
+  getAgentProfile(id: string, opts?: AgentProfileOptions): AgentProfile {
+    const agent = this.getAgent(id);
+    const now = opts?.now ?? new Date();
+    const items = this.listAllItems();
+    const currentLimit = opts?.current_items_limit ?? DEFAULT_CURRENT_ITEMS_LIMIT;
+    const summary = buildAgentSummary({
+      agent,
+      last_seen_at: latestAgentEventAt(this.db, agent.id),
+      counts: countAssignedByStatus(items, agent.id, now),
+      now,
+    });
+    return {
+      ...summary,
+      current_items: selectCurrentItems(items, agent.id, currentLimit),
+      handoffs: this.listAgentHandoffsPage(agent.id, opts),
+    };
   }
 
   private readMeta(key: string): string | null {
