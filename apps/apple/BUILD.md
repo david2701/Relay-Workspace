@@ -1,5 +1,15 @@
 # Relay Apple clients — build notes
 
+## Pasos para David
+
+1. Open: `cd apps/apple && open Relay.xcodeproj`
+2. Build + test Mac (scheme **RelayMac**) — see [xcodebuild — Mac](#xcodebuild--mac)
+3. Build + test iPhone simulator (scheme **RelayiOS**) — see [xcodebuild — iPhone simulator](#xcodebuild--iphone-simulator)
+4. Start the local server with seed data — see [Start apps/server](#start-appsserver-with-demo-data)
+5. Screenshots (Mac light/dark, iPhone light/dark + one detail) — see [Screenshots](#screenshots)
+6. Capture host versions: `xcodebuild -version` and `sw_vers`
+7. Send back: both `xcodebuild` full logs, the screenshots, and the two version commands
+
 ## Project form choice
 
 **Hand-written `Relay.xcodeproj` (option a)** with Xcode 16+
@@ -60,18 +70,33 @@ Expect exit 0. Presentation / relative-time / token / decoding tests live here.
 
 ## Start `apps/server` with demo data
 
-From repo root (real scripts — there is no `pnpm demo`):
+From repo root. Order matters.
+
+**Terminal 1** — install, build, seed Atención rows, start the API:
 
 ```bash
-# Preferred AC3 demo seed used by native Atención fixtures
-pnpm demo:ac3
-
-# Or manual path
-pnpm install
-pnpm build
-pnpm seed
-pnpm --filter @relay/server start
+pnpm install && pnpm build && pnpm seed && pnpm --filter @relay/server start
 ```
+
+`pnpm seed` reset-and-seeds `data/relay.db` with `needs_you`, `blocked`, and “para hoy” items — enough for native Atención screens.
+
+Check the server is up:
+
+```bash
+curl -s 'http://localhost:7420/api/inbox?view=attention' | head
+```
+
+You should see JSON with `"view":"attention"` and a `sections` array.
+
+**Terminal 2 (optional)** — only if you want extra AC3 loop items on that live store.
+Bare `pnpm demo:ac3` uses an isolated temp DB and does **not** feed the apps; point it at the running server:
+
+```bash
+RELAY_API=http://127.0.0.1:7420 pnpm demo:ac3 -- --variant=needs_you
+# or: --variant=blocked
+```
+
+Once PR #5 lands on main, `pnpm demo` will do the install/build/seed/start flow in one command.
 
 Server default: `http://localhost:7420` (same as `RelayDefaults.apiBaseURLString`).
 iOS Simulator can use `http://localhost:7420` (loopback to the Mac host).
@@ -111,18 +136,32 @@ If `iPhone 16` is missing, use any iPhone simulator id from `-showdestinations`,
 
 ### Mac (light / dark)
 
-1. Run RelayMac against the local server with Atención data (`pnpm demo:ac3`).
-2. Light: System Settings → Appearance → Light, or launch with light appearance.
-3. Dark: System Settings → Appearance → Dark, or:
+1. With the server running (seed data), launch RelayMac and open Atención at the default window size with a **needs_you** row and a **selected** row visible.
+2. Light: System Settings → Appearance → Light, or:
 
 ```bash
-# Force dark for the app process when launching from Terminal (best-effort)
-defaults write app.relay.mac NSRequiresAquaSystemAppearance -bool false
-# Or toggle system appearance, then capture the window.
+osascript -e 'tell application "System Events" to tell appearance preferences to set dark mode to false'
 ```
 
-Capture the Atención window at default size with a **needs_you** row and a
-**selected** row visible (light and dark).
+3. Capture the window (interactive — click the Relay window):
+
+```bash
+screencapture -w ~/Desktop/relay-mac-attention-light.png
+```
+
+4. Dark: System Settings → Appearance → Dark, or:
+
+```bash
+osascript -e 'tell application "System Events" to tell appearance preferences to set dark mode to true'
+```
+
+5. Capture again:
+
+```bash
+screencapture -w ~/Desktop/relay-mac-attention-dark.png
+```
+
+6. Optional: switch appearance back to light with the `dark mode to false` osascript above.
 
 ### iPhone simulator (light / dark)
 
