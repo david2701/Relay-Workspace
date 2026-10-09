@@ -966,16 +966,28 @@
     grid-template-columns: var(--rail-w-collapsed) minmax(0, 1fr);
   }
 
-  /* Collapsed rail (~56px): status dot only; full text in title + aria-label. */
+  /* Collapsed rail (~56px): status dot only; full text in title + aria-label.
+     Constrain the foot so long sibling labels (? Shortcuts) cannot widen the
+     grid and push a width:100% seal (and its centered dot) outside the rail. */
   .rail-foot {
     padding-left: 0;
     padding-right: 0;
     justify-items: center;
+    width: 100%;
+    max-width: 100%;
+    min-width: 0;
+    overflow: hidden;
+  }
+
+  .rail-foot > * {
+    min-width: 0;
+    max-width: 100%;
   }
 
   .sync-seal {
     justify-content: center;
-    width: 100%;
+    width: auto;
+    max-width: 100%;
     overflow: hidden;
   }
 
