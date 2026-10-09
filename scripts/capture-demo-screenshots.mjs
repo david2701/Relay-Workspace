@@ -90,8 +90,18 @@ for (const vp of [
     localStorage.setItem("relay.theme", "light");
   });
   await page.goto(`${WEB}/attention`, { waitUntil: "networkidle" });
-  await page.locator(".onboarding-card").waitFor({ state: "hidden" }).catch(() => {});
-  await page.waitForTimeout(500);
+  await page.locator(".onboarding-card").waitFor({ state: "detached", timeout: 5000 }).catch(() => {});
+  await page.waitForSelector(".item-row, .suggested-strip, [data-inbox-view='attention']", {
+    timeout: 10_000,
+  });
+  // Narrow shell still parks an empty detail overlay (fixed in the responsive PR).
+  // Hide it for the 390 Attention shot so the list with demo data is visible.
+  if (vp.w <= 390) {
+    await page.addStyleTag({
+      content: `.detail-zone { display: none !important; }`,
+    });
+  }
+  await page.waitForTimeout(600);
   const path = resolve(outDir, `demo-attention_en_${vp.tag}.png`);
   await page.screenshot({ path, fullPage: false });
   console.info("wrote", path);

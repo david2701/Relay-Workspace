@@ -1,17 +1,14 @@
 /**
- * AC3-D4 runner (invoked via tsx from test-demo-reset.mjs).
+ * AC3-D4 runner: reset demo store in ≤ 30 s; leave a sibling store intact.
  */
 import { mkdtempSync, mkdirSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { RelayService, USER_ACTOR_ID } from "@relay/core";
-import {
-  resetDemoDatabase,
-  seedDemoDatabase,
-} from "../apps/server/src/seed/demo_seed.js";
+import { resetDemoDatabase, seedDemoDatabase } from "../src/seed/demo_seed.js";
 
-const root = resolve(dirname(fileURLToPath(import.meta.url)), "..");
+const root = resolve(dirname(fileURLToPath(import.meta.url)), "../../..");
 const artifacts = resolve(root, "artifacts");
 mkdirSync(artifacts, { recursive: true });
 
