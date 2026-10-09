@@ -1,0 +1,24 @@
+{
+  "agents": [
+    {
+      "id": "agent-code",
+      "display_name": "Agente de código",
+      "monogram": "CO"
+    },
+    {
+      "id": "agent-data",
+      "display_name": "Agente de datos",
+      "monogram": "DA"
+    },
+    {
+      "id": "agent-research",
+      "display_name": "Agente de investigación",
+      "monogram": "IN"
+    },
+    {
+      "id": "agent-writing",
+      "display_name": "Agente de redacción",
+      "monogram": "RD"
+    }
+  ]
+}

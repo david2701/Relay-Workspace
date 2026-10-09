@@ -20,6 +20,16 @@ test-results/
 *.tsbuildinfo
 uploads/
 
+# Native clients
+apps/android/.gradle/
+apps/android/**/build/
+apps/android/local.properties
+apps/android/.cxx/
+apps/apple/**/.build/
+apps/apple/**/.swiftpm/
+*.xcuserdata/
+DerivedData/
+
 # local large seed DBs
 *.db
 *.db-shm

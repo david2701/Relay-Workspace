@@ -1,0 +1,26 @@
+{
+  "item": {
+    "id": "itm_cozkg4zncr",
+    "title": "Migrar notas archivadas al almacén",
+    "goal": "Cada nota bajo /archive indexada en Relay",
+    "status": "blocked",
+    "assignee_type": "agent",
+    "assignee_id": "agent-research",
+    "due_at": null,
+    "reminder_at": null,
+    "reminder_intent": null,
+    "priority": "medium",
+    "blocked_reason": "falta acceso de lectura a la carpeta /archive",
+    "needs_you_reason": null,
+    "source": "ui",
+    "created_at": "2026-10-09T03:40:42.176Z",
+    "updated_at": "2026-10-09T03:40:42.181Z",
+    "started_at": null,
+    "completed_at": null,
+    "completed_by_type": null,
+    "completed_by_id": null,
+    "last_actor_type": "agent",
+    "last_actor_id": "agent-research",
+    "list_id": null
+  }
+}

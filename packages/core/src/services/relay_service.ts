@@ -1084,6 +1084,28 @@ export class RelayService {
     return searchNotes(this.searchDeps(opts?.now), q, noteOpts);
   }
 
+  /**
+   * Demo/seed helper: set `updated_at` explicitly while emitting an `updated`
+   * event so `after_seq` sync stays consistent with `since=` (Attention order).
+   */
+  stampItemUpdatedAt(id: string, updatedAt: string, actor: Actor): WorkItem {
+    const current = this.getItem(id);
+    const next: WorkItem = {
+      ...current,
+      updated_at: updatedAt,
+      last_actor_type: actor.type,
+      last_actor_id: actor.id,
+    };
+    return this.runInWriteTx(() => {
+      this.items.upsert(next);
+      this.emitItemEvent(next.id, "updated", actor, {
+        changed: ["updated_at"],
+        reason: "demo_backdate",
+      });
+      return next;
+    });
+  }
+
   /** Test/seed helper */
   resetData(): void {
     this.runInWriteTx(() => {

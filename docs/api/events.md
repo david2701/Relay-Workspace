@@ -30,7 +30,7 @@ Global monotonic event log for work-item mutations. Foundation for SSE (`seq` /
 | Type | When | Payload (typical) |
 | --- | --- | --- |
 | `created` | `createItem` | `title`, `status`, `assignee_*` |
-| `updated` | field patch (or timezone re-anchor) | `changed: string[]` |
+| `updated` | field patch, timezone re-anchor, or demo Attention backdate | `changed: string[]` (`reason` when applicable) |
 | `status_changed` | `setStatus` / `complete` / `reopen` / `askUser` / answer return | `from`, `to`, reasons |
 | `assigned` | update that only changes assignee to user/unassigned | `assignee_*`, previous assignee |
 | `delegated` | `delegate` or update assignee → agent | `agent_id`, previous assignee |
@@ -47,6 +47,19 @@ separate `note_linked`). A rolled-back write leaves no event (and no note).
 See also [writes.md](./writes.md) for answer/take, `if_updated_at`, and
 `Idempotency-Key`.
 
+Demo seed backdates one item’s `updated_at` for Attention ordering via
+`RelayService.stampItemUpdatedAt`, which emits `updated` with
+`payload.reason = "demo_backdate"` so `after_seq` and `since=` stay aligned.
+
+## Query parameters
+
+Shared by `/api/changes`, `/api/items/:id/events`, and inbox `after_seq` / `limit`:
+
+| Param | Rules |
+| --- | --- |
+| `after_seq` | Optional. Safe integer `0 … Number.MAX_SAFE_INTEGER`. Invalid → **400** `{ "error": "validation_error", "message": "…" }`. |
+| `limit` | Optional. Integer `1 … 200`. Invalid (`0`, negative, non-numeric, `>200`) → **400** same shape. |
+
 ## Endpoints
 
 ### `GET /api/items/:id/events?after_seq=&limit=`
@@ -55,12 +68,15 @@ History for one item, **oldest first**.
 
 ```json
 {
-  "events": [ /* ItemEvent[] */ ],
-  "next_seq": 3,
+  "events": [ /* ItemEvent[] for this item only */ ],
+  "next_seq": 233,
   "has_more": false
 }
 ```
 
+- **`next_seq`**: last `seq` in **this page of this item’s** events (not the global
+  watermark). Pass it as the next `after_seq` to continue **this item’s** history.
+  When the page is empty, `next_seq` equals the request `after_seq` (default `0`).
 - Unknown item → `404`.
 - Default `after_seq=0`, `limit=100` (max 200).
 
@@ -76,8 +92,8 @@ Global stream for sync / SSE replay.
 }
 ```
 
-Clients store `next_seq` and pass it as the next `after_seq` (and later as
-`Last-Event-ID` for SSE).
+- **`next_seq`**: last `seq` in this global page. Store it and pass as the next
+  `after_seq` (and later as `Last-Event-ID` for SSE).
 
 ### Inbox cursor
 
@@ -91,12 +107,15 @@ Clients store `next_seq` and pass it as the next `after_seq` (and later as
 | Tool | Role |
 | --- | --- |
 | `context_get` | Includes recent `events` (default 20, oldest first) and linked notes (decision notes from «Responder» appear here — no MCP answer/take tools). |
-| `items_events` | Same as `/api/items/:id/events`. |
+| `items_events` | Same as `/api/items/:id/events` (`next_seq` is per-item page cursor). |
 | `changes_list` | Same as `/api/changes`. |
 | `inbox_query` | Accepts `after_seq`; responses include `seq`. |
 
 Answer and take are **user/UI** writes (`POST /api/items/:id/answer|take`). Agents
 poll or reload `context_get` after the user replies.
+
+Invalid `after_seq` / `limit` yield a clear tool error (`validation_error` message),
+not a crash.
 
 ## Migration
 
