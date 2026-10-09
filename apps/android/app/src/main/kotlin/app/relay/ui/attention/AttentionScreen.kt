@@ -1119,7 +1119,7 @@ internal fun DoMyselfOverflowRow(
             shape = RoundedCornerShape(999.dp),
             border = BorderStroke(1.dp, colors.line),
             colors = ButtonDefaults.outlinedButtonColors(
-                containerColor = colors.sunken,
+                containerColor = colors.raised,
                 contentColor = colors.ink,
             ),
         ) {
@@ -1134,7 +1134,7 @@ internal fun DoMyselfOverflowRow(
             onClick = {},
             modifier = Modifier
                 .border(1.dp, colors.line, CircleShape)
-                .background(colors.sunken, CircleShape)
+                .background(colors.raised, CircleShape)
                 .testTag(overflowTag),
         ) {
             Icon(
