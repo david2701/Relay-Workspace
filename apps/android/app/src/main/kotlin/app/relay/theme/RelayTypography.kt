@@ -8,26 +8,36 @@ import androidx.compose.ui.unit.em
 import androidx.compose.ui.unit.sp
 
 /**
- * Relay type scale from ui-spec §9.5 / §3.3 (r8 tokens).
+ * Relay type scale for Android adaptive UI (Penpot 840 fidelity).
  *
- * | Role  | Token         | Size / weight / line-height |
- * |-------|---------------|-----------------------------|
- * | h1    | `--step-h1`   | 20 sp / 600 / 1.25          |
- * | h2    | `--step-h2`   | 17 sp / 600 / 1.3           |
- * | row   | `--step-row`  | 14 sp / 500 / 1.35          |
- * | body  | `--step-body` | 14 sp / 400 / 1.55          |
- * | meta  | `--step-meta` | 13 sp / 400 / 1.4           |
- * | label | `--step-label`| 11 sp / 600 / 1.2 (+0.06em) |
- * | data  | `--step-data` | 12 sp / 400 / 1.3           |
+ * Web §3.3 / §9.5 tokens (14/13/11) stay for row/meta/label. Display and
+ * title steps are stepped up to match Penpot's Android headlines — web h1
+ * 20 px reads undersized on the 840 dp list+detail shell.
  *
- * Mapped onto M3 slots so existing `MaterialTheme.typography.*` call sites
- * pick up Relay sizes (decision card meta, section labels, bottom bar body).
+ * | Role          | Size / weight / line-height | Use                          |
+ * |---------------|-----------------------------|------------------------------|
+ * | display       | 32 sp / 700 / 1.15          | List screen title            |
+ * | headline      | 30 sp / 700 / 1.2           | Detail title                 |
+ * | title (h2)    | 17 sp / 600 / 1.3           | Section emphasis             |
+ * | row           | 16 sp / 600 / 1.35          | List row titles              |
+ * | body large    | 17 sp / 500 / 1.45          | Decision-card question       |
+ * | body          | 14 sp / 400 / 1.55          | Body copy                    |
+ * | meta          | 13 sp / 400 / 1.4           | Secondary / sync / chips     |
+ * | label         | 11 sp / 600 / 1.2 (+0.06em) | Section caps                 |
  */
-private val relayH1 = TextStyle(
+private val relayDisplay = TextStyle(
     fontFamily = FontFamily.SansSerif,
-    fontWeight = FontWeight.SemiBold,
-    fontSize = 20.sp,
-    lineHeight = 25.sp,
+    fontWeight = FontWeight.Bold,
+    fontSize = 32.sp,
+    lineHeight = (32 * 1.15f).sp,
+    letterSpacing = (-0.015).em,
+)
+
+private val relayHeadline = TextStyle(
+    fontFamily = FontFamily.SansSerif,
+    fontWeight = FontWeight.Bold,
+    fontSize = 30.sp,
+    lineHeight = (30 * 1.2f).sp,
     letterSpacing = (-0.01).em,
 )
 
@@ -41,9 +51,17 @@ private val relayH2 = TextStyle(
 
 private val relayRow = TextStyle(
     fontFamily = FontFamily.SansSerif,
+    fontWeight = FontWeight.SemiBold,
+    fontSize = 16.sp,
+    lineHeight = (16 * 1.35f).sp,
+    letterSpacing = 0.sp,
+)
+
+private val relayBodyLarge = TextStyle(
+    fontFamily = FontFamily.SansSerif,
     fontWeight = FontWeight.Medium,
-    fontSize = 14.sp,
-    lineHeight = (14 * 1.35f).sp,
+    fontSize = 17.sp,
+    lineHeight = (17 * 1.45f).sp,
     letterSpacing = 0.sp,
 )
 
@@ -72,16 +90,16 @@ private val relayLabel = TextStyle(
 )
 
 val RelayTypography = Typography(
-    displayLarge = relayH1,
-    displayMedium = relayH1,
-    displaySmall = relayH1,
-    headlineLarge = relayH1,
-    headlineMedium = relayH1,
-    headlineSmall = relayH1,
+    displayLarge = relayDisplay,
+    displayMedium = relayDisplay,
+    displaySmall = relayDisplay,
+    headlineLarge = relayHeadline,
+    headlineMedium = relayDisplay,
+    headlineSmall = relayHeadline,
     titleLarge = relayH2,
     titleMedium = relayRow,
     titleSmall = relayRow,
-    bodyLarge = relayBody,
+    bodyLarge = relayBodyLarge,
     bodyMedium = relayBody,
     bodySmall = relayMeta,
     labelLarge = relayMeta.copy(fontWeight = FontWeight.Medium),

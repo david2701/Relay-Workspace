@@ -16,6 +16,7 @@ import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
@@ -56,8 +57,6 @@ import androidx.compose.material3.OutlinedTextFieldDefaults
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
-import androidx.compose.material3.TopAppBar
-import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.material3.adaptive.ExperimentalMaterial3AdaptiveApi
 import androidx.compose.material3.adaptive.layout.AnimatedPane
 import androidx.compose.material3.adaptive.layout.PaneScaffoldDirective
@@ -209,32 +208,51 @@ fun AttentionScreen(
                 selected = currentDestination == RelayDestination.Attention,
                 onClick = { currentDestination = RelayDestination.Attention },
                 icon = {
-                    AttentionNavIcon(
-                        selected = currentDestination == RelayDestination.Attention,
-                        isDark = isDark,
-                    )
-                },
-                badge = {
-                    if (needsYouCount > 0) {
-                        // M3 Badge pill (Penpot). On the selected hl indicator, invert
-                        // colors so the container stays a visible pill (not a bare digit).
-                        val attentionSelected =
-                            currentDestination == RelayDestination.Attention
-                        val badgeDesc =
-                            stringResource(R.string.cd_nav_attention_badge, needsYouCount)
-                        Badge(
-                            containerColor = if (attentionSelected) colors.onHl else colors.hl,
-                            contentColor = if (attentionSelected) colors.hl else colors.onHl,
-                            modifier = Modifier.testTag("nav_attention_badge"),
-                        ) {
-                            Text(
-                                text = needsYouCount.toString(),
-                                style = MaterialTheme.typography.labelSmall,
-                                fontWeight = FontWeight.Bold,
-                                modifier = Modifier.semantics {
-                                    contentDescription = badgeDesc
-                                },
+                    // Penpot: yellow Badge pill offset top-right of the icon, outside the
+                    // selected indicator. Transparent M3 indicator + our own tighter pill
+                    // lets the badge sit outside the chrome.
+                    val attentionSelected =
+                        currentDestination == RelayDestination.Attention
+                    val badgeDesc =
+                        stringResource(R.string.cd_nav_attention_badge, needsYouCount)
+                    Box(
+                        modifier = Modifier.size(56.dp, 40.dp),
+                        contentAlignment = Alignment.Center,
+                    ) {
+                        if (attentionSelected) {
+                            // Penpot: pale selected pill; bright hl Badge sits outside it.
+                            Box(
+                                modifier = Modifier
+                                    .size(width = 44.dp, height = 28.dp)
+                                    .clip(RoundedCornerShape(14.dp))
+                                    .background(
+                                        if (isDark) colors.hl else colors.accentTint,
+                                    ),
                             )
+                        }
+                        AttentionNavIcon(
+                            selected = attentionSelected,
+                            isDark = isDark,
+                        )
+                        if (needsYouCount > 0) {
+                            Badge(
+                                containerColor = colors.hl,
+                                contentColor = colors.onHl,
+                                modifier = Modifier
+                                    .align(Alignment.TopEnd)
+                                    .offset(x = 4.dp, y = (-4).dp)
+                                    .border(1.5.dp, colors.paper, CircleShape)
+                                    .testTag("nav_attention_badge"),
+                            ) {
+                                Text(
+                                    text = needsYouCount.toString(),
+                                    style = MaterialTheme.typography.labelSmall,
+                                    fontWeight = FontWeight.Bold,
+                                    modifier = Modifier.semantics {
+                                        contentDescription = badgeDesc
+                                    },
+                                )
+                            }
                         }
                     }
                 },
@@ -355,7 +373,9 @@ private fun attentionNavItemColors(): androidx.compose.material3.NavigationItemC
     return androidx.compose.material3.ShortNavigationBarItemDefaults.colors(
         selectedIconColor = colors.onHl,
         selectedTextColor = colors.accentInk,
-        selectedIndicatorColor = colors.hl,
+        // Transparent: Atención draws its own tighter indicator so the Badge can
+        // sit outside it (Penpot). Other destinations still get no indicator tint.
+        selectedIndicatorColor = Color.Transparent,
         unselectedIconColor = colors.inkMuted,
         unselectedTextColor = colors.inkMuted,
     )
@@ -370,7 +390,9 @@ private fun AttentionNavIcon(
     val icon = if (selected) Icons.Filled.Inbox else Icons.Outlined.Inbox
     // Dark selected: filled glyph + on-hl ink over hl pill (high contrast on OLED).
     val tint = when {
-        selected -> colors.onHl
+        // Light selected sits on accentTint (not hl), so use ink — not onHl.
+        selected && isDark -> colors.onHl
+        selected -> colors.ink
         isDark -> colors.ink2
         else -> colors.inkMuted
     }
@@ -438,70 +460,76 @@ private fun AttentionListPane(
         modifier = Modifier.fillMaxSize(),
         containerColor = colors.paper,
         topBar = {
-            TopAppBar(
-                title = {
-                    Column {
-                        Text(
-                            text = stringResource(R.string.attention_title),
-                            style = MaterialTheme.typography.headlineMedium,
-                            fontWeight = FontWeight.Bold,
-                            color = colors.ink,
-                        )
-                        Row(
-                            verticalAlignment = Alignment.CenterVertically,
-                            modifier = Modifier.testTag("attention_sync_line"),
-                        ) {
-                            Icon(
-                                imageVector = Icons.Outlined.CloudDone,
-                                contentDescription = null,
-                                tint = colors.inkMuted,
-                                modifier = Modifier.size(14.dp),
-                            )
-                            Spacer(modifier = Modifier.width(4.dp))
-                            Text(
-                                text = (state as? AttentionUiState.Ready)?.syncSubtitle
-                                    ?: stringResource(R.string.sync_up_to_date),
-                                style = MaterialTheme.typography.labelMedium,
-                                color = colors.inkMuted,
-                            )
-                        }
-                    }
-                },
-                actions = {
-                    IconButton(onClick = {}) {
-                        Icon(
-                            Icons.Outlined.Search,
-                            contentDescription = stringResource(R.string.search),
-                        )
-                    }
-                    IconButton(onClick = {}) {
-                        Icon(
-                            Icons.Outlined.FilterList,
-                            contentDescription = stringResource(R.string.filter),
-                        )
-                    }
-                    Box(
-                        modifier = Modifier
-                            .padding(end = 12.dp)
-                            .size(32.dp)
-                            .clip(CircleShape)
-                            .background(colors.ink),
-                        contentAlignment = Alignment.Center,
+            // Custom header (not dense TopAppBar) so Penpot display-size title fits.
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .background(colors.paper)
+                    .padding(
+                        start = if (isDualPane) 20.dp else 16.dp,
+                        end = 12.dp,
+                        top = if (isDualPane) 20.dp else 12.dp,
+                        bottom = if (isDualPane) 12.dp else 8.dp,
+                    ),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                Column(modifier = Modifier.weight(1f)) {
+                    Text(
+                        text = stringResource(R.string.attention_title),
+                        style = MaterialTheme.typography.headlineMedium,
+                        fontWeight = FontWeight.Bold,
+                        color = colors.ink,
+                    )
+                    Spacer(modifier = Modifier.height(4.dp))
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        modifier = Modifier.testTag("attention_sync_line"),
                     ) {
+                        Icon(
+                            imageVector = Icons.Outlined.CloudDone,
+                            contentDescription = null,
+                            tint = colors.inkMuted,
+                            modifier = Modifier.size(14.dp),
+                        )
+                        Spacer(modifier = Modifier.width(4.dp))
                         Text(
-                            text = "É",
-                            color = colors.paper,
-                            style = MaterialTheme.typography.labelLarge,
-                            fontWeight = FontWeight.SemiBold,
+                            text = (state as? AttentionUiState.Ready)?.syncSubtitle
+                                ?: stringResource(R.string.sync_up_to_date),
+                            style = MaterialTheme.typography.labelMedium,
+                            color = colors.inkMuted,
                         )
                     }
-                },
-                colors = TopAppBarDefaults.topAppBarColors(
-                    containerColor = colors.paper,
-                    titleContentColor = colors.ink,
-                    actionIconContentColor = colors.ink,
-                ),
-            )
+                }
+                IconButton(onClick = {}) {
+                    Icon(
+                        Icons.Outlined.Search,
+                        contentDescription = stringResource(R.string.search),
+                        tint = colors.ink,
+                    )
+                }
+                IconButton(onClick = {}) {
+                    Icon(
+                        Icons.Outlined.FilterList,
+                        contentDescription = stringResource(R.string.filter),
+                        tint = colors.ink,
+                    )
+                }
+                Box(
+                    modifier = Modifier
+                        .padding(end = 4.dp)
+                        .size(32.dp)
+                        .clip(CircleShape)
+                        .background(colors.ink),
+                    contentAlignment = Alignment.Center,
+                ) {
+                    Text(
+                        text = "É",
+                        color = colors.paper,
+                        style = MaterialTheme.typography.labelLarge,
+                        fontWeight = FontWeight.SemiBold,
+                    )
+                }
+            }
         },
     ) { innerPadding ->
         when (state) {
@@ -684,12 +712,14 @@ fun AttentionList(
             )
             .testTag("attention_list"),
         contentPadding = PaddingValues(
-            start = 16.dp,
-            top = 8.dp,
-            end = 16.dp,
-            bottom = 8.dp + fabClearance,
+            start = if (condensed) 20.dp else 16.dp,
+            top = if (condensed) 12.dp else 8.dp,
+            end = if (condensed) 20.dp else 16.dp,
+            bottom = (if (condensed) 12.dp else 8.dp) + fabClearance,
         ),
-        verticalArrangement = Arrangement.spacedBy(if (condensed) 8.dp else 12.dp),
+        verticalArrangement = Arrangement.spacedBy(
+            if (condensed) RelayDimens.dualPaneListSpacing else RelayDimens.compactListSpacing,
+        ),
     ) {
         state.sections.forEach { section ->
             if (section.items.isEmpty()) return@forEach
@@ -784,7 +814,11 @@ fun AttentionItemRow(
     }
     var decisionDraft by rememberSaveable(item.id) { mutableStateOf("") }
     val agentName = AttentionPresentation.returnAgentName(item, agentsById)
-    val verticalPad = if (condensed) 8.dp else 12.dp
+    val verticalPad = if (condensed) {
+        RelayDimens.dualPaneRowVerticalPadding
+    } else {
+        RelayDimens.compactRowVerticalPadding
+    }
     val trailingRelative = RelativeTimeFormat.formatTrailingRelative(
         iso = item.updatedAt,
         nowMillis = nowMillis,
@@ -821,8 +855,8 @@ fun AttentionItemRow(
         Column(
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(start = if (isNeedsYou) RelayDimens.needsYouRuleWidth + 10.dp else 12.dp)
-                .padding(end = 12.dp, top = verticalPad, bottom = verticalPad),
+                .padding(start = if (isNeedsYou) RelayDimens.needsYouRuleWidth + 12.dp else 14.dp)
+                .padding(end = 14.dp, top = verticalPad, bottom = verticalPad),
         ) {
             // Header carries row testTag + click; inline controls stay outside clickable.
             Column(
@@ -835,15 +869,16 @@ fun AttentionItemRow(
                     verticalAlignment = Alignment.Top,
                 ) {
                     StatusGlyph(status = item.status)
-                    Spacer(modifier = Modifier.width(8.dp))
+                    Spacer(modifier = Modifier.width(10.dp))
                     Column(modifier = Modifier.weight(1f)) {
                         if (condensed) {
+                            // Penpot 840: title wraps to 2 lines; only blocked reason is 1-line.
                             Text(
                                 text = item.title,
                                 style = MaterialTheme.typography.titleMedium,
                                 color = colors.ink,
                                 fontWeight = FontWeight.SemiBold,
-                                maxLines = 1,
+                                maxLines = 2,
                                 overflow = TextOverflow.Ellipsis,
                             )
                         } else {
@@ -872,7 +907,7 @@ fun AttentionItemRow(
                                 )
                             }
                         }
-                        Spacer(modifier = Modifier.height(if (condensed) 2.dp else 4.dp))
+                        Spacer(modifier = Modifier.height(4.dp))
                         Text(
                             text = AttentionPresentation.metaLine(
                                 item = item,
@@ -882,7 +917,8 @@ fun AttentionItemRow(
                             ),
                             style = MaterialTheme.typography.bodySmall,
                             color = if (item.status == Status.Blocked) colors.warn else colors.inkMuted,
-                            maxLines = if (isNeedsYou && !condensed) 2 else 1,
+                            // Only blocked reason is single-line; needs_you meta may wrap.
+                            maxLines = if (item.status == Status.Blocked) 1 else 2,
                             overflow = TextOverflow.Ellipsis,
                             modifier = Modifier.testTag(
                                 if (item.status == Status.Blocked) "blocked_reason" else "row_meta",

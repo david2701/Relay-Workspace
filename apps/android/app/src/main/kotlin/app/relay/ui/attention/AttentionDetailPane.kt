@@ -49,6 +49,7 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import app.relay.R
@@ -216,8 +217,11 @@ private fun DetailBody(
             .fillMaxSize()
             .padding(contentPadding)
             .verticalScroll(rememberScrollState())
-            .padding(horizontal = 20.dp, vertical = 8.dp),
-        verticalArrangement = Arrangement.spacedBy(16.dp),
+            .padding(
+                horizontal = RelayDimens.detailHorizontalPadding,
+                vertical = RelayDimens.detailVerticalPadding,
+            ),
+        verticalArrangement = Arrangement.spacedBy(RelayDimens.detailSectionSpacing),
     ) {
         StatusBadge(status = item.status)
         Text(
@@ -294,9 +298,9 @@ private fun NeedsYouActionCard(
             .clip(shape)
             .background(colors.accentTint)
             .border(RelayDimens.needsYouRuleWidth, colors.attentionRule, shape)
-            .padding(16.dp)
+            .padding(RelayDimens.decisionCardPadding)
             .testTag("detail_needs_you_card"),
-        verticalArrangement = Arrangement.spacedBy(12.dp),
+        verticalArrangement = Arrangement.spacedBy(14.dp),
     ) {
         Row(
             modifier = Modifier.fillMaxWidth(),
@@ -323,7 +327,7 @@ private fun NeedsYouActionCard(
         if (!body.isNullOrBlank()) {
             Text(
                 text = body,
-                style = MaterialTheme.typography.bodyMedium,
+                style = MaterialTheme.typography.bodyLarge,
                 color = colors.ink,
             )
         }
@@ -395,8 +399,8 @@ private fun HandoffSection(
                 .fillMaxWidth()
                 .clip(RoundedCornerShape(12.dp))
                 .background(colors.sunken)
-                .padding(14.dp),
-            verticalArrangement = Arrangement.spacedBy(6.dp),
+                .padding(16.dp),
+            verticalArrangement = Arrangement.spacedBy(8.dp),
         ) {
             Row(
                 modifier = Modifier.fillMaxWidth(),
@@ -420,12 +424,15 @@ private fun HandoffSection(
                     modifier = Modifier.weight(1f),
                 )
             }
+            // Penpot: status · due sits on its own line, trailing (end) aligned.
             Text(
                 text = model.detailLine,
                 style = MaterialTheme.typography.bodySmall,
                 color = colors.inkMuted,
                 maxLines = 1,
                 overflow = TextOverflow.Ellipsis,
+                textAlign = TextAlign.End,
+                modifier = Modifier.fillMaxWidth(),
             )
         }
     }
