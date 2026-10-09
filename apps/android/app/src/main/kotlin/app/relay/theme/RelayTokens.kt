@@ -36,6 +36,12 @@ data class RelayColorTokens(
     val selectedRowFill: Color get() = raised
     val needsYouRowFill: Color get() = accentTint
 
+    /**
+     * Outline for the Atención rail Badge (`--hl` fill). Light needs ink so the yellow
+     * pill reads against paper (≥3:1 non-text); dark uses paper to separate from OLED.
+     */
+    val hlBadgeOutline: Color get() = ink
+
     companion object {
         val Light = RelayColorTokens(
             paper = Color(0xFFFBFAF7),
@@ -96,6 +102,8 @@ object RelayDimens {
     val needsYouRuleWidth: Dp = 2.dp
     val selectedRowBorderWidth: Dp = 1.dp
     val cardRadius: Dp = 12.dp
+    /** Outline on `--hl` Badge so yellow fill meets ≥3:1 non-text against light paper. */
+    val badgeOutlineWidth: Dp = 1.5.dp
 
     /**
      * Extended FAB (~56 dp) + Scaffold FAB edge margin (16 dp).
