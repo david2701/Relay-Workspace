@@ -165,27 +165,34 @@ test.describe("SSE realtime (PR 1c)", () => {
       async function assertCompactState(
         state: "connected" | "reconnecting" | "offline",
       ): Promise<void> {
-        await expect(seal).toHaveAttribute("data-sync-state", state, {
-          timeout: 15_000,
-        });
+        const expected = labelRe[state];
+        // Atomic poll: state + aria + title + paint metrics in one evaluate so
+        // we never pass on a boot-flash reconnecting with a stale connected label.
+        await expect
+          .poll(
+            async () => {
+              const snap = await seal.evaluate((el: HTMLElement) => ({
+                state: el.getAttribute("data-sync-state"),
+                aria: el.getAttribute("aria-label") ?? "",
+                title: el.getAttribute("title") ?? "",
+                scrollWidth: el.scrollWidth,
+                clientWidth: el.clientWidth,
+                painted: (el.innerText ?? "").trim(),
+              }));
+              if (snap.state !== state) return `state=${snap.state}`;
+              if (!expected.test(snap.aria)) return `aria=${snap.aria}`;
+              if (!expected.test(snap.title)) return `title=${snap.title}`;
+              if (snap.aria !== snap.title) return "aria/title mismatch";
+              if (snap.painted !== "") return `painted=${snap.painted}`;
+              if (snap.scrollWidth > snap.clientWidth + 1) {
+                return `clipped sw=${snap.scrollWidth} cw=${snap.clientWidth}`;
+              }
+              return "ok";
+            },
+            { timeout: 15_000 },
+          )
+          .toBe("ok");
         await expect(label).toBeHidden();
-        const aria = (await seal.getAttribute("aria-label")) ?? "";
-        const title = (await seal.getAttribute("title")) ?? "";
-        expect(aria, `${locale}/${state} aria-label`).toMatch(labelRe[state]);
-        expect(title, `${locale}/${state} title`).toMatch(labelRe[state]);
-        expect(aria).toBe(title);
-        const metrics = await seal.evaluate((el: HTMLElement) => ({
-          scrollWidth: el.scrollWidth,
-          clientWidth: el.clientWidth,
-          // innerText ignores display:none .sync-seal-label
-          painted: (el.innerText ?? "").trim(),
-        }));
-        expect(
-          metrics.scrollWidth,
-          `${locale}/${state} clipped: sw=${metrics.scrollWidth} cw=${metrics.clientWidth}`,
-        ).toBeLessThanOrEqual(metrics.clientWidth + 1);
-        // Collapsed rail paints the dot only — never mid-word fragments like «Up to».
-        expect(metrics.painted).toBe("");
       }
 
       await assertCompactState("connected");
