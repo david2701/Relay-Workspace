@@ -81,41 +81,45 @@ async function putSettings(
 }
 
 async function todayDateOnlyIso(page: Page, timeZone: string): Promise<string> {
-  return page.evaluate(async (tz) => {
-    const r = await fetch(`${API}/api/settings`);
-    void r;
-    const fmt = new Intl.DateTimeFormat("en-GB", {
-      timeZone: tz,
-      year: "numeric",
-      month: "2-digit",
-      day: "2-digit",
-      hour: "2-digit",
-      minute: "2-digit",
-      hourCycle: "h23",
-    });
-    const now = new Date();
-    const parts = fmt.formatToParts(now);
-    const y = Number(parts.find((p) => p.type === "year")?.value);
-    const m = Number(parts.find((p) => p.type === "month")?.value);
-    const d = Number(parts.find((p) => p.type === "day")?.value);
-    let lo = Date.UTC(y, m - 1, d - 1, 0, 0, 0);
-    let hi = Date.UTC(y, m - 1, d + 2, 0, 0, 0);
-    for (let i = 0; i < 48; i++) {
-      const mid = Math.floor((lo + hi) / 2);
-      const p = fmt.formatToParts(new Date(mid));
-      const py = Number(p.find((x) => x.type === "year")?.value);
-      const pm = Number(p.find((x) => x.type === "month")?.value);
-      const pd = Number(p.find((x) => x.type === "day")?.value);
-      const ph = Number(p.find((x) => x.type === "hour")?.value);
-      const pmin = Number(p.find((x) => x.type === "minute")?.value);
-      const key = ((py * 100 + pm) * 100 + pd) * 10000 + ph * 100 + pmin;
-      const target = ((y * 100 + m) * 100 + d) * 10000 + 23 * 100 + 59;
-      if (key === target) return new Date(mid).toISOString();
-      if (key < target) lo = mid + 1;
-      else hi = mid - 1;
-    }
-    return new Date(lo).toISOString();
-  }, timeZone);
+  // Pass API into evaluate — free variables are not closed over in the browser.
+  return page.evaluate(
+    async ({ tz, api }) => {
+      const r = await fetch(`${api}/api/settings`);
+      void r;
+      const fmt = new Intl.DateTimeFormat("en-GB", {
+        timeZone: tz,
+        year: "numeric",
+        month: "2-digit",
+        day: "2-digit",
+        hour: "2-digit",
+        minute: "2-digit",
+        hourCycle: "h23",
+      });
+      const now = new Date();
+      const parts = fmt.formatToParts(now);
+      const y = Number(parts.find((p) => p.type === "year")?.value);
+      const m = Number(parts.find((p) => p.type === "month")?.value);
+      const d = Number(parts.find((p) => p.type === "day")?.value);
+      let lo = Date.UTC(y, m - 1, d - 1, 0, 0, 0);
+      let hi = Date.UTC(y, m - 1, d + 2, 0, 0, 0);
+      for (let i = 0; i < 48; i++) {
+        const mid = Math.floor((lo + hi) / 2);
+        const p = fmt.formatToParts(new Date(mid));
+        const py = Number(p.find((x) => x.type === "year")?.value);
+        const pm = Number(p.find((x) => x.type === "month")?.value);
+        const pd = Number(p.find((x) => x.type === "day")?.value);
+        const ph = Number(p.find((x) => x.type === "hour")?.value);
+        const pmin = Number(p.find((x) => x.type === "minute")?.value);
+        const key = ((py * 100 + pm) * 100 + pd) * 10000 + ph * 100 + pmin;
+        const target = ((y * 100 + m) * 100 + d) * 10000 + 23 * 100 + 59;
+        if (key === target) return new Date(mid).toISOString();
+        if (key < target) lo = mid + 1;
+        else hi = mid - 1;
+      }
+      return new Date(lo).toISOString();
+    },
+    { tz: timeZone, api: API },
+  );
 }
 
 async function mcpItemsList(request: APIRequestContext): Promise<string> {
