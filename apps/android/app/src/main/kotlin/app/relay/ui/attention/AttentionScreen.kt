@@ -901,7 +901,9 @@ fun AttentionItemRow(
                         Spacer(modifier = Modifier.width(8.dp))
                         Column(
                             horizontalAlignment = Alignment.End,
-                            modifier = Modifier.testTag("row_trailing"),
+                            modifier = Modifier
+                                .widthIn(min = 36.dp)
+                                .testTag("row_trailing"),
                         ) {
                             ActorMark(
                                 mark = AttentionPresentation.witnessMark(item, agentsById),
@@ -911,6 +913,9 @@ fun AttentionItemRow(
                                 text = trailingRelative,
                                 style = MaterialTheme.typography.labelSmall,
                                 color = colors.inkMuted,
+                                maxLines = 1,
+                                softWrap = false,
+                                overflow = TextOverflow.Visible,
                                 modifier = Modifier.testTag("row_relative"),
                             )
                         }
