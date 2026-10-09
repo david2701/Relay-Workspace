@@ -33,7 +33,8 @@ import org.robolectric.annotation.GraphicsMode
 
 /**
  * B1: scrolled to the end, the last row must not intersect the FAB
- * (list bottom content padding = FAB height + margin atop Scaffold insets).
+ * (list bottom content padding = FAB height + margin atop Scaffold insets on compact).
+ * On rail widths the FAB lives in the rail header and must still not overlap the list.
  */
 @RunWith(ParameterizedRobolectricTestRunner::class)
 @GraphicsMode(GraphicsMode.Mode.NATIVE)
@@ -80,10 +81,12 @@ class AttentionFabOverlapTest(
             "last row $lastRow must not intersect FAB $fab at ${widthDp}x${heightDp}dp",
             fab.overlaps(lastRow),
         )
-        assertTrue(
-            "last row bottom (${lastRow.bottom}) should sit above FAB top (${fab.top})",
-            lastRow.bottom <= fab.top + 0.5f,
-        )
+        if (widthDp < 600) {
+            assertTrue(
+                "last row bottom (${lastRow.bottom}) should sit above FAB top (${fab.top})",
+                lastRow.bottom <= fab.top + 0.5f,
+            )
+        }
     }
 
     companion object {
@@ -91,7 +94,7 @@ class AttentionFabOverlapTest(
         @ParameterizedRobolectricTestRunner.Parameters(name = "{0}x{1}dp")
         fun sizes(): List<Array<Int>> = listOf(
             arrayOf(360, 640),
-            arrayOf(411, 891),
+            arrayOf(600, 900),
             arrayOf(840, 1200),
         )
 

@@ -1,5 +1,6 @@
 package app.relay.ui.attention
 
+import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -18,6 +19,7 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyListState
 import androidx.compose.foundation.lazy.items
@@ -26,28 +28,45 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.outlined.Notes
+import androidx.compose.material.icons.filled.Inbox
 import androidx.compose.material.icons.outlined.Add
 import androidx.compose.material.icons.outlined.CloudDone
 import androidx.compose.material.icons.outlined.FilterList
 import androidx.compose.material.icons.outlined.Inbox
 import androidx.compose.material.icons.outlined.People
 import androidx.compose.material.icons.outlined.Search
+import androidx.compose.material3.Badge
+import androidx.compose.material3.BadgedBox
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.ExtendedFloatingActionButton
+import androidx.compose.material3.FloatingActionButton
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.NavigationBar
-import androidx.compose.material3.NavigationBarItem
-import androidx.compose.material3.NavigationBarItemDefaults
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.TopAppBarDefaults
+import androidx.compose.material3.adaptive.ExperimentalMaterial3AdaptiveApi
+import androidx.compose.material3.adaptive.currentWindowAdaptiveInfo
+import androidx.compose.material3.adaptive.layout.AnimatedPane
+import androidx.compose.material3.adaptive.layout.ListDetailPaneScaffoldRole
+import androidx.compose.material3.adaptive.layout.PaneAdaptedValue
+import androidx.compose.material3.adaptive.navigation.NavigableListDetailPaneScaffold
+import androidx.compose.material3.adaptive.navigation.rememberListDetailPaneScaffoldNavigator
+import androidx.compose.material3.adaptive.navigationsuite.NavigationSuiteDefaults
+import androidx.compose.material3.adaptive.navigationsuite.NavigationSuiteItem
+import androidx.compose.material3.adaptive.navigationsuite.NavigationSuiteScaffold
+import androidx.compose.material3.adaptive.navigationsuite.NavigationSuiteType
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.saveable.rememberSaveable
+import androidx.compose.runtime.setValue
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -65,6 +84,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import androidx.window.core.layout.WindowSizeClass
 import app.relay.R
 import app.relay.data.AttentionSectionKey
 import app.relay.data.Status
@@ -72,6 +92,13 @@ import app.relay.data.WorkItem
 import app.relay.theme.RelayDimens
 import app.relay.theme.RelayThemeTokens
 import app.relay.theme.selectedRowShadowLayers
+import kotlinx.coroutines.launch
+
+private enum class RelayDestination {
+    Attention,
+    Team,
+    Notes,
+}
 
 @Composable
 fun AttentionRoute(
@@ -85,7 +112,13 @@ fun AttentionRoute(
     )
 }
 
-@OptIn(ExperimentalMaterial3Api::class)
+/**
+ * Adaptive Atención shell:
+ * - Compact (&lt;600 dp): bottom bar + extended FAB; list/detail single-pane
+ * - Medium (600–839): navigation rail + FAB in rail header; single pane, list max ~560 dp
+ * - Expanded (≥840): rail + list-detail side by side (list ~360 dp)
+ */
+@OptIn(ExperimentalMaterial3Api::class, ExperimentalMaterial3AdaptiveApi::class)
 @Composable
 fun AttentionScreen(
     state: AttentionUiState,
@@ -95,10 +128,270 @@ fun AttentionScreen(
     listState: LazyListState = rememberLazyListState(),
 ) {
     val colors = RelayThemeTokens.colors
-    Scaffold(
+    val isDark = RelayThemeTokens.isDark
+    val adaptiveInfo = currentWindowAdaptiveInfo()
+    val navSuiteType = relayNavigationSuiteType(adaptiveInfo.windowSizeClass)
+    val navigator = rememberListDetailPaneScaffoldNavigator<String>()
+    val scope = rememberCoroutineScope()
+    var currentDestination by rememberSaveable { mutableStateOf(RelayDestination.Attention) }
+    val needsYouCount = when (state) {
+        is AttentionUiState.Ready -> state.inbox.counters.needsYou
+        else -> 0
+    }
+    val selectedId = (state as? AttentionUiState.Ready)?.selectedItemId
+    val isListDetailVisible =
+        navigator.scaffoldValue[ListDetailPaneScaffoldRole.List] == PaneAdaptedValue.Expanded &&
+            navigator.scaffoldValue[ListDetailPaneScaffoldRole.Detail] == PaneAdaptedValue.Expanded
+    LaunchedEffect(selectedId) {
+        if (selectedId != null &&
+            navigator.currentDestination?.contentKey != selectedId
+        ) {
+            navigator.navigateTo(ListDetailPaneScaffoldRole.Detail, selectedId)
+        }
+    }
+    val canNavigateBack = navigator.canNavigateBack()
+    BackHandler(enabled = canNavigateBack) {
+        scope.launch {
+            navigator.navigateBack()
+            if (!isListDetailVisible) {
+                onSelectItem(null)
+            }
+        }
+    }
+    NavigationSuiteScaffold(
         modifier = modifier
             .fillMaxSize()
-            .testTag("attention_screen"),
+            .testTag("attention_screen")
+            .then(modifierForNavType(navSuiteType)),
+        navigationSuiteType = navSuiteType,
+        containerColor = colors.paper,
+        contentColor = colors.ink,
+        navigationSuiteColors = NavigationSuiteDefaults.colors(
+            navigationBarContainerColor = colors.sunken,
+            navigationRailContainerColor = colors.sunken,
+            navigationDrawerContainerColor = colors.sunken,
+        ),
+        primaryActionContent = {
+            AttentionPrimaryFab(isExtended = navSuiteType == NavigationSuiteType.NavigationBar)
+        },
+        navigationItems = {
+            val itemColors = attentionNavItemColors()
+            NavigationSuiteItem(
+                selected = currentDestination == RelayDestination.Attention,
+                onClick = { currentDestination = RelayDestination.Attention },
+                icon = {
+                    AttentionNavIcon(
+                        selected = currentDestination == RelayDestination.Attention,
+                        needsYouCount = needsYouCount,
+                        isDark = isDark,
+                    )
+                },
+                label = { Text(stringResource(R.string.nav_attention)) },
+                colors = itemColors,
+                modifier = Modifier.testTag("nav_item_attention"),
+            )
+            NavigationSuiteItem(
+                selected = currentDestination == RelayDestination.Team,
+                onClick = { currentDestination = RelayDestination.Team },
+                icon = { Icon(Icons.Outlined.People, contentDescription = null) },
+                label = { Text(stringResource(R.string.nav_team)) },
+                modifier = Modifier.testTag("nav_item_team"),
+            )
+            NavigationSuiteItem(
+                selected = currentDestination == RelayDestination.Notes,
+                onClick = { currentDestination = RelayDestination.Notes },
+                icon = { Icon(Icons.AutoMirrored.Outlined.Notes, contentDescription = null) },
+                label = { Text(stringResource(R.string.nav_notes)) },
+                modifier = Modifier.testTag("nav_item_notes"),
+            )
+        },
+    ) {
+        when (currentDestination) {
+            RelayDestination.Attention -> {
+                NavigableListDetailPaneScaffold(
+                    navigator = navigator,
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .testTag("attention_list_detail"),
+                    listPane = {
+                        AnimatedPane {
+                            AttentionListPane(
+                                state = state,
+                                onRetry = onRetry,
+                                listState = listState,
+                                isDualPane = isListDetailVisible,
+                                fabClearance = if (navSuiteType == NavigationSuiteType.NavigationBar) {
+                                    RelayDimens.fabClearance
+                                } else {
+                                    16.dp
+                                },
+                                constrainListWidth = navSuiteType != NavigationSuiteType.NavigationBar &&
+                                    !isListDetailVisible,
+                                onOpenItem = { itemId ->
+                                    onSelectItem(itemId)
+                                    scope.launch {
+                                        navigator.navigateTo(
+                                            ListDetailPaneScaffoldRole.Detail,
+                                            itemId,
+                                        )
+                                    }
+                                },
+                            )
+                        }
+                    },
+                    detailPane = {
+                        AnimatedPane {
+                            val detailId = navigator.currentDestination?.contentKey
+                                ?: selectedId
+                            val detailItem = (state as? AttentionUiState.Ready)?.let { ready ->
+                                ready.findItem(detailId)
+                            }
+                            AttentionDetailPane(
+                                item = detailItem,
+                                showBack = !isListDetailVisible && detailItem != null,
+                                onBack = {
+                                    scope.launch {
+                                        navigator.navigateBack()
+                                        onSelectItem(null)
+                                    }
+                                },
+                            )
+                        }
+                    },
+                )
+            }
+            RelayDestination.Team -> DestinationPlaceholder(label = stringResource(R.string.nav_team))
+            RelayDestination.Notes -> DestinationPlaceholder(label = stringResource(R.string.nav_notes))
+        }
+    }
+}
+
+internal fun relayNavigationSuiteType(sizeClass: WindowSizeClass): NavigationSuiteType {
+    return when {
+        sizeClass.isWidthAtLeastBreakpoint(WindowSizeClass.WIDTH_DP_EXPANDED_LOWER_BOUND) ->
+            NavigationSuiteType.NavigationRail
+        sizeClass.isWidthAtLeastBreakpoint(WindowSizeClass.WIDTH_DP_MEDIUM_LOWER_BOUND) ->
+            NavigationSuiteType.NavigationRail
+        else -> NavigationSuiteType.NavigationBar
+    }
+}
+
+private fun modifierForNavType(type: NavigationSuiteType): Modifier {
+    val tag = when (type) {
+        NavigationSuiteType.NavigationBar -> "nav_suite_bar"
+        NavigationSuiteType.NavigationRail -> "nav_suite_rail"
+        NavigationSuiteType.NavigationDrawer -> "nav_suite_drawer"
+        else -> "nav_suite_other"
+    }
+    return Modifier.testTag(tag)
+}
+
+@Composable
+private fun attentionNavItemColors(): androidx.compose.material3.NavigationItemColors {
+    val colors = RelayThemeTokens.colors
+    return androidx.compose.material3.ShortNavigationBarItemDefaults.colors(
+        selectedIconColor = colors.onHl,
+        selectedTextColor = colors.accentInk,
+        selectedIndicatorColor = colors.hl,
+        unselectedIconColor = colors.inkMuted,
+        unselectedTextColor = colors.inkMuted,
+    )
+}
+
+@Composable
+private fun AttentionNavIcon(
+    selected: Boolean,
+    needsYouCount: Int,
+    isDark: Boolean,
+) {
+    val colors = RelayThemeTokens.colors
+    val icon = if (selected) Icons.Filled.Inbox else Icons.Outlined.Inbox
+    // Dark selected: filled glyph + on-hl ink over hl pill (high contrast on OLED).
+    val tint = when {
+        selected -> colors.onHl
+        isDark -> colors.ink2
+        else -> colors.inkMuted
+    }
+    val badgeDesc = stringResource(R.string.cd_nav_attention_badge, needsYouCount)
+    BadgedBox(
+        badge = {
+            if (needsYouCount > 0) {
+                Badge(
+                    containerColor = colors.hl,
+                    contentColor = colors.onHl,
+                    modifier = Modifier.testTag("nav_attention_badge"),
+                ) {
+                    Text(
+                        text = needsYouCount.toString(),
+                        modifier = Modifier.semantics { contentDescription = badgeDesc },
+                    )
+                }
+            }
+        },
+    ) {
+        Icon(
+            imageVector = icon,
+            contentDescription = null,
+            tint = tint,
+            modifier = Modifier.testTag(
+                if (selected) "nav_attention_icon_selected" else "nav_attention_icon",
+            ),
+        )
+    }
+}
+
+@Composable
+private fun AttentionPrimaryFab(isExtended: Boolean) {
+    val colors = RelayThemeTokens.colors
+    if (isExtended) {
+        ExtendedFloatingActionButton(
+            onClick = {},
+            modifier = Modifier.testTag("attention_fab"),
+            icon = {
+                Icon(Icons.Outlined.Add, contentDescription = null, tint = colors.onHl)
+            },
+            text = {
+                Text(
+                    text = stringResource(R.string.fab_new_item),
+                    color = colors.onHl,
+                    fontWeight = FontWeight.SemiBold,
+                )
+            },
+            containerColor = colors.hl,
+            contentColor = colors.onHl,
+            shape = RoundedCornerShape(16.dp),
+        )
+    } else {
+        FloatingActionButton(
+            onClick = {},
+            modifier = Modifier.testTag("attention_fab"),
+            containerColor = colors.hl,
+            contentColor = colors.onHl,
+            shape = RoundedCornerShape(16.dp),
+        ) {
+            Icon(
+                Icons.Outlined.Add,
+                contentDescription = stringResource(R.string.fab_new_item),
+                tint = colors.onHl,
+            )
+        }
+    }
+}
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+private fun AttentionListPane(
+    state: AttentionUiState,
+    onRetry: () -> Unit,
+    listState: LazyListState,
+    isDualPane: Boolean,
+    fabClearance: androidx.compose.ui.unit.Dp,
+    constrainListWidth: Boolean,
+    onOpenItem: (String) -> Unit,
+) {
+    val colors = RelayThemeTokens.colors
+    Scaffold(
+        modifier = Modifier.fillMaxSize(),
         containerColor = colors.paper,
         topBar = {
             TopAppBar(
@@ -162,37 +455,6 @@ fun AttentionScreen(
                 ),
             )
         },
-        floatingActionButton = {
-            ExtendedFloatingActionButton(
-                onClick = {},
-                modifier = Modifier.testTag("attention_fab"),
-                icon = {
-                    Icon(
-                        Icons.Outlined.Add,
-                        contentDescription = null,
-                        tint = colors.onHl,
-                    )
-                },
-                text = {
-                    Text(
-                        text = stringResource(R.string.fab_new_item),
-                        color = colors.onHl,
-                        fontWeight = FontWeight.SemiBold,
-                    )
-                },
-                containerColor = colors.hl,
-                contentColor = colors.onHl,
-                shape = RoundedCornerShape(16.dp),
-            )
-        },
-        bottomBar = {
-            AttentionBottomBar(
-                needsYouCount = when (state) {
-                    is AttentionUiState.Ready -> state.inbox.counters.needsYou
-                    else -> 0
-                },
-            )
-        },
     ) { innerPadding ->
         when (state) {
             AttentionUiState.Loading -> LoadingBody(innerPadding)
@@ -205,12 +467,48 @@ fun AttentionScreen(
                 if (state.isEmpty) {
                     EmptyBody(padding = innerPadding)
                 } else {
-                    AttentionList(
-                        state = state,
-                        onSelectItem = onSelectItem,
-                        scaffoldPadding = innerPadding,
-                        listState = listState,
-                    )
+                    val listContent: @Composable () -> Unit = {
+                        AttentionList(
+                            state = state,
+                            onSelectItem = onOpenItem,
+                            scaffoldPadding = innerPadding,
+                            listState = listState,
+                            fabClearance = fabClearance,
+                            condensed = isDualPane,
+                        )
+                    }
+                    if (constrainListWidth) {
+                        Box(
+                            modifier = Modifier
+                                .fillMaxSize()
+                                .padding(
+                                    start = innerPadding.calculateStartPadding(LocalLayoutDirection.current),
+                                    end = innerPadding.calculateEndPadding(LocalLayoutDirection.current),
+                                ),
+                            contentAlignment = Alignment.TopStart,
+                        ) {
+                            Box(
+                                modifier = Modifier
+                                    .widthIn(max = 560.dp)
+                                    .fillMaxHeight()
+                                    .testTag("attention_list_max_width"),
+                            ) {
+                                AttentionList(
+                                    state = state,
+                                    onSelectItem = onOpenItem,
+                                    scaffoldPadding = PaddingValues(
+                                        top = innerPadding.calculateTopPadding(),
+                                        bottom = innerPadding.calculateBottomPadding(),
+                                    ),
+                                    listState = listState,
+                                    fabClearance = fabClearance,
+                                    condensed = isDualPane,
+                                )
+                            }
+                        }
+                    } else {
+                        listContent()
+                    }
                 }
             }
         }
@@ -218,47 +516,14 @@ fun AttentionScreen(
 }
 
 @Composable
-private fun AttentionBottomBar(needsYouCount: Int) {
+private fun DestinationPlaceholder(label: String) {
     val colors = RelayThemeTokens.colors
-    NavigationBar(containerColor = colors.sunken) {
-        NavigationBarItem(
-            selected = true,
-            onClick = {},
-            icon = {
-                Icon(Icons.Outlined.Inbox, contentDescription = null)
-            },
-            label = { Text(stringResource(R.string.nav_attention)) },
-            colors = NavigationBarItemDefaults.colors(
-                indicatorColor = colors.hl,
-                selectedIconColor = colors.onHl,
-                selectedTextColor = colors.accentInk,
-                unselectedIconColor = colors.inkMuted,
-                unselectedTextColor = colors.inkMuted,
-            ),
-        )
-        NavigationBarItem(
-            selected = false,
-            onClick = {},
-            icon = { Icon(Icons.Outlined.People, contentDescription = null) },
-            label = { Text(stringResource(R.string.nav_team)) },
-            colors = NavigationBarItemDefaults.colors(
-                unselectedIconColor = colors.inkMuted,
-                unselectedTextColor = colors.inkMuted,
-            ),
-        )
-        NavigationBarItem(
-            selected = false,
-            onClick = {},
-            icon = { Icon(Icons.AutoMirrored.Outlined.Notes, contentDescription = null) },
-            label = { Text(stringResource(R.string.nav_notes)) },
-            colors = NavigationBarItemDefaults.colors(
-                unselectedIconColor = colors.inkMuted,
-                unselectedTextColor = colors.inkMuted,
-            ),
-        )
+    Box(
+        modifier = Modifier.fillMaxSize(),
+        contentAlignment = Alignment.Center,
+    ) {
+        Text(text = label, color = colors.inkMuted)
     }
-    @Suppress("UNUSED_VARIABLE")
-    val ignored = needsYouCount
 }
 
 @Composable
@@ -344,15 +609,17 @@ private fun EmptyBody(padding: PaddingValues) {
 
 /**
  * Scaffold [scaffoldPadding] already includes top bar + bottom nav / gesture insets.
- * Extra [RelayDimens.fabClearance] is added only to LazyColumn contentPadding.bottom
+ * Extra [fabClearance] is added only to LazyColumn contentPadding.bottom
  * so the last row clears the FAB without double-counting system insets.
  */
 @Composable
 fun AttentionList(
     state: AttentionUiState.Ready,
-    onSelectItem: (String?) -> Unit,
+    onSelectItem: (String) -> Unit,
     scaffoldPadding: PaddingValues,
     listState: LazyListState = rememberLazyListState(),
+    fabClearance: androidx.compose.ui.unit.Dp = RelayDimens.fabClearance,
+    condensed: Boolean = false,
 ) {
     val colors = RelayThemeTokens.colors
     val layoutDirection = LocalLayoutDirection.current
@@ -371,9 +638,9 @@ fun AttentionList(
             start = 16.dp,
             top = 8.dp,
             end = 16.dp,
-            bottom = 8.dp + RelayDimens.fabClearance,
+            bottom = 8.dp + fabClearance,
         ),
-        verticalArrangement = Arrangement.spacedBy(12.dp),
+        verticalArrangement = Arrangement.spacedBy(if (condensed) 8.dp else 12.dp),
     ) {
         state.sections.forEach { section ->
             if (section.items.isEmpty()) return@forEach
@@ -389,11 +656,8 @@ fun AttentionList(
                 AttentionItemRow(
                     item = item,
                     isSelected = state.selectedItemId == item.id,
-                    onClick = {
-                        onSelectItem(
-                            if (state.selectedItemId == item.id) null else item.id,
-                        )
-                    },
+                    onClick = { onSelectItem(item.id) },
+                    condensed = condensed,
                     modifier = Modifier.testTag("row_${item.id}"),
                 )
             }
@@ -414,21 +678,25 @@ fun AttentionItemRow(
     isSelected: Boolean,
     onClick: () -> Unit,
     modifier: Modifier = Modifier,
+    condensed: Boolean = false,
 ) {
     val colors = RelayThemeTokens.colors
     val isDark = RelayThemeTokens.isDark
     val isNeedsYou = item.status == Status.NeedsYou
     val shape = RoundedCornerShape(RelayDimens.cardRadius)
     val background = when {
-        isNeedsYou -> colors.needsYouRowFill
+        isNeedsYou && !condensed -> colors.needsYouRowFill
+        isNeedsYou && condensed && isSelected -> colors.needsYouRowFill
         isSelected -> colors.selectedRowFill
         else -> colors.raised
     }
     val borderColor = when {
+        isNeedsYou && condensed && isSelected -> colors.attentionRule
         isSelected && !isNeedsYou -> colors.control
         else -> colors.line
     }
     val borderWidth = when {
+        isNeedsYou && condensed && isSelected -> RelayDimens.needsYouRuleWidth
         isSelected && !isNeedsYou -> RelayDimens.selectedRowBorderWidth
         else -> 1.dp
     }
@@ -504,7 +772,7 @@ fun AttentionItemRow(
                         style = MaterialTheme.typography.titleMedium,
                         color = colors.ink,
                         fontWeight = FontWeight.SemiBold,
-                        maxLines = 2,
+                        maxLines = if (condensed) 1 else 2,
                         overflow = TextOverflow.Ellipsis,
                         modifier = Modifier.weight(1f),
                     )
@@ -513,14 +781,18 @@ fun AttentionItemRow(
                 Text(
                     text = metaLine(item),
                     style = MaterialTheme.typography.bodySmall,
-                    color = colors.inkMuted,
-                    maxLines = 2,
+                    color = if (item.status == Status.Blocked) colors.warn else colors.inkMuted,
+                    maxLines = 1,
                     overflow = TextOverflow.Ellipsis,
+                    modifier = Modifier.testTag(
+                        if (item.status == Status.Blocked) "blocked_reason" else "row_meta",
+                    ),
                 )
                 // Body: needs_you reason or goal. Blocked reason is only in metaLine (B7).
-                val body = when (item.status) {
-                    Status.NeedsYou -> item.needsYouReason
-                    Status.Blocked -> item.goal
+                val body = when {
+                    condensed -> null
+                    item.status == Status.NeedsYou -> item.needsYouReason
+                    item.status == Status.Blocked -> item.goal
                     else -> item.goal
                 }
                 if (!body.isNullOrBlank()) {
@@ -552,7 +824,7 @@ private fun DrawScope.drawNeedsYouRule(color: Color, widthPx: Float) {
 }
 
 @Composable
-private fun StatusGlyph(status: Status) {
+internal fun StatusGlyph(status: Status) {
     val colors = RelayThemeTokens.colors
     val tint = when (status) {
         Status.NeedsYou -> colors.accent
@@ -583,11 +855,19 @@ private fun StatusGlyph(status: Status) {
     }
 }
 
-private fun metaLine(item: WorkItem): String {
+internal fun metaLine(item: WorkItem): String {
     val reason = when (item.status) {
         Status.NeedsYou -> "Necesita tu decisión"
         Status.Blocked -> item.blockedReason?.let { "Atascado: $it" }
         else -> item.reminderIntent
     }
     return reason ?: item.status.name.lowercase()
+}
+
+private fun AttentionUiState.Ready.findItem(itemId: String?): WorkItem? {
+    if (itemId == null) return null
+    sections.forEach { section ->
+        section.items.firstOrNull { it.id == itemId }?.let { return it }
+    }
+    return inbox.items.firstOrNull { it.id == itemId }
 }

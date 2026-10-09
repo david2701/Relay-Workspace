@@ -31,6 +31,10 @@ androidx-compose-ui-tooling-preview = { module = "androidx.compose.ui:ui-tooling
 androidx-compose-ui-test-junit4 = { module = "androidx.compose.ui:ui-test-junit4" }
 androidx-compose-ui-test-manifest = { module = "androidx.compose.ui:ui-test-manifest" }
 androidx-compose-material3 = { module = "androidx.compose.material3:material3" }
+androidx-m3-adaptive-nav-suite = { module = "androidx.compose.material3:material3-adaptive-navigation-suite" }
+androidx-m3-adaptive = { module = "androidx.compose.material3.adaptive:adaptive" }
+androidx-m3-adaptive-layout = { module = "androidx.compose.material3.adaptive:adaptive-layout" }
+androidx-m3-adaptive-navigation = { module = "androidx.compose.material3.adaptive:adaptive-navigation" }
 androidx-compose-material-icons = { module = "androidx.compose.material:material-icons-extended" }
 okhttp = { module = "com.squareup.okhttp3:okhttp", version.ref = "okhttp" }
 okhttp-mockwebserver = { module = "com.squareup.okhttp3:mockwebserver", version.ref = "okhttp" }

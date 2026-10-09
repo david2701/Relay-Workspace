@@ -12,9 +12,18 @@ Recorded with **Roborazzi** on the JVM (Robolectric `GraphicsMode.NATIVE`). No e
 ```bash
 ./gradlew :app:testDebugUnitTest -Droborazzi.test.record=true \
   --tests 'app.relay.ui.attention.AttentionScreenshotTest'
-# PNGs: app/src/test/screenshots/ (360 / 411 / 840 dp, light & dark)
-# No recordRoborazziDebug task — Roborazzi AGP plugin is not applied.
+# PNGs: app/src/test/screenshots/ (360 / 600 / 840 dp, light & dark;
+# Attention, detail, `_end` with 24 items)
+# Verify: -Droborazzi.test.verify=true -Droborazzi.test.record=false
+# No recordRoborazziDebug / verifyRoborazziDebug tasks — Roborazzi AGP plugin is not applied.
 ```
+
+## Adaptive layout
+
+- `NavigationSuiteScaffold`: bottom bar &lt; 600 dp, rail at 600+ (Penpot expanded keeps rail).
+- `NavigableListDetailPaneScaffold`: single pane on compact/medium; list + detail at ≥ 840 dp.
+- Detail pane: bottom app bar (Asignar / Nota / Aviso). Blocked reason: `maxLines = 1` + ellipsis.
+- FAB clearance: list bottom padding = FAB height + 16 dp on compact (rail FAB does not overlay list).
 
 ## Security
 

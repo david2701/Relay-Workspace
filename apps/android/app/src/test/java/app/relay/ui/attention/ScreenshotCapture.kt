@@ -54,6 +54,29 @@ internal fun <A : androidx.activity.ComponentActivity> AndroidComposeTestRule<Ac
     onNodeWithTag("viewport").captureRoboImage("src/test/screenshots/$fileName.png")
 }
 
+internal fun <A : androidx.activity.ComponentActivity> AndroidComposeTestRule<ActivityScenarioRule<A>, A>.captureAttentionDetail(
+    dark: Boolean,
+    widthDp: Int,
+    heightDp: Int,
+    state: AttentionUiState.Ready,
+    fileName: String,
+) {
+    setViewportQualifiers(widthDp, heightDp)
+    setContent {
+        RelayTheme(darkTheme = dark) {
+            AttentionViewport(widthDp = widthDp, heightDp = heightDp) {
+                AttentionScreen(
+                    state = state,
+                    onRetry = {},
+                    onSelectItem = {},
+                )
+            }
+        }
+    }
+    waitForIdle()
+    onNodeWithTag("viewport").captureRoboImage("src/test/screenshots/$fileName.png")
+}
+
 @Composable
 private fun AttentionViewport(
     widthDp: Int,
