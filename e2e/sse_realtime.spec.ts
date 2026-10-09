@@ -123,4 +123,48 @@ test.describe("SSE realtime (PR 1c)", () => {
     );
     await expect(page.locator(".sync-seal")).toContainText(/up to date|al día|à jour/i);
   });
+
+  test("collapsed rail @768: seal not clipped; aria-label holds full state", async ({
+    page,
+  }) => {
+    await page.setViewportSize({ width: 768, height: 1024 });
+    await completeOnboarding(page);
+    await page.goto("/all");
+    const seal = page.locator(".sync-seal");
+    await expect(seal).toHaveAttribute("data-sync-state", "connected", {
+      timeout: 10_000,
+    });
+    await expect(seal).toHaveAttribute(
+      "aria-label",
+      /up to date|al día|à jour/i,
+    );
+    const connectedMetrics = await seal.evaluate((el: HTMLElement) => ({
+      scrollWidth: el.scrollWidth,
+      clientWidth: el.clientWidth,
+    }));
+    expect(
+      connectedMetrics.scrollWidth,
+      `connected seal clipped: sw=${connectedMetrics.scrollWidth} cw=${connectedMetrics.clientWidth}`,
+    ).toBeLessThanOrEqual(connectedMetrics.clientWidth + 1);
+
+    await page.route("**/api/stream*", (route) => route.abort());
+    await page.reload({ waitUntil: "domcontentloaded" });
+    await expect(seal).toHaveAttribute(
+      "data-sync-state",
+      /reconnecting|offline/,
+      { timeout: 10_000 },
+    );
+    const degradedLabel = await seal.getAttribute("aria-label");
+    expect(degradedLabel ?? "").toMatch(
+      /reconect|reconnect|hors ligne|offline|sin conexión/i,
+    );
+    const degradedMetrics = await seal.evaluate((el: HTMLElement) => ({
+      scrollWidth: el.scrollWidth,
+      clientWidth: el.clientWidth,
+    }));
+    expect(
+      degradedMetrics.scrollWidth,
+      `degraded seal clipped: sw=${degradedMetrics.scrollWidth} cw=${degradedMetrics.clientWidth}`,
+    ).toBeLessThanOrEqual(degradedMetrics.clientWidth + 1);
+  });
 });
