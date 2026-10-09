@@ -11,7 +11,11 @@ import { SUPPORTED_LOCALES } from "../i18n/types";
 import type { RelaySettings } from "../lib/api";
 import { graphemeCount, MAX_NAME_GRAPHEMES } from "../lib/grapheme";
 import { initialFromName } from "../lib/initial_from_name";
-import { browserTimeZone, listTimeZones } from "../lib/time_zones";
+import {
+  browserTimeZone,
+  listTimeZones,
+  sameTimeZone,
+} from "../lib/time_zones";
 import { ThemeSwitch } from "./ThemeSwitch";
 
 type Theme = "light" | "dark" | "system";
@@ -472,7 +476,7 @@ export function SettingsPanel({
                 {t("settings.timezone.now", { time: nowInZone })}
               </p>
               <p className="settings-hint">{t("settings.timezone.dateOnlyNote")}</p>
-              {browserZone !== settings.timezone ? (
+              {!sameTimeZone(browserZone, settings.timezone) ? (
                 <div className="settings-tz-diff">
                   <p>
                     {t("settings.timezone.browserDiffers", {
