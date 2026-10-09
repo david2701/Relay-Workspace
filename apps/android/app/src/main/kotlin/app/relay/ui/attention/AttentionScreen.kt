@@ -458,13 +458,11 @@ fun AttentionItemRow(
             spotColor = layer.color,
         )
     }
-    // Border draws after children; paint the 2 dp rule in an outer drawWithContent so it
-    // sits on top of the 1 dp border and stays fully visible (B2 / §9.5 r8).
+    // clip → drawWithContent → background/border: drawContent paints fill+border+children,
+    // then the 2 dp rule is drawn on top so the 1 dp border cannot cover it (B2 / §9.5 r8).
     Box(
         modifier = rowModifier
             .clip(rowShape)
-            .background(background)
-            .border(borderWidth, borderColor, rowShape)
             .then(
                 if (isNeedsYou) {
                     Modifier.drawWithContent {
@@ -478,6 +476,8 @@ fun AttentionItemRow(
                     Modifier
                 },
             )
+            .background(background)
+            .border(borderWidth, borderColor, rowShape)
             .clickable(onClick = onClick)
             .semantics { contentDescription = semanticsLabel }
             .testTag(

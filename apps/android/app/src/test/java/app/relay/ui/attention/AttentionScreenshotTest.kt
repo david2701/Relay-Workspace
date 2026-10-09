@@ -1,21 +1,12 @@
 package app.relay.ui.attention
 
 import androidx.activity.ComponentActivity
-import androidx.compose.foundation.layout.Box
-import androidx.compose.foundation.layout.requiredSize
 import androidx.compose.foundation.lazy.LazyListState
-import androidx.compose.ui.Modifier
-import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.test.junit4.createAndroidComposeRule
-import androidx.compose.ui.test.onNodeWithTag
-import androidx.compose.ui.unit.dp
 import app.relay.data.AttentionSectionKey
 import app.relay.data.FixtureLoader
 import app.relay.data.RelayApiClient
-import app.relay.theme.RelayTheme
 import com.github.takahirom.roborazzi.RoborazziRule
-import com.github.takahirom.roborazzi.captureRoboImage
-import kotlinx.coroutines.runBlocking
 import org.junit.Rule
 import org.junit.Test
 import org.junit.runner.RunWith
@@ -107,7 +98,6 @@ class AttentionScreenshotTest {
         captureEnd(dark = true, widthDp = 840, heightDp = 1200, fileName = "attention_840_dark_end")
     }
 
-    /** Legacy aliases kept for continuity with earlier PR screenshots. */
     @Test
     fun attentionPhoneLight_needsYou() {
         captureTop(dark = false, widthDp = 360, heightDp = 640, fileName = "attention_phone_light_needs_you")
@@ -135,64 +125,25 @@ class AttentionScreenshotTest {
         return AttentionUiState.Ready(inbox = seedInbox, selectedItemId = blockedId)
     }
 
-    private fun captureTop(
-        dark: Boolean,
-        widthDp: Int,
-        heightDp: Int,
-        fileName: String,
-    ) {
-        composeRule.setContent {
-            RelayTheme(darkTheme = dark) {
-                Box(
-                    modifier = Modifier
-                        .requiredSize(widthDp.dp, heightDp.dp)
-                        .testTag("viewport"),
-                ) {
-                    AttentionScreen(
-                        state = selectedTopState(),
-                        onRetry = {},
-                        onSelectItem = {},
-                    )
-                }
-            }
-        }
-        composeRule.waitForIdle()
-        composeRule.onNodeWithTag("viewport")
-            .captureRoboImage("src/test/screenshots/$fileName.png")
+    private fun captureTop(dark: Boolean, widthDp: Int, heightDp: Int, fileName: String) {
+        composeRule.captureAttention(
+            dark = dark,
+            widthDp = widthDp,
+            heightDp = heightDp,
+            state = selectedTopState(),
+            fileName = fileName,
+        )
     }
 
-    private fun captureEnd(
-        dark: Boolean,
-        widthDp: Int,
-        heightDp: Int,
-        fileName: String,
-    ) {
-        val listState = LazyListState()
-        composeRule.setContent {
-            RelayTheme(darkTheme = dark) {
-                Box(
-                    modifier = Modifier
-                        .requiredSize(widthDp.dp, heightDp.dp)
-                        .testTag("viewport"),
-                ) {
-                    AttentionScreen(
-                        state = selectedTopState(),
-                        onRetry = {},
-                        onSelectItem = {},
-                        listState = listState,
-                    )
-                }
-            }
-        }
-        composeRule.waitForIdle()
-        composeRule.runOnIdle {
-            val lastIndex = listState.layoutInfo.totalItemsCount - 1
-            if (lastIndex >= 0) {
-                runBlocking { listState.scrollToItem(lastIndex) }
-            }
-        }
-        composeRule.waitForIdle()
-        composeRule.onNodeWithTag("viewport")
-            .captureRoboImage("src/test/screenshots/$fileName.png")
+    private fun captureEnd(dark: Boolean, widthDp: Int, heightDp: Int, fileName: String) {
+        composeRule.captureAttention(
+            dark = dark,
+            widthDp = widthDp,
+            heightDp = heightDp,
+            state = selectedTopState(),
+            fileName = fileName,
+            listState = LazyListState(),
+            scrollToEnd = true,
+        )
     }
 }

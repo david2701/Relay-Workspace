@@ -5,7 +5,6 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.requiredSize
 import androidx.compose.foundation.lazy.LazyListState
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.geometry.Rect
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.test.junit4.createAndroidComposeRule
 import androidx.compose.ui.test.onNodeWithTag
@@ -51,6 +50,7 @@ class AttentionFabOverlapTest(
         val inbox = longInbox(itemCount = 24)
         val lastId = inbox.sections!!.last().items.last().id
         val listState = LazyListState()
+        setViewportQualifiers(widthDp, heightDp)
         composeRule.setContent {
             RelayTheme(darkTheme = false) {
                 Box(
@@ -85,9 +85,6 @@ class AttentionFabOverlapTest(
             lastRow.bottom <= fab.top + 0.5f,
         )
     }
-
-    private fun Rect.overlaps(other: Rect): Boolean =
-        left < other.right && right > other.left && top < other.bottom && bottom > other.top
 
     companion object {
         @JvmStatic
