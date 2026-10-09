@@ -15,6 +15,10 @@ MCP (EN): [`docs/mcp/README.en.md`](docs/mcp/README.en.md) · MCP (ES): [`docs/m
 - `packages/core` — domain, zod schemas, SQLite (`node:sqlite` WAL)
 - `apps/server` — Hono HTTP API + MCP (Streamable HTTP + stdio), same store
 - `apps/web` — Vite + React SPA, SSE (`GET /api/stream`) with EventSource resume (no 750 ms poll loop)
+- `apps/apple/RelayKit` — Swift Package (models, API client, design tokens; no SwiftUI yet)
+- `apps/android` — Jetpack Compose + Material 3 native client
+
+`pnpm verify` covers the TypeScript monorepo only. Native builds are separate (see below).
 
 ## Install
 
@@ -161,6 +165,19 @@ pnpm contrast
 pnpm test:e2e    # builds @relay/core, then Playwright
 pnpm verify      # full gate pipeline (install → build → … → i18n placeholder)
 ```
+
+### Native (not part of `pnpm verify`)
+
+```bash
+# Apple shared package (Linux + macOS). Needs Swift 5.10 toolchain.
+cd apps/apple/RelayKit && swift build && swift test
+
+# Android (JDK 17, Android SDK). Gradle wrapper included.
+cd apps/android
+./gradlew :app:assembleDebug :app:lintDebug :app:testDebugUnitTest
+```
+
+SwiftUI Mac/iPhone apps are intentionally **not** in this repo yet — they need Xcode on a Mac. See `apps/apple/README.md`.
 
 ## CI (Origin)
 

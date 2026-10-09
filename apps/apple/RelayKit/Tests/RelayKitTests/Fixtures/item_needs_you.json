@@ -1,0 +1,26 @@
+{
+  "item": {
+    "id": "itm_32pxnq1110",
+    "title": "Elegir el titular del post de lanzamiento",
+    "goal": "Post publicado con un titular aprobado",
+    "status": "needs_you",
+    "assignee_type": "agent",
+    "assignee_id": "agent-code",
+    "due_at": "2026-10-09T21:40:42.169Z",
+    "reminder_at": "2026-10-09T07:40:42.169Z",
+    "reminder_intent": "Revisar el borrador antes de publicar",
+    "priority": "none",
+    "blocked_reason": null,
+    "needs_you_reason": "¿Publico la versión A («Relay») o la B («Relevo»)? El post sale mañana a las 09:00.",
+    "source": "mcp",
+    "created_at": "2026-10-09T03:40:42.169Z",
+    "updated_at": "2026-10-09T00:40:42.176Z",
+    "started_at": null,
+    "completed_at": null,
+    "completed_by_type": null,
+    "completed_by_id": null,
+    "last_actor_type": "agent",
+    "last_actor_id": "agent-code",
+    "list_id": null
+  }
+}

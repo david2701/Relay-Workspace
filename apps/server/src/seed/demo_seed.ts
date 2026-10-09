@@ -258,9 +258,9 @@ export function seedIntoService(
   );
   svc.delegate(titular.id, "agent-code", user, "ui");
   svc.askUser(titular.id, copy.headlineAsk, code, "mcp");
-  svc.db
-    .prepare("UPDATE work_items SET updated_at = ? WHERE id = ?")
-    .run(hoursAgo(3, now), titular.id);
+  // Backdate for Attention ordering via the service so item_events stays in sync
+  // (raw UPDATE would break after_seq ≡ since equivalence for this row).
+  svc.stampItemUpdatedAt(titular.id, hoursAgo(3, now), code);
 
   const migrate = svc.createItem(
     {

@@ -1,0 +1,26 @@
+{
+  "item": {
+    "id": "itm_l8w965icft",
+    "title": "Revisar el acuerdo de hosting",
+    "goal": null,
+    "status": "assigned",
+    "assignee_type": "user",
+    "assignee_id": "user",
+    "due_at": null,
+    "reminder_at": "2026-10-09T21:40:42.183Z",
+    "reminder_intent": "Llamar antes de firmar",
+    "priority": "none",
+    "blocked_reason": null,
+    "needs_you_reason": null,
+    "source": "ui",
+    "created_at": "2026-10-09T03:40:42.183Z",
+    "updated_at": "2026-10-09T03:40:42.185Z",
+    "started_at": null,
+    "completed_at": null,
+    "completed_by_type": null,
+    "completed_by_id": null,
+    "last_actor_type": "user",
+    "last_actor_id": "user",
+    "list_id": null
+  }
+}

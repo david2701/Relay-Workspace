@@ -10,7 +10,7 @@ Same pattern as `PATCH /api/notes/:id`:
 
 | Field | Where |
 | --- | --- |
-| `if_updated_at` | Optional ISO datetime in the JSON body |
+| `if_updated_at` | Optional ISO datetime **with offset** (e.g. `2026-10-09T12:00:00.000Z`). Malformed → **400** `{ "error": "validation_error", "message": "…" }`. |
 
 Supported on:
 
@@ -47,6 +47,7 @@ Idempotency-Key: <client-chosen opaque string>
 | Case | Result |
 | --- | --- |
 | No header | Behaviour unchanged |
+| Malformed key (spaces, controls, empty-after-trim non-blank, length > 256) | **400** `{ "error": "validation_error", "message": "…" }` |
 | Same key + same method + path + body (24 h) | Stored response replayed |
 | Same key + different body | **422** `idempotency_key_reused` |
 | After 24 h | Key may be reused as a new request |
@@ -75,9 +76,9 @@ open and about once per hour while the process runs.
 
 | Field | Rules |
 | --- | --- |
-| `text` | Required, trimmed length **1..4000** |
+| `text` | Required, length **1..4000**. Empty or oversized → **400** `validation_error`. |
 | `return_to` | Optional `agent` \| `none` (default `agent`) |
-| `if_updated_at` | Optional concurrency stamp |
+| `if_updated_at` | Optional ISO datetime with offset; malformed → **400** `validation_error` |
 
 ### Response `200`
 

@@ -32,24 +32,27 @@ const ActorBodySchema = z
 
 const PageLimitSchema = z.coerce.number().int().min(1).max(200);
 
+/** Optimistic concurrency stamp — ISO datetime with offset (same as WorkItem.updated_at). */
+const IfUpdatedAtSchema = z.string().datetime({ offset: true });
+
 const NotePatchSchema = UpdateNoteInputSchema.extend({
-  if_updated_at: z.string().optional(),
+  if_updated_at: IfUpdatedAtSchema.optional(),
 });
 
 const ItemPatchSchema = UpdateItemInputSchema.extend({
-  if_updated_at: z.string().optional(),
+  if_updated_at: IfUpdatedAtSchema.optional(),
 });
 
 const StatusBodySchema = SetStatusInputSchema.extend({
-  if_updated_at: z.string().optional(),
+  if_updated_at: IfUpdatedAtSchema.optional(),
 });
 
 const AnswerBodySchema = AnswerItemInputSchema.extend({
-  if_updated_at: z.string().optional(),
+  if_updated_at: IfUpdatedAtSchema.optional(),
 });
 
 const TakeBodySchema = z.object({
-  if_updated_at: z.string().optional(),
+  if_updated_at: IfUpdatedAtSchema.optional(),
 });
 
 function parseSearchFromQuery(query: Record<string, string>) {
@@ -434,26 +437,22 @@ export function createApi(svc: RelayService, opts: CreateApiOptions = {}): Hono 
   app.get("/inbox", (c) => {
     try {
       const view = InboxViewSchema.parse(c.req.query("view") ?? "attention");
-      const limitRaw = c.req.query("limit");
       const cursor = c.req.query("cursor");
       const since = c.req.query("since");
-      const afterSeqRaw = c.req.query("after_seq");
+      const page = parseEventPageQuery({
+        after_seq: c.req.query("after_seq"),
+        limit: c.req.query("limit"),
+      });
       const opts: {
         limit?: number;
         cursor?: string;
         since?: string;
         after_seq?: number;
       } = {};
-      if (limitRaw !== undefined) {
-        opts.limit = PageLimitSchema.parse(limitRaw);
-      }
+      if (page.limit !== undefined) opts.limit = page.limit;
       if (cursor !== undefined) opts.cursor = cursor;
-      if (afterSeqRaw !== undefined) {
-        const page = parseEventPageQuery({ after_seq: afterSeqRaw });
-        if (page.after_seq !== undefined) opts.after_seq = page.after_seq;
-      } else if (since !== undefined) {
-        opts.since = since;
-      }
+      if (page.after_seq !== undefined) opts.after_seq = page.after_seq;
+      else if (since !== undefined) opts.since = since;
       return c.json(
         Object.keys(opts).length > 0 ? svc.inboxQuery(view, opts) : svc.inboxQuery(view),
       );
