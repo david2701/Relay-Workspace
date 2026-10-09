@@ -130,10 +130,12 @@ object AttentionPresentation {
         item: WorkItem,
         agentsById: Map<String, Agent>,
         nowMillis: Long = System.currentTimeMillis(),
+        condensed: Boolean = false,
     ): String {
         val relative = RelativeTimeFormat.formatRelative(iso = item.updatedAt, nowMillis = nowMillis)
         return when (item.status) {
             Status.NeedsYou -> {
+                if (condensed) return "Necesita tu decisión"
                 val preferredId = if (item.lastActorType == ActorType.Agent) {
                     item.lastActorId
                 } else {

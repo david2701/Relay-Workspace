@@ -140,6 +140,24 @@ object RelativeTimeFormat {
         return "hace $days d"
     }
 
+    /**
+     * Trailing list relative (Penpot 840): `ahora`, `3 h`, `12 min` — no `hace` prefix.
+     */
+    fun formatTrailingRelative(
+        iso: String,
+        nowMillis: Long = System.currentTimeMillis(),
+        zoneId: ZoneId = ZoneId.systemDefault(),
+    ): String {
+        val instant = parseIso(iso) ?: return iso
+        val diffMs = (nowMillis - instant.toEpochMilli()).toDouble()
+        val mins = floor(diffMs / 60_000.0).toInt()
+        if (mins < 1) return "ahora"
+        if (mins < 60) return "$mins min"
+        val hours = mins / 60
+        if (hours < 24) return "$hours h"
+        return formatRelative(instant.toEpochMilli(), nowMillis, zoneId).removePrefix("hace ")
+    }
+
     private fun parseIso(iso: String): Instant? = runCatching { Instant.parse(iso) }.getOrNull()
 
     private fun formatClock(date: ZonedDateTime): String =

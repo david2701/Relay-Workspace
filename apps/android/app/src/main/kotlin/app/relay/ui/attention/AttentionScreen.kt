@@ -39,8 +39,8 @@ import androidx.compose.material.icons.outlined.MoreVert
 import androidx.compose.material.icons.outlined.Notifications
 import androidx.compose.material.icons.outlined.People
 import androidx.compose.material.icons.outlined.Search
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.material3.Badge
-import androidx.compose.material3.BadgedBox
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.CircularProgressIndicator
@@ -211,9 +211,23 @@ fun AttentionScreen(
                 icon = {
                     AttentionNavIcon(
                         selected = currentDestination == RelayDestination.Attention,
-                        needsYouCount = needsYouCount,
                         isDark = isDark,
                     )
+                },
+                badge = {
+                    if (needsYouCount > 0) {
+                        val badgeDesc = stringResource(R.string.cd_nav_attention_badge, needsYouCount)
+                        Badge(
+                            containerColor = colors.hl,
+                            contentColor = colors.onHl,
+                            modifier = Modifier.testTag("nav_attention_badge"),
+                        ) {
+                            Text(
+                                text = needsYouCount.toString(),
+                                modifier = Modifier.semantics { contentDescription = badgeDesc },
+                            )
+                        }
+                    }
                 },
                 label = { Text(stringResource(R.string.nav_attention)) },
                 colors = itemColors,
@@ -341,7 +355,6 @@ private fun attentionNavItemColors(): androidx.compose.material3.NavigationItemC
 @Composable
 private fun AttentionNavIcon(
     selected: Boolean,
-    needsYouCount: Int,
     isDark: Boolean,
 ) {
     val colors = RelayThemeTokens.colors
@@ -352,32 +365,14 @@ private fun AttentionNavIcon(
         isDark -> colors.ink2
         else -> colors.inkMuted
     }
-    val badgeDesc = stringResource(R.string.cd_nav_attention_badge, needsYouCount)
-    BadgedBox(
-        badge = {
-            if (needsYouCount > 0) {
-                Badge(
-                    containerColor = colors.hl,
-                    contentColor = colors.onHl,
-                    modifier = Modifier.testTag("nav_attention_badge"),
-                ) {
-                    Text(
-                        text = needsYouCount.toString(),
-                        modifier = Modifier.semantics { contentDescription = badgeDesc },
-                    )
-                }
-            }
-        },
-    ) {
-        Icon(
-            imageVector = icon,
-            contentDescription = null,
-            tint = tint,
-            modifier = Modifier.testTag(
-                if (selected) "nav_attention_icon_selected" else "nav_attention_icon",
-            ),
-        )
-    }
+    Icon(
+        imageVector = icon,
+        contentDescription = null,
+        tint = tint,
+        modifier = Modifier.testTag(
+            if (selected) "nav_attention_icon_selected" else "nav_attention_icon",
+        ),
+    )
 }
 
 @Composable
@@ -734,35 +729,35 @@ fun AttentionItemRow(
     val colors = RelayThemeTokens.colors
     val isDark = RelayThemeTokens.isDark
     val isNeedsYou = item.status == Status.NeedsYou
-    val shape = RoundedCornerShape(RelayDimens.cardRadius)
+    // r8: selected = raised + 1dp control + radius 8. Yellow only for needs_you rule / decision card.
     val background = when {
-        isNeedsYou && !condensed -> colors.needsYouRowFill
-        isNeedsYou && condensed && isSelected -> colors.needsYouRowFill
-        isNeedsYou -> colors.needsYouRowFill
+        showInlineDecision -> colors.needsYouRowFill
         isSelected -> colors.selectedRowFill
         else -> colors.raised
     }
     val borderColor = when {
-        isNeedsYou && (showInlineDecision || (condensed && isSelected)) -> colors.attentionRule
-        isSelected && !isNeedsYou -> colors.control
+        showInlineDecision -> colors.attentionRule
+        isSelected -> colors.control
         else -> colors.line
     }
     val borderWidth = when {
-        isNeedsYou && (showInlineDecision || (condensed && isSelected)) -> RelayDimens.needsYouRuleWidth
-        isSelected && !isNeedsYou -> RelayDimens.selectedRowBorderWidth
+        showInlineDecision -> RelayDimens.needsYouRuleWidth
+        isSelected -> RelayDimens.selectedRowBorderWidth
         else -> 1.dp
     }
-    val rowShape = if (isSelected && !isNeedsYou) {
-        RoundedCornerShape(RelayDimens.selectedRowRadius)
-    } else {
-        shape
-    }
+    val rowShape = RoundedCornerShape(
+        when {
+            showInlineDecision -> RelayDimens.cardRadius
+            isSelected -> RelayDimens.selectedRowRadius
+            else -> RelayDimens.cardRadius
+        },
+    )
     val semanticsLabel = buildString {
         append(item.title)
         if (isNeedsYou) append(", ${stringResource(R.string.cd_needs_you_rule)}")
         if (isSelected) append(", ${stringResource(R.string.cd_selected_row)}")
     }
-    val shadowLayers = if (isSelected && !isNeedsYou) {
+    val shadowLayers = if (isSelected && !showInlineDecision) {
         selectedRowShadowLayers(darkTheme = isDark)
     } else {
         emptyList()
@@ -780,6 +775,11 @@ fun AttentionItemRow(
     }
     var decisionDraft by rememberSaveable(item.id) { mutableStateOf("") }
     val agentName = AttentionPresentation.returnAgentName(item, agentsById)
+    val verticalPad = if (condensed) 8.dp else 12.dp
+    val trailingRelative = RelativeTimeFormat.formatTrailingRelative(
+        iso = item.updatedAt,
+        nowMillis = nowMillis,
+    )
     // clip → drawWithContent → background/border: drawContent paints fill+border+children,
     // then the 2 dp rule is drawn on top so the 1 dp border cannot cover it (B2 / §9.5 r8).
     Box(
@@ -813,7 +813,7 @@ fun AttentionItemRow(
             modifier = Modifier
                 .fillMaxWidth()
                 .padding(start = if (isNeedsYou) RelayDimens.needsYouRuleWidth + 10.dp else 12.dp)
-                .padding(end = 12.dp, top = 12.dp, bottom = 12.dp),
+                .padding(end = 12.dp, top = verticalPad, bottom = verticalPad),
         ) {
             // Header carries row testTag + click; inline controls stay outside clickable.
             Column(
@@ -828,58 +828,92 @@ fun AttentionItemRow(
                     StatusGlyph(status = item.status)
                     Spacer(modifier = Modifier.width(8.dp))
                     Column(modifier = Modifier.weight(1f)) {
-                        Row(verticalAlignment = Alignment.Top) {
+                        if (condensed) {
                             Text(
                                 text = item.title,
                                 style = MaterialTheme.typography.titleMedium,
                                 color = colors.ink,
                                 fontWeight = FontWeight.SemiBold,
-                                maxLines = if (condensed) 1 else 2,
+                                maxLines = 1,
                                 overflow = TextOverflow.Ellipsis,
-                                modifier = Modifier.weight(1f),
                             )
-                            Spacer(modifier = Modifier.width(8.dp))
-                            ActorFlow(
-                                from = if (isNeedsYou) {
-                                    AttentionPresentation.mark(
-                                        type = item.lastActorType,
-                                        actorId = item.lastActorId,
-                                        agentsById = agentsById,
-                                    )
-                                } else {
-                                    null
-                                },
-                                to = AttentionPresentation.witnessMark(item, agentsById),
-                            )
+                        } else {
+                            Row(verticalAlignment = Alignment.Top) {
+                                Text(
+                                    text = item.title,
+                                    style = MaterialTheme.typography.titleMedium,
+                                    color = colors.ink,
+                                    fontWeight = FontWeight.SemiBold,
+                                    maxLines = 2,
+                                    overflow = TextOverflow.Ellipsis,
+                                    modifier = Modifier.weight(1f),
+                                )
+                                Spacer(modifier = Modifier.width(8.dp))
+                                ActorFlow(
+                                    from = if (isNeedsYou) {
+                                        AttentionPresentation.mark(
+                                            type = item.lastActorType,
+                                            actorId = item.lastActorId,
+                                            agentsById = agentsById,
+                                        )
+                                    } else {
+                                        null
+                                    },
+                                    to = AttentionPresentation.witnessMark(item, agentsById),
+                                )
+                            }
                         }
-                        Spacer(modifier = Modifier.height(4.dp))
+                        Spacer(modifier = Modifier.height(if (condensed) 2.dp else 4.dp))
                         Text(
-                            text = AttentionPresentation.metaLine(item, agentsById, nowMillis),
+                            text = AttentionPresentation.metaLine(
+                                item = item,
+                                agentsById = agentsById,
+                                nowMillis = nowMillis,
+                                condensed = condensed,
+                            ),
                             style = MaterialTheme.typography.bodySmall,
                             color = if (item.status == Status.Blocked) colors.warn else colors.inkMuted,
-                            maxLines = if (isNeedsYou) 2 else 1,
+                            maxLines = if (isNeedsYou && !condensed) 2 else 1,
                             overflow = TextOverflow.Ellipsis,
                             modifier = Modifier.testTag(
                                 if (item.status == Status.Blocked) "blocked_reason" else "row_meta",
                             ),
                         )
-                        val body = when {
-                            condensed && !showInlineDecision -> null
-                            item.status == Status.NeedsYou -> item.needsYouReason
-                            item.status == Status.Blocked -> null
-                            else -> null
+                        if (!condensed) {
+                            val body = when (item.status) {
+                                Status.NeedsYou -> item.needsYouReason
+                                else -> null
+                            }
+                            if (!body.isNullOrBlank()) {
+                                Spacer(modifier = Modifier.height(6.dp))
+                                Text(
+                                    text = body,
+                                    style = MaterialTheme.typography.bodyMedium,
+                                    color = colors.ink2,
+                                    maxLines = 4,
+                                    overflow = TextOverflow.Ellipsis,
+                                )
+                            }
+                            DueReminderChips(item = item, nowMillis = nowMillis)
                         }
-                        if (!body.isNullOrBlank()) {
-                            Spacer(modifier = Modifier.height(6.dp))
+                    }
+                    if (condensed) {
+                        Spacer(modifier = Modifier.width(8.dp))
+                        Column(
+                            horizontalAlignment = Alignment.End,
+                            modifier = Modifier.testTag("row_trailing"),
+                        ) {
+                            ActorMark(
+                                mark = AttentionPresentation.witnessMark(item, agentsById),
+                            )
+                            Spacer(modifier = Modifier.height(2.dp))
                             Text(
-                                text = body,
-                                style = MaterialTheme.typography.bodyMedium,
-                                color = colors.ink2,
-                                maxLines = 4,
-                                overflow = TextOverflow.Ellipsis,
+                                text = trailingRelative,
+                                style = MaterialTheme.typography.labelSmall,
+                                color = colors.inkMuted,
+                                modifier = Modifier.testTag("row_relative"),
                             )
                         }
-                        DueReminderChips(item = item, nowMillis = nowMillis)
                     }
                 }
             }
@@ -1053,32 +1087,56 @@ private fun InlineNeedsYouActions(
                 overflow = TextOverflow.Ellipsis,
             )
         }
-        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-            OutlinedButton(
-                onClick = {},
-                modifier = Modifier.testTag("inline_do_myself"),
-                shape = RoundedCornerShape(999.dp),
-                colors = ButtonDefaults.outlinedButtonColors(contentColor = colors.ink),
-            ) {
-                Icon(Icons.Outlined.BackHand, contentDescription = null)
-                Spacer(modifier = Modifier.width(6.dp))
-                Text(
-                    text = stringResource(R.string.cta_do_myself),
-                    fontWeight = FontWeight.SemiBold,
-                )
-            }
-            IconButton(
-                onClick = {},
-                modifier = Modifier
-                    .border(1.dp, colors.line, CircleShape)
-                    .testTag("inline_overflow"),
-            ) {
-                Icon(
-                    Icons.Outlined.MoreVert,
-                    contentDescription = stringResource(R.string.more),
-                    tint = colors.ink,
-                )
-            }
+        DoMyselfOverflowRow(
+            doMyselfTag = "inline_do_myself",
+            overflowTag = "inline_overflow",
+        )
+    }
+}
+
+/** Full-width outlined pill «Lo hago yo» + circular overflow (Penpot). */
+@Composable
+internal fun DoMyselfOverflowRow(
+    doMyselfTag: String,
+    overflowTag: String,
+) {
+    val colors = RelayThemeTokens.colors
+    Row(
+        modifier = Modifier.fillMaxWidth(),
+        horizontalArrangement = Arrangement.spacedBy(8.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        OutlinedButton(
+            onClick = {},
+            modifier = Modifier
+                .weight(1f)
+                .testTag(doMyselfTag),
+            shape = RoundedCornerShape(999.dp),
+            border = BorderStroke(1.dp, colors.line),
+            colors = ButtonDefaults.outlinedButtonColors(
+                containerColor = colors.sunken,
+                contentColor = colors.ink,
+            ),
+        ) {
+            Icon(Icons.Outlined.BackHand, contentDescription = null)
+            Spacer(modifier = Modifier.width(6.dp))
+            Text(
+                text = stringResource(R.string.cta_do_myself),
+                fontWeight = FontWeight.SemiBold,
+            )
+        }
+        IconButton(
+            onClick = {},
+            modifier = Modifier
+                .border(1.dp, colors.line, CircleShape)
+                .background(colors.sunken, CircleShape)
+                .testTag(overflowTag),
+        ) {
+            Icon(
+                Icons.Outlined.MoreVert,
+                contentDescription = stringResource(R.string.more),
+                tint = colors.ink,
+            )
         }
     }
 }

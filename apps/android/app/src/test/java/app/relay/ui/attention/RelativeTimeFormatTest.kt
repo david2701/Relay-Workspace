@@ -48,4 +48,24 @@ class RelativeTimeFormatTest {
         )
         assertTrue(actual.startsWith("hace 3 h"))
     }
+
+    @Test
+    fun trailingRelativeOmitsHacePrefix() {
+        assertEquals(
+            "3 h",
+            RelativeTimeFormat.formatTrailingRelative(
+                iso = "2026-10-08T09:00:00.000Z",
+                nowMillis = nowMillis,
+                zoneId = zone,
+            ),
+        )
+        assertEquals(
+            "ahora",
+            RelativeTimeFormat.formatTrailingRelative(
+                iso = "2026-10-08T11:59:30.000Z",
+                nowMillis = nowMillis,
+                zoneId = zone,
+            ),
+        )
+    }
 }

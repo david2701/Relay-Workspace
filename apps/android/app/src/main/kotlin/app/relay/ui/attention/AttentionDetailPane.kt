@@ -26,7 +26,6 @@ import androidx.compose.material.icons.outlined.MoreVert
 import androidx.compose.material.icons.outlined.Notifications
 import androidx.compose.material.icons.outlined.People
 import androidx.compose.material.icons.automirrored.outlined.StickyNote2
-import androidx.compose.material.icons.outlined.BackHand
 import androidx.compose.material3.BottomAppBar
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
@@ -34,7 +33,6 @@ import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.OutlinedTextFieldDefaults
 import androidx.compose.material3.Scaffold
@@ -233,6 +231,7 @@ private fun DetailBody(
             NeedsYouActionCard(
                 item = item,
                 agentName = agentName,
+                agentsById = agentsById,
                 nowMillis = nowMillis,
                 decisionDraft = decisionDraft,
                 onDecisionChange = { decisionDraft = it },
@@ -281,6 +280,7 @@ private fun StatusBadge(status: Status) {
 private fun NeedsYouActionCard(
     item: WorkItem,
     agentName: String,
+    agentsById: Map<String, Agent>,
     nowMillis: Long,
     decisionDraft: String,
     onDecisionChange: (String) -> Unit,
@@ -298,11 +298,26 @@ private fun NeedsYouActionCard(
             .testTag("detail_needs_you_card"),
         verticalArrangement = Arrangement.spacedBy(12.dp),
     ) {
-        Text(
-            text = stringResource(R.string.needs_you_meta, agentName, relative),
-            style = MaterialTheme.typography.labelMedium,
-            color = colors.inkMuted,
-        )
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            Text(
+                text = stringResource(R.string.needs_you_meta, agentName, relative),
+                style = MaterialTheme.typography.labelMedium,
+                color = colors.inkMuted,
+                modifier = Modifier.weight(1f),
+            )
+            Spacer(modifier = Modifier.width(8.dp))
+            ActorFlow(
+                from = AttentionPresentation.mark(
+                    type = item.lastActorType,
+                    actorId = item.lastActorId,
+                    agentsById = agentsById,
+                ),
+                to = AttentionPresentation.witnessMark(item, agentsById),
+            )
+        }
         val body = item.needsYouReason
         if (!body.isNullOrBlank()) {
             Text(
@@ -352,33 +367,10 @@ private fun NeedsYouActionCard(
                 overflow = TextOverflow.Ellipsis,
             )
         }
-        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-            OutlinedButton(
-                onClick = {},
-                modifier = Modifier.testTag("detail_do_myself"),
-                shape = RoundedCornerShape(999.dp),
-                colors = ButtonDefaults.outlinedButtonColors(contentColor = colors.ink),
-            ) {
-                Icon(Icons.Outlined.BackHand, contentDescription = null)
-                Spacer(modifier = Modifier.width(6.dp))
-                Text(
-                    text = stringResource(R.string.cta_do_myself),
-                    fontWeight = FontWeight.SemiBold,
-                )
-            }
-            IconButton(
-                onClick = {},
-                modifier = Modifier
-                    .border(1.dp, colors.line, CircleShape)
-                    .testTag("detail_overflow"),
-            ) {
-                Icon(
-                    Icons.Outlined.MoreVert,
-                    contentDescription = stringResource(R.string.more),
-                    tint = colors.ink,
-                )
-            }
-        }
+        DoMyselfOverflowRow(
+            doMyselfTag = "detail_do_myself",
+            overflowTag = "detail_overflow",
+        )
     }
 }
 
@@ -405,7 +397,10 @@ private fun HandoffSection(
                 .padding(14.dp),
             verticalArrangement = Arrangement.spacedBy(6.dp),
         ) {
-            Row(verticalAlignment = Alignment.CenterVertically) {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
                 Text(
                     text = model.relativeTime,
                     style = MaterialTheme.typography.labelMedium,
@@ -413,13 +408,17 @@ private fun HandoffSection(
                 )
                 Spacer(modifier = Modifier.width(8.dp))
                 ActorFlow(from = model.fromMark, to = model.toMark)
+                Spacer(modifier = Modifier.width(8.dp))
+                Text(
+                    text = model.summary,
+                    style = MaterialTheme.typography.bodyMedium,
+                    fontWeight = FontWeight.Medium,
+                    color = colors.ink,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                    modifier = Modifier.weight(1f),
+                )
             }
-            Text(
-                text = model.summary,
-                style = MaterialTheme.typography.bodyMedium,
-                fontWeight = FontWeight.Medium,
-                color = colors.ink,
-            )
             Text(
                 text = model.detailLine,
                 style = MaterialTheme.typography.bodySmall,
