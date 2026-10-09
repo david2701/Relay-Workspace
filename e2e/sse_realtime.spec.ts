@@ -165,8 +165,9 @@ test.describe("SSE realtime (PR 1c)", () => {
       async function assertCompactState(
         state: "connected" | "reconnecting" | "offline",
       ): Promise<void> {
-        // Poll one DOM snapshot — abort/reload can flip state between
-        // sequential getAttribute calls.
+        const expected = labelRe[state];
+        // Atomic poll: state + aria + title + paint metrics in one evaluate so
+        // we never pass on a boot-flash reconnecting with a stale connected label.
         await expect
           .poll(
             async () => {
@@ -178,22 +179,19 @@ test.describe("SSE realtime (PR 1c)", () => {
                 clientWidth: el.clientWidth,
                 painted: (el.innerText ?? "").trim(),
               }));
-              const labelsOk =
-                labelRe[state].test(snap.aria) &&
-                labelRe[state].test(snap.title) &&
-                snap.aria === snap.title;
-              const unclipped =
-                snap.scrollWidth <= snap.clientWidth + 1;
-              return (
-                snap.state === state &&
-                labelsOk &&
-                unclipped &&
-                snap.painted === ""
-              );
+              if (snap.state !== state) return `state=${snap.state}`;
+              if (!expected.test(snap.aria)) return `aria=${snap.aria}`;
+              if (!expected.test(snap.title)) return `title=${snap.title}`;
+              if (snap.aria !== snap.title) return "aria/title mismatch";
+              if (snap.painted !== "") return `painted=${snap.painted}`;
+              if (snap.scrollWidth > snap.clientWidth + 1) {
+                return `clipped sw=${snap.scrollWidth} cw=${snap.clientWidth}`;
+              }
+              return "ok";
             },
             { timeout: 15_000 },
           )
-          .toBe(true);
+          .toBe("ok");
         await expect(label).toBeHidden();
       }
 
