@@ -768,9 +768,9 @@ fun AttentionItemRow(
         emptyList()
     }
     val attentionRuleColor = colors.attentionRule
-    var rowModifier = modifier.fillMaxWidth()
+    var chromeModifier = Modifier.fillMaxWidth()
     for (layer in shadowLayers) {
-        rowModifier = rowModifier.shadow(
+        chromeModifier = chromeModifier.shadow(
             elevation = layer.elevation,
             shape = rowShape,
             clip = false,
@@ -783,7 +783,7 @@ fun AttentionItemRow(
     // clip → drawWithContent → background/border: drawContent paints fill+border+children,
     // then the 2 dp rule is drawn on top so the 1 dp border cannot cover it (B2 / §9.5 r8).
     Box(
-        modifier = rowModifier
+        modifier = chromeModifier
             .clip(rowShape)
             .then(
                 if (isNeedsYou) {
@@ -800,7 +800,6 @@ fun AttentionItemRow(
             )
             .background(background)
             .border(borderWidth, borderColor, rowShape)
-            .clickable(onClick = onClick)
             .semantics { contentDescription = semanticsLabel }
             .testTag(
                 when {
@@ -816,65 +815,72 @@ fun AttentionItemRow(
                 .padding(start = if (isNeedsYou) RelayDimens.needsYouRuleWidth + 10.dp else 12.dp)
                 .padding(end = 12.dp, top = 12.dp, bottom = 12.dp),
         ) {
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                verticalAlignment = Alignment.Top,
+            // Header carries row testTag + click; inline controls stay outside clickable.
+            Column(
+                modifier = modifier
+                    .fillMaxWidth()
+                    .clickable(onClick = onClick),
             ) {
-                StatusGlyph(status = item.status)
-                Spacer(modifier = Modifier.width(8.dp))
-                Column(modifier = Modifier.weight(1f)) {
-                    Row(verticalAlignment = Alignment.Top) {
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    verticalAlignment = Alignment.Top,
+                ) {
+                    StatusGlyph(status = item.status)
+                    Spacer(modifier = Modifier.width(8.dp))
+                    Column(modifier = Modifier.weight(1f)) {
+                        Row(verticalAlignment = Alignment.Top) {
+                            Text(
+                                text = item.title,
+                                style = MaterialTheme.typography.titleMedium,
+                                color = colors.ink,
+                                fontWeight = FontWeight.SemiBold,
+                                maxLines = if (condensed) 1 else 2,
+                                overflow = TextOverflow.Ellipsis,
+                                modifier = Modifier.weight(1f),
+                            )
+                            Spacer(modifier = Modifier.width(8.dp))
+                            ActorFlow(
+                                from = if (isNeedsYou) {
+                                    AttentionPresentation.mark(
+                                        type = item.lastActorType,
+                                        actorId = item.lastActorId,
+                                        agentsById = agentsById,
+                                    )
+                                } else {
+                                    null
+                                },
+                                to = AttentionPresentation.witnessMark(item, agentsById),
+                            )
+                        }
+                        Spacer(modifier = Modifier.height(4.dp))
                         Text(
-                            text = item.title,
-                            style = MaterialTheme.typography.titleMedium,
-                            color = colors.ink,
-                            fontWeight = FontWeight.SemiBold,
-                            maxLines = if (condensed) 1 else 2,
+                            text = AttentionPresentation.metaLine(item, agentsById, nowMillis),
+                            style = MaterialTheme.typography.bodySmall,
+                            color = if (item.status == Status.Blocked) colors.warn else colors.inkMuted,
+                            maxLines = if (isNeedsYou) 2 else 1,
                             overflow = TextOverflow.Ellipsis,
-                            modifier = Modifier.weight(1f),
+                            modifier = Modifier.testTag(
+                                if (item.status == Status.Blocked) "blocked_reason" else "row_meta",
+                            ),
                         )
-                        Spacer(modifier = Modifier.width(8.dp))
-                        ActorFlow(
-                            from = if (isNeedsYou) {
-                                AttentionPresentation.mark(
-                                    type = item.lastActorType,
-                                    actorId = item.lastActorId,
-                                    agentsById = agentsById,
-                                )
-                            } else {
-                                null
-                            },
-                            to = AttentionPresentation.witnessMark(item, agentsById),
-                        )
+                        val body = when {
+                            condensed && !showInlineDecision -> null
+                            item.status == Status.NeedsYou -> item.needsYouReason
+                            item.status == Status.Blocked -> null
+                            else -> null
+                        }
+                        if (!body.isNullOrBlank()) {
+                            Spacer(modifier = Modifier.height(6.dp))
+                            Text(
+                                text = body,
+                                style = MaterialTheme.typography.bodyMedium,
+                                color = colors.ink2,
+                                maxLines = 4,
+                                overflow = TextOverflow.Ellipsis,
+                            )
+                        }
+                        DueReminderChips(item = item, nowMillis = nowMillis)
                     }
-                    Spacer(modifier = Modifier.height(4.dp))
-                    Text(
-                        text = AttentionPresentation.metaLine(item, agentsById, nowMillis),
-                        style = MaterialTheme.typography.bodySmall,
-                        color = if (item.status == Status.Blocked) colors.warn else colors.inkMuted,
-                        maxLines = if (isNeedsYou) 2 else 1,
-                        overflow = TextOverflow.Ellipsis,
-                        modifier = Modifier.testTag(
-                            if (item.status == Status.Blocked) "blocked_reason" else "row_meta",
-                        ),
-                    )
-                    val body = when {
-                        condensed && !showInlineDecision -> null
-                        item.status == Status.NeedsYou -> item.needsYouReason
-                        item.status == Status.Blocked -> null
-                        else -> null
-                    }
-                    if (!body.isNullOrBlank()) {
-                        Spacer(modifier = Modifier.height(6.dp))
-                        Text(
-                            text = body,
-                            style = MaterialTheme.typography.bodyMedium,
-                            color = colors.ink2,
-                            maxLines = 4,
-                            overflow = TextOverflow.Ellipsis,
-                        )
-                    }
-                    DueReminderChips(item = item, nowMillis = nowMillis)
                 }
             }
             if (showInlineDecision) {
