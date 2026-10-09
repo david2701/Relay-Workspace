@@ -1,30 +1,41 @@
 # Apple clients (Relay)
 
-## This PR: `RelayKit` only
+SwiftUI Atención for **Mac** and **iPhone**, on top of `RelayKit`.
 
-`RelayKit/` is a Swift Package Manager library with:
+## Layout
 
-- Codable/Sendable models (7 work-item statuses + Atención inbox)
-- `URLSession` async API client for `apps/server` (`/api/*`)
-- Design tokens from ui-spec-v0.3 §9.5 as neutral RGBA/hex (no SwiftUI)
+| Path | Role |
+| --- | --- |
+| `RelayKit/` | SPM library: models, API client, §9.5 tokens, Atención presentation (Linux-tested) |
+| `Shared/` | SwiftUI color bridge + shared Attention views / view model |
+| `RelayMac/` | macOS app — `NavigationSplitView` list + detail |
+| `RelayiOS/` | iOS app — `NavigationStack` list → detail |
+| `RelayAppleTests/` | Xcode-hosted smoke tests (RelayKit) |
+| `Relay.xcodeproj` | App targets + local RelayKit package |
+| `BUILD.md` | Open / build / test / screenshot instructions |
+| `docs/reference/` | Reference renders this PR was implemented against |
 
-It builds and tests on **Linux** with Swift 5.10:
+## Linux (this CI / agent VM)
 
 ```bash
 cd apps/apple/RelayKit
-swift build
-swift test
+swift build && swift test
 ```
 
-`Package.swift` uses `swift-tools-version: 5.10` and platforms `.macOS(.v14)` / `.iOS(.v17)` so the same package compiles on David’s Mac without Swift 6 language mode. Linux-only networking imports are gated with `#if canImport(FoundationNetworking)`.
+SwiftUI app sources are **not** compiled here (no Xcode).
 
-## Next PR (needs a Mac + Xcode)
+## Mac (David)
 
-- `RelayMac` — Atención split view (see `penpot/mac/mac-home-light.png`)
-- `RelayiOS` — Atención phone UI (see `apps-nativas/.../iphone-home-light.png`)
+See `BUILD.md`. Short path:
 
-Those targets will depend on `RelayKit`. **No `.xcodeproj` or SwiftUI views ship in this foundation PR** — this VM has no Xcode, and we refuse to land uncompiled UI Swift.
+```bash
+cd apps/apple
+open Relay.xcodeproj
+# or
+xcodebuild -project Relay.xcodeproj -scheme RelayMac -destination 'platform=macOS' build test
+```
 
-## Security note
+## Security
 
-No auth tokens yet. The configurable API base URL is a preference, not a vault secret. When credentials appear, store them in Keychain (see apple-on-device-ai-and-vault-security skill); do not put secrets in source or UserDefaults.
+Configurable API base URL (default `http://localhost:7420`) is a preference.
+No secrets in source. Future credentials → Keychain.

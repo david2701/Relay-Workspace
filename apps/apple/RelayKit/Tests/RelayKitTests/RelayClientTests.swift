@@ -22,7 +22,7 @@ final class RelayClientTests: XCTestCase {
             XCTAssertEqual(inbox.view, .attention)
         } catch RelayAPIError.transport {
             // Server not running in this environment — fixture tests still cover decoding.
-            throw XCTSkip("Relay server not reachable at 127.0.0.1:7420")
+            throw XCTSkip("Relay server not reachable at localhost:7420")
         } catch RelayAPIError.httpStatus {
             throw XCTSkip("Relay server returned an error; fixture tests remain authoritative")
         }
