@@ -1,7 +1,7 @@
 # Item events API
 
 Global monotonic event log for work-item mutations. Foundation for SSE (`seq` /
-`Last-Event-ID`), mobile sync, and handoff history.
+`Last-Event-ID` — see [stream.md](./stream.md)), mobile sync, and handoff history.
 
 ## Event shape
 

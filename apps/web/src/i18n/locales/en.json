@@ -356,6 +356,7 @@
   "suggested.header": "Suggested · {n}",
   "sync.offline": "Offline",
   "sync.ok": "Up to date · {relative}",
+  "sync.reconnecting": "Reconnecting…",
   "theme.dark": "Dark",
   "theme.light": "Light",
   "theme.system": "System",

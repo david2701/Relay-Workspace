@@ -18,6 +18,12 @@ const EnvSchema = z.object({
   RELAY_PORT: z.coerce.number().int().positive().default(7420),
   RELAY_DB: z.string().default(defaultDbPath()),
   RELAY_WEB_ORIGIN: z.string().default("http://127.0.0.1:7421"),
+  /** Max concurrent GET /api/stream clients (503 beyond). */
+  RELAY_SSE_MAX_CONNECTIONS: z.coerce.number().int().positive().default(50),
+  /** Replay gap above this emits `event: resync`. */
+  RELAY_SSE_RESYNC_THRESHOLD: z.coerce.number().int().positive().default(5000),
+  /** Server-side MAX(seq) poll for cross-process fan-out (ms). */
+  RELAY_SSE_WATCH_MS: z.coerce.number().int().positive().default(250),
 });
 
 export type Env = z.infer<typeof EnvSchema>;

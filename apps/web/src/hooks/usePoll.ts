@@ -1,6 +1,9 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 
-/** Sub-second poll so MCP→UI worst case stays under the 2s AC3 SLA. */
+/**
+ * @deprecated Inbox sync uses SSE (`useInboxLive`). Kept for any non-inbox
+ * callers; do not use for normal inbox operation (no 750 ms poll fallback).
+ */
 const INTERVAL_MS = 750;
 
 export function usePoll<T>(

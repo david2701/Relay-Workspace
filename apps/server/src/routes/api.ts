@@ -16,6 +16,8 @@ import { z } from "zod";
 import { actorFromRequest, sourceFromRequest } from "../actor.js";
 import { parseEventPageQuery } from "../event_query.js";
 import { handleError } from "../http_errors.js";
+import type { SseHub } from "../sse_hub.js";
+import { createStreamHandler } from "../stream_route.js";
 
 const ActorBodySchema = z
   .object({
@@ -61,10 +63,29 @@ function parseSearchFromQuery(query: Record<string, string>) {
   return SearchQuerySchema.parse(raw);
 }
 
-export function createApi(svc: RelayService): Hono {
+export type CreateApiOptions = {
+  /** Realtime SSE hub; when omitted, GET /api/stream returns 503. */
+  streamHub?: SseHub;
+};
+
+export function createApi(svc: RelayService, opts: CreateApiOptions = {}): Hono {
   const app = new Hono();
 
   app.get("/health", (c) => c.json({ ok: true }));
+
+  if (opts.streamHub) {
+    app.get("/stream", createStreamHandler(opts.streamHub));
+  } else {
+    app.get("/stream", (c) =>
+      c.json(
+        {
+          error: "service_unavailable",
+          message: "SSE stream hub not configured",
+        },
+        503,
+      ),
+    );
+  }
 
   app.get("/agents", (c) => c.json({ agents: svc.listAgentSummaries() }));
 
@@ -76,26 +97,26 @@ export function createApi(svc: RelayService): Hono {
         limit: c.req.query("limit"),
       });
       const currentRaw = c.req.query("current_items_limit");
-      const opts: {
+      const profileOpts: {
         after_seq?: number;
         before_seq?: number;
         limit?: number;
         current_items_limit?: number;
       } = {};
-      if (page.after_seq !== undefined) opts.after_seq = page.after_seq;
-      if (page.before_seq !== undefined) opts.before_seq = page.before_seq;
-      if (page.limit !== undefined) opts.limit = page.limit;
+      if (page.after_seq !== undefined) profileOpts.after_seq = page.after_seq;
+      if (page.before_seq !== undefined) profileOpts.before_seq = page.before_seq;
+      if (page.limit !== undefined) profileOpts.limit = page.limit;
       if (currentRaw !== undefined) {
         // Reuse the same limit bounds as event paging (1…200).
         const currentPage = parseEventPageQuery({ limit: currentRaw });
         if (currentPage.limit !== undefined) {
-          opts.current_items_limit = currentPage.limit;
+          profileOpts.current_items_limit = currentPage.limit;
         }
       }
       return c.json({
         agent: svc.getAgentProfile(
           c.req.param("id"),
-          Object.keys(opts).length > 0 ? opts : undefined,
+          Object.keys(profileOpts).length > 0 ? profileOpts : undefined,
         ),
       });
     } catch (err) {

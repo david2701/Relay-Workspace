@@ -11,6 +11,7 @@ Heading toward **0.3.0** («Enseñable»).
 
 ### Added
 
+- Realtime `GET /api/stream` (SSE): `id`/`event`/`data` from `item_events`, `Last-Event-ID` / `after_seq` replay, 15 s heartbeat, connection cap, far-behind `resync`, cross-process `MAX(seq)` watcher; web drops 750 ms polling for EventSource (`docs/api/stream.md`).
 - Global `item_events` log with monotonic `seq` (migration 6), `GET /api/items/:id/events`, `GET /api/changes`, inbox `seq` / `after_seq`, and MCP `items_events` / `changes_list` (SSE foundation).
 - Clean-clone DX: root `pnpm build:core` so `typecheck` / `test` / `test:e2e` / `seed` work after `pnpm install` without a pre-built `packages/core/dist`.
 - CI pipeline definition for Origin via Depot (`.depot/workflows/ci.yml`) plus a GitHub Actions–compatible twin (`.github/workflows/ci.yml`) and local `pnpm verify` / `scripts/ci.sh`.
