@@ -75,7 +75,13 @@ export type CreateApiOptions = {
 export function createApi(svc: RelayService, opts: CreateApiOptions = {}): Hono {
   const app = new Hono();
 
-  app.get("/health", (c) => c.json({ ok: true }));
+  app.get("/health", (c) =>
+    c.json({
+      ok: true,
+      require_token: opts.auth?.requireToken ?? false,
+      require_token_explicit: opts.auth?.requireTokenExplicit ?? false,
+    }),
+  );
 
   const streamAuth =
     opts.auth !== undefined

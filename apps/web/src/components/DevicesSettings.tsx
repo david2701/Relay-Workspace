@@ -1,6 +1,9 @@
 /**
  * Settings → Devices: list / rename / revoke + pair-a-phone (QR + 6-digit code).
  * Native phone pairing UI is out of scope; this is the web host side.
+ *
+ * When `RELAY_REQUIRE_TOKEN=1`, HTTP `pair/start` needs a device token — bootstrap
+ * with `pnpm relay:pair` on the host, then register this browser via claim.
  */
 import QRCode from "qrcode";
 import { useEffect, useState } from "react";
@@ -11,14 +14,12 @@ import {
   type PairingSessionResponse,
   type RelayDevice,
 } from "../lib/api";
-
-function formatCountdown(expiresAt: string, nowMs: number): string {
-  const remaining = Math.max(0, Date.parse(expiresAt) - nowMs);
-  const totalSec = Math.ceil(remaining / 1000);
-  const m = Math.floor(totalSec / 60);
-  const s = totalSec % 60;
-  return `${m}:${s.toString().padStart(2, "0")}`;
-}
+import {
+  clearDeviceToken,
+  readDeviceToken,
+  writeDeviceToken,
+} from "../lib/device_token";
+import { formatCountdown } from "../lib/format_countdown";
 
 const PLATFORM_KEYS: Record<RelayDevice["platform"], MessageKey> = {
   ios: "settings.devices.platform.ios",
@@ -37,6 +38,13 @@ export function DevicesSettings() {
   const [busy, setBusy] = useState(false);
   const [renamingId, setRenamingId] = useState<string | null>(null);
   const [renameValue, setRenameValue] = useState("");
+  const [requireToken, setRequireToken] = useState(false);
+  const [requireTokenExplicit, setRequireTokenExplicit] = useState(false);
+  const [hasBrowserToken, setHasBrowserToken] = useState(
+    () => readDeviceToken() !== null,
+  );
+  const [registerCode, setRegisterCode] = useState("");
+  const [registerName, setRegisterName] = useState("This browser");
 
   const loadDevices = async (): Promise<void> => {
     try {
@@ -49,7 +57,16 @@ export function DevicesSettings() {
   };
 
   useEffect(() => {
-    void loadDevices();
+    void (async () => {
+      try {
+        const health = await api.health();
+        setRequireToken(Boolean(health.require_token));
+        setRequireTokenExplicit(Boolean(health.require_token_explicit));
+      } catch {
+        // health is public; ignore
+      }
+      await loadDevices();
+    })();
   }, []);
 
   useEffect(() => {
@@ -86,16 +103,52 @@ export function DevicesSettings() {
     }
   }, [pairing, nowMs]);
 
+  const needsBootstrap = requireTokenExplicit && !hasBrowserToken;
+
   const startPairing = async (): Promise<void> => {
     setBusy(true);
     try {
       const session = await api.startPairing();
       setPairing(session);
     } catch {
-      setLoadError(t("settings.devices.pairError"));
+      setLoadError(
+        needsBootstrap
+          ? t("settings.devices.pairNeedsCli")
+          : t("settings.devices.pairError"),
+      );
     } finally {
       setBusy(false);
     }
+  };
+
+  const registerBrowser = async (): Promise<void> => {
+    const code = registerCode.trim();
+    if (!/^\d{6}$/.test(code)) {
+      setLoadError(t("settings.devices.registerCodeInvalid"));
+      return;
+    }
+    setBusy(true);
+    try {
+      const claimed = await api.claimPairing({
+        code,
+        device_name: registerName.trim() || "This browser",
+        platform: "web",
+      });
+      writeDeviceToken(claimed.token);
+      setHasBrowserToken(true);
+      setRegisterCode("");
+      setLoadError(null);
+      await loadDevices();
+    } catch {
+      setLoadError(t("settings.devices.registerError"));
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const clearBrowserToken = (): void => {
+    clearDeviceToken();
+    setHasBrowserToken(false);
   };
 
   const revoke = async (id: string): Promise<void> => {
@@ -135,17 +188,64 @@ export function DevicesSettings() {
       <p className="settings-hint">{t("settings.devices.intro")}</p>
       {loadError ? <p className="settings-error">{loadError}</p> : null}
 
-      <div className="devices-pair-actions">
-        <button
-          type="button"
-          className="btn-primary"
-          disabled={busy}
-          data-testid="pair-phone-btn"
-          onClick={() => void startPairing()}
-        >
-          {t("settings.devices.pairPhone")}
-        </button>
-      </div>
+      {needsBootstrap ? (
+        <div className="devices-cli-bootstrap" data-testid="devices-cli-bootstrap">
+          <p className="settings-hint">{t("settings.devices.cliIntro")}</p>
+          <pre className="devices-cli-cmd mono" data-testid="devices-cli-cmd">
+            pnpm relay:pair
+          </pre>
+          <label className="settings-field">
+            <span>{t("settings.devices.registerCode")}</span>
+            <input
+              value={registerCode}
+              onChange={(e) => setRegisterCode(e.target.value)}
+              inputMode="numeric"
+              maxLength={6}
+              autoComplete="one-time-code"
+              data-testid="register-code-input"
+            />
+          </label>
+          <label className="settings-field">
+            <span>{t("settings.devices.registerName")}</span>
+            <input
+              value={registerName}
+              onChange={(e) => setRegisterName(e.target.value)}
+              maxLength={120}
+            />
+          </label>
+          <button
+            type="button"
+            className="btn-primary"
+            disabled={busy}
+            data-testid="register-browser-btn"
+            onClick={() => void registerBrowser()}
+          >
+            {t("settings.devices.registerBrowser")}
+          </button>
+        </div>
+      ) : (
+        <div className="devices-pair-actions">
+          <button
+            type="button"
+            className="btn-primary"
+            disabled={busy}
+            data-testid="pair-phone-btn"
+            onClick={() => void startPairing()}
+          >
+            {t("settings.devices.pairPhone")}
+          </button>
+          {hasBrowserToken && requireToken ? (
+            <button
+              type="button"
+              className="linkish"
+              data-testid="clear-browser-token"
+              onClick={clearBrowserToken}
+            >
+              {t("settings.devices.clearBrowserToken")}
+            </button>
+          ) : null}
+        </div>
+      )}
 
       {pairing && !expired ? (
         <div className="devices-pairing" data-testid="pairing-panel">

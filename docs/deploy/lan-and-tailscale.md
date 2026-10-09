@@ -4,42 +4,69 @@ Relay runs on a machine in your home. Phase 2 allows binding beyond loopback
 **only with per-device tokens**. Outside the house, use **Tailscale** — Relay
 is not a hosted cloud service.
 
-## Run on the LAN
+## Recommended setup
+
+Bind **directly** to the Tailscale IP or `0.0.0.0` so peers are real remote
+addresses and token auth is enforced by default:
 
 ```bash
-# Example: listen on all interfaces, advertise this URL in pairing QR codes
+# Prefer Tailscale IP or 0.0.0.0 — tokens required automatically
 RELAY_HOST=0.0.0.0 \
 RELAY_PORT=7420 \
-RELAY_PUBLIC_URL=http://192.168.1.10:7420 \
-RELAY_WEB_ORIGIN=http://192.168.1.10:7421 \
+RELAY_PUBLIC_URL=http://your-host.tailnet-name.ts.net:7420 \
+RELAY_WEB_ORIGIN=http://your-host.tailnet-name.ts.net:7421 \
 pnpm --filter @relay/server start
 ```
 
-- `RELAY_REQUIRE_TOKEN` defaults to **true** when the bind is not loopback.
-- Pair a phone from the web UI on a loopback session (Settings → Devices), or
-  from an already-paired device.
-- Point phones at `RELAY_PUBLIC_URL` (LAN IP or Tailscale name).
+Or bind only the Tailscale interface IP. Pair phones with Settings → Devices
+(from a trusted loopback session) or `pnpm relay:pair` on the host when
+`RELAY_REQUIRE_TOKEN=1` is set explicitly.
 
 ### mDNS `relay.local`
 
 Not implemented in this release (keeps dependencies light). Use the LAN IP or
 Tailscale MagicDNS. A future pass can add a tiny mDNS advertiser if needed.
 
-## Tailscale
-
-1. Install Tailscale on the Relay host and on phones.
-2. Prefer **MagicDNS** names (`http://your-host.tailnet-name.ts.net:7420`) as
-   `RELAY_PUBLIC_URL`.
-3. Optional HTTPS: `tailscale serve` / `tailscale funnel` only if you accept
-   exposing the port within the tailnet; still keep device tokens on.
+## `tailscale serve` / reverse proxies — you MUST set `RELAY_REQUIRE_TOKEN=1`
 
 ```bash
-# On the host (illustrative)
+RELAY_HOST=127.0.0.1 \
+RELAY_REQUIRE_TOKEN=1 \
+RELAY_PUBLIC_URL=https://your-host.tailnet-name.ts.net \
+pnpm --filter @relay/server start
+
+# Then (illustrative)
 tailscale serve --bg 7420
-# Then set RELAY_PUBLIC_URL to the https://… MagicDNS URL Tailscale prints
 ```
 
-Tokens still apply: Tailscale is transport trust, not app auth.
+**Why:** `tailscale serve` (and nginx, Caddy, …) terminate TLS and forward to
+localhost. Every request’s TCP peer is `127.0.0.1`, so the old “loopback needs
+no token / can start pairing” rule would let **anyone on the tailnet** in
+without a device token and start pairing codes.
+
+With `RELAY_REQUIRE_TOKEN=1`:
+
+- No HTTP loopback exemption — Bearer token on `/api/*` and `/mcp/invoke`.
+- Start pairing with **`pnpm relay:pair`** on the host (writes to SQLite
+  directly; not reachable through the proxy), or from an already-paired device.
+- Register the local web browser via Settings → Devices (enter the CLI code);
+  the token is kept in `localStorage`.
+
+Relay also refuses the loopback exemption when proxy headers are present
+(`X-Forwarded-For`, `Forwarded`, `Tailscale-*`, …) even if you forgot the env
+flag — defence in depth. **Still set `RELAY_REQUIRE_TOKEN=1`** when using a
+proxy so pairing cannot be started over HTTP from loopback-looking peers.
+
+## Threat note
+
+| Threat | Mitigation |
+| --- | --- |
+| Attacker on the tailnet hits `tailscale serve` → localhost | `RELAY_REQUIRE_TOKEN=1` + per-device tokens; proxy headers disable loopback exemption |
+| Attacker triggers `pair/start` via proxied “loopback” | Explicit flag → CLI-only bootstrap; otherwise proxy headers → 401 |
+| Stolen phone / browser | Revoke device in Settings → Devices |
+| Token in URL / logs | Stream tickets for EventSource; never log codes/tokens |
+
+Tailscale is **transport** trust, not app auth. Device tokens remain required.
 
 ## Native app notes (guidance only — apps unchanged here)
 
@@ -62,6 +89,8 @@ panel is the host-side pairing surface today.
 
 ## Security checklist (operators)
 
+- Prefer binding the Tailscale IP / `0.0.0.0` over `tailscale serve` when possible.
+- If you use `tailscale serve` or any reverse proxy, set **`RELAY_REQUIRE_TOKEN=1`**.
 - Do not set `RELAY_REQUIRE_TOKEN=0` on a non-loopback bind (server exits).
 - Do not put long-lived tokens in URLs; use stream tickets for EventSource.
 - Revoke lost phones from Settings → Devices.

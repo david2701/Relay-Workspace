@@ -7,9 +7,15 @@ import {
 import type { Context, MiddlewareHandler, Next } from "hono";
 import type { ClientIpResolver } from "./client_ip.js";
 import { requestIsLoopback } from "./client_ip.js";
+import { hasProxyHeaders } from "./proxy_headers.js";
 
 export type AuthOptions = {
   requireToken: boolean;
+  /**
+   * Operator set `RELAY_REQUIRE_TOKEN=1` explicitly — no HTTP loopback
+   * exemption for pairing (use CLI `pnpm relay:pair`).
+   */
+  requireTokenExplicit: boolean;
   publicUrl: string;
   resolveClientIp: ClientIpResolver;
 };
@@ -24,8 +30,8 @@ declare module "hono" {
 const PUBLIC_API_PATHS = new Set(["/api/health", "/api/pair/claim"]);
 
 /**
- * pair/start is reachable without a token only from loopback; the handler
- * (or this gate) still requires loopback OR an authenticated device.
+ * pair/start is reachable without a token only from trusted loopback
+ * (not when tokens are explicitly required, and never through a proxy).
  */
 const PAIR_START_PATH = "/api/pair/start";
 
@@ -72,8 +78,27 @@ function unauthorizedJson(message = "Authentication required"): Response {
 }
 
 /**
- * When `requireToken` is true, reject unauthenticated /api/* (except public
- * paths). On success, attach the device.
+ * Trusted loopback exemption: real loopback peer, no proxy headers, and
+ * tokens were not forced on via `RELAY_REQUIRE_TOKEN=1`.
+ */
+export function isTrustedLoopbackRequest(
+  c: Context,
+  opts: AuthOptions,
+): boolean {
+  if (opts.requireTokenExplicit) return false;
+  if (hasProxyHeaders(c)) return false;
+  return requestIsLoopback(c, opts.resolveClientIp);
+}
+
+/** Effective token gate for this request (env flag or proxied peer). */
+export function requestRequiresToken(c: Context, opts: AuthOptions): boolean {
+  if (opts.requireToken) return true;
+  return hasProxyHeaders(c);
+}
+
+/**
+ * When tokens are required (env or proxy headers), reject unauthenticated
+ * /api/* (except public paths). On success, attach the device.
  */
 export function createAuthMiddleware(
   svc: RelayService,
@@ -86,7 +111,8 @@ export function createAuthMiddleware(
       return;
     }
     const isStream = path === "/api/stream";
-    if (!opts.requireToken) {
+    const needsToken = requestRequiresToken(c, opts);
+    if (!needsToken) {
       const device = authenticateRequest(c, svc, {
         allowStreamTicket: isStream,
       });
@@ -105,12 +131,14 @@ export function createAuthMiddleware(
         await next();
         return;
       }
-      if (requestIsLoopback(c, opts.resolveClientIp)) {
+      if (isTrustedLoopbackRequest(c, opts)) {
         await next();
         return;
       }
       return unauthorizedJson(
-        "Pairing start requires loopback or a device token",
+        opts.requireTokenExplicit
+          ? "Pairing start requires a device token (use pnpm relay:pair on the host)"
+          : "Pairing start requires loopback or a device token",
       );
     }
     const device = authenticateRequest(c, svc, {
@@ -125,14 +153,14 @@ export function createAuthMiddleware(
 }
 
 /**
- * MCP invoke helper — same token gate when requireToken is on.
+ * MCP invoke helper — same token gate when tokens are required.
  */
 export function createMcpInvokeAuthMiddleware(
   svc: RelayService,
   opts: AuthOptions,
 ): MiddlewareHandler {
   return async (c: Context, next: Next) => {
-    if (!opts.requireToken) {
+    if (!requestRequiresToken(c, opts)) {
       const device = authenticateRequest(c, svc);
       if (device) c.set("relayDevice", device);
       await next();
@@ -155,7 +183,7 @@ export function authorizeStreamRequest(
   svc: RelayService,
   opts: AuthOptions,
 ): Response | null {
-  if (!opts.requireToken) {
+  if (!requestRequiresToken(c, opts)) {
     const device = authenticateRequest(c, svc, { allowStreamTicket: true });
     if (device) c.set("relayDevice", device);
     return null;
@@ -174,9 +202,11 @@ export function assertPairStartAllowed(
 ): void {
   const device = c.get("relayDevice");
   if (device) return;
-  if (requestIsLoopback(c, opts.resolveClientIp)) return;
+  if (isTrustedLoopbackRequest(c, opts)) return;
   throw new UnauthorizedError(
-    "Pairing start requires loopback or a device token",
+    opts.requireTokenExplicit
+      ? "Pairing start requires a device token (use pnpm relay:pair on the host)"
+      : "Pairing start requires loopback or a device token",
   );
 }
 

@@ -672,7 +672,29 @@
 }
 
 .devices-pair-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 12px;
   margin-bottom: 8px;
+}
+
+.devices-cli-bootstrap {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-bottom: 12px;
+  padding-bottom: 12px;
+  border-bottom: 1px solid var(--line);
+}
+
+.devices-cli-cmd {
+  margin: 0;
+  padding: 10px 12px;
+  background: var(--sunken);
+  border-radius: var(--radius-sm);
+  font-size: var(--step-data);
+  overflow-x: auto;
 }
 
 .devices-pairing {

@@ -36,7 +36,8 @@
     "check:hardcoded-strings": "node scripts/check-hardcoded-strings.mjs",
     "check:client-names": "node scripts/check-client-names.mjs",
     "verify": "bash scripts/ci.sh",
-    "capture:mcp-examples": "node scripts/capture-mcp-examples.mjs"
+    "capture:mcp-examples": "node scripts/capture-mcp-examples.mjs",
+    "relay:pair": "pnpm run build:core && pnpm --filter @relay/server pair"
   },
   "devDependencies": {
     "@biomejs/biome": "^2.5.15",

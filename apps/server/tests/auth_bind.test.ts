@@ -34,12 +34,22 @@ describe("auth bind config", () => {
     ).toThrow(/non-loopback/);
   });
 
-  it("allows forcing tokens on loopback", () => {
+  it("allows forcing tokens on loopback and marks explicit", () => {
     const cfg = resolveAuthBindConfig({
       host: "127.0.0.1",
       port: 7420,
       requireTokenEnv: "1",
     });
     expect(cfg.requireToken).toBe(true);
+    expect(cfg.requireTokenExplicit).toBe(true);
+  });
+
+  it("non-loopback default requireToken is not explicit", () => {
+    const cfg = resolveAuthBindConfig({
+      host: "0.0.0.0",
+      port: 7420,
+    });
+    expect(cfg.requireToken).toBe(true);
+    expect(cfg.requireTokenExplicit).toBe(false);
   });
 });

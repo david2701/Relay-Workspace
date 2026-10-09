@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { api } from "../lib/api";
+import { readDeviceToken } from "../lib/device_token";
 import {
   applyInboxDelta,
   ensureAttentionSections,
@@ -34,10 +35,25 @@ export type UseInboxLiveResult = {
   lastEventItemIds: string[];
 };
 
-function streamUrl(afterSeq: number): string {
-  const base = `${api.base}/api/stream`;
-  if (afterSeq <= 0) return base;
-  return `${base}?after_seq=${afterSeq}`;
+function streamUrl(afterSeq: number, accessToken?: string): string {
+  const params = new URLSearchParams();
+  if (afterSeq > 0) params.set("after_seq", String(afterSeq));
+  if (accessToken) params.set("access_token", accessToken);
+  const qs = params.toString();
+  return qs.length > 0
+    ? `${api.base}/api/stream?${qs}`
+    : `${api.base}/api/stream`;
+}
+
+async function resolveStreamUrl(afterSeq: number): Promise<string> {
+  if (!readDeviceToken()) return streamUrl(afterSeq);
+  try {
+    const ticket = await api.mintStreamTicket();
+    return streamUrl(afterSeq, ticket.access_token);
+  } catch {
+    // Fall back without ticket (loopback / tokens not required).
+    return streamUrl(afterSeq);
+  }
 }
 
 const EVENT_TYPES = [
@@ -223,56 +239,59 @@ export function useInboxLive(inboxView: InboxView): UseInboxLiveResult {
         esRef.current.close();
         esRef.current = null;
       }
-      const es = new EventSource(streamUrl(seqRef.current));
-      esRef.current = es;
-
-      es.onopen = () => {
+      void resolveStreamUrl(seqRef.current).then((url) => {
         if (closed || gen !== generation.current) return;
-        fails.current = 0;
-        setSyncState("connected");
-        setLastOkAt(Date.now());
-        setError(null);
-      };
+        const es = new EventSource(url);
+        esRef.current = es;
 
-      const onPayload = (ev: MessageEvent, type: string) => {
-        if (closed || gen !== generation.current) return;
-        if (type === "resync") {
-          void handleStreamSignalRef.current({ resync: true });
-          return;
-        }
-        try {
-          const parsed = JSON.parse(String(ev.data)) as ItemEvent;
-          if (typeof parsed.seq === "number") {
-            void handleStreamSignalRef.current({ event: parsed });
+        es.onopen = () => {
+          if (closed || gen !== generation.current) return;
+          fails.current = 0;
+          setSyncState("connected");
+          setLastOkAt(Date.now());
+          setError(null);
+        };
+
+        const onPayload = (ev: MessageEvent, type: string) => {
+          if (closed || gen !== generation.current) return;
+          if (type === "resync") {
+            void handleStreamSignalRef.current({ resync: true });
+            return;
           }
-        } catch {
-          // ignore malformed frames
-        }
-      };
+          try {
+            const parsed = JSON.parse(String(ev.data)) as ItemEvent;
+            if (typeof parsed.seq === "number") {
+              void handleStreamSignalRef.current({ event: parsed });
+            }
+          } catch {
+            // ignore malformed frames
+          }
+        };
 
-      for (const t of EVENT_TYPES) {
-        es.addEventListener(t, (ev) => {
-          onPayload(ev as MessageEvent, t);
-        });
-      }
-      es.onmessage = (ev) => onPayload(ev, "message");
+        for (const t of EVENT_TYPES) {
+          es.addEventListener(t, (ev) => {
+            onPayload(ev as MessageEvent, t);
+          });
+        }
+        es.onmessage = (ev) => onPayload(ev, "message");
 
-      es.onerror = () => {
-        if (closed || gen !== generation.current) return;
-        fails.current += 1;
-        if (fails.current >= OFFLINE_FAILS) {
-          setSyncState("offline");
-        } else {
-          setSyncState("reconnecting");
-        }
-        if (es.readyState === EventSource.CLOSED) {
-          esRef.current = null;
-          if (reconnectTimer !== null) window.clearTimeout(reconnectTimer);
-          reconnectTimer = window.setTimeout(() => {
-            openStream();
-          }, RECONNECT_BASE_MS);
-        }
-      };
+        es.onerror = () => {
+          if (closed || gen !== generation.current) return;
+          fails.current += 1;
+          if (fails.current >= OFFLINE_FAILS) {
+            setSyncState("offline");
+          } else {
+            setSyncState("reconnecting");
+          }
+          if (es.readyState === EventSource.CLOSED) {
+            esRef.current = null;
+            if (reconnectTimer !== null) window.clearTimeout(reconnectTimer);
+            reconnectTimer = window.setTimeout(() => {
+              openStream();
+            }, RECONNECT_BASE_MS);
+          }
+        };
+      });
     };
 
     void (async () => {

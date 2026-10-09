@@ -75,6 +75,7 @@ describe("LAN auth + pairing", () => {
   it("RELAY_REQUIRE_TOKEN=1 → 401 without token on /api, /api/stream, /mcp/invoke", async () => {
     const app = createApp(svc, "http://127.0.0.1:7421", {
       requireToken: true,
+      requireTokenExplicit: true,
       publicUrl: "http://127.0.0.1:7420",
     });
     expect((await app.request("http://127.0.0.1/api/items")).status).toBe(401);
@@ -89,19 +90,23 @@ describe("LAN auth + pairing", () => {
       ).status,
     ).toBe(401);
     // Health + claim stay public
-    expect((await app.request("http://127.0.0.1/api/health")).status).toBe(200);
+    const health = await app.request("http://127.0.0.1/api/health");
+    expect(health.status).toBe(200);
+    expect(await health.json()).toMatchObject({
+      ok: true,
+      require_token: true,
+      require_token_explicit: true,
+    });
   });
 
   it("valid token works; revoked token gets 401", async () => {
     const app = createApp(svc, "http://127.0.0.1:7421", {
       requireToken: true,
+      requireTokenExplicit: true,
       publicUrl: "http://127.0.0.1:7420",
     });
-    const start = await app.request("http://127.0.0.1/api/pair/start", {
-      method: "POST",
-    });
-    expect(start.status).toBe(200);
-    const session = (await start.json()) as { code: string };
+    // Explicit mode: bootstrap via service/CLI, not HTTP pair/start.
+    const session = svc.startPairing({ publicUrl: "http://127.0.0.1:7420" });
     const claim = await app.request("http://127.0.0.1/api/pair/claim", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
@@ -222,13 +227,11 @@ describe("LAN auth + pairing", () => {
     });
     const app = createApp(svc, "http://127.0.0.1:7421", {
       requireToken: true,
+      requireTokenExplicit: true,
       publicUrl: "http://127.0.0.1:7420",
       streamHub: hub,
     });
-    const start = await app.request("http://127.0.0.1/api/pair/start", {
-      method: "POST",
-    });
-    const session = (await start.json()) as { code: string };
+    const session = svc.startPairing({ publicUrl: "http://127.0.0.1:7420" });
     const claim = await app.request("http://127.0.0.1/api/pair/claim", {
       method: "POST",
       headers: { "Content-Type": "application/json" },

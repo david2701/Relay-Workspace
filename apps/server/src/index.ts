@@ -48,6 +48,11 @@ export type CreateAppOptions = {
    * token. Default false so existing loopback e2e/tests stay unchanged.
    */
   requireToken?: boolean;
+  /**
+   * Operator set `RELAY_REQUIRE_TOKEN=1` — disables HTTP loopback exemption
+   * for `pair/start` (use CLI `pnpm relay:pair`).
+   */
+  requireTokenExplicit?: boolean;
   /** Base URL for pairing QR payloads. */
   publicUrl?: string;
   /** Override client IP resolution (tests). */
@@ -63,6 +68,7 @@ function buildAuthOptions(
     "http://127.0.0.1:7420";
   return {
     requireToken: opts.requireToken ?? false,
+    requireTokenExplicit: opts.requireTokenExplicit ?? false,
     publicUrl: opts.publicUrl ?? inferredPublic,
     resolveClientIp: createClientIpResolver(opts.resolveClientIp),
   };
@@ -164,6 +170,7 @@ async function main(): Promise<void> {
     webDist,
     streamHub,
     requireToken: env.auth.requireToken,
+    requireTokenExplicit: env.auth.requireTokenExplicit,
     publicUrl: env.auth.publicUrl,
   });
   serve(
@@ -178,8 +185,13 @@ async function main(): Promise<void> {
       );
       console.info(`SQLite: ${env.RELAY_DB}`);
       console.info(
-        `Auth: require_token=${env.auth.requireToken} public_url=${env.auth.publicUrl}`,
+        `Auth: require_token=${env.auth.requireToken} explicit=${env.auth.requireTokenExplicit} public_url=${env.auth.publicUrl}`,
       );
+      if (env.auth.requireTokenExplicit) {
+        console.info(
+          "Pairing: run `pnpm relay:pair` on this host (HTTP pair/start needs a device token)",
+        );
+      }
       console.info(`SSE stream: http://${env.RELAY_HOST}:${info.port}/api/stream`);
       console.info(`MCP Streamable HTTP: http://${env.RELAY_HOST}:${info.port}/mcp`);
       console.info(`MCP invoke helper: http://${env.RELAY_HOST}:${info.port}/mcp/invoke`);

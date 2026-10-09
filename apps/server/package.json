@@ -15,7 +15,8 @@
     "seed:large": "tsx scripts/seed_large.ts",
     "seed:demo": "tsx scripts/seed_demo.ts",
     "demo:reset": "tsx scripts/reset_demo.ts",
-    "demo:ac3": "tsx scripts/ac3_demo.ts"
+    "demo:ac3": "tsx scripts/ac3_demo.ts",
+    "pair": "tsx scripts/pair.ts"
   },
   "dependencies": {
     "@hono/node-server": "^1.19.0",

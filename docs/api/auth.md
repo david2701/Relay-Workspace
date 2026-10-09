@@ -2,7 +2,8 @@
 
 Relay stores data on your own machine. On **loopback** (`127.0.0.1` /
 `localhost`) the API stays open for the local web UI and MCP stdio — same as
-before. When the server listens on **anything else** (LAN `0.0.0.0`, a LAN IP),
+before — **unless** a proxy header is present or `RELAY_REQUIRE_TOKEN=1` is set.
+When the server listens on **anything else** (LAN `0.0.0.0`, a LAN IP),
 **every request needs a per-device token**.
 
 Tailscale is the supported way to reach the server from outside the house.
@@ -12,15 +13,43 @@ Nothing is hosted externally. See [lan-and-tailscale.md](../deploy/lan-and-tails
 
 | Bind | Default `RELAY_REQUIRE_TOKEN` | Behaviour |
 | --- | --- | --- |
-| `127.0.0.1` / `localhost` / `::1` | `false` | No token required (local web + MCP) |
+| `127.0.0.1` / `localhost` / `::1` | `false` | No token required (local web + MCP), **unless** proxy headers are present |
 | `0.0.0.0` or LAN IP | `true` | Bearer token required on `/api/*` and `/mcp/invoke` |
 
 - Override with `RELAY_REQUIRE_TOKEN=0` or `1`.
 - Non-loopback + `RELAY_REQUIRE_TOKEN=0` **refuses to start**.
 - Public without a token (even when required): `GET /api/health`,
   `POST /api/pair/claim`.
-- `POST /api/pair/start`: **loopback client** or an **already-authenticated
-  device** only.
+- `GET /api/health` also reports `{ require_token, require_token_explicit }`.
+
+### Proxy headers (no loopback spoofing)
+
+If a request carries any of `Forwarded`, `X-Forwarded-For`, `X-Forwarded-Host`,
+`X-Forwarded-Proto`, `X-Real-IP`, or any `Tailscale-*` header (e.g.
+`Tailscale-User-Login`), Relay treats it as **remote**: tokens are required and
+the loopback exemption for `pair/start` is refused. This closes the hole where
+`tailscale serve` (or any reverse proxy) makes every peer look like `127.0.0.1`.
+
+### Explicit `RELAY_REQUIRE_TOKEN=1`
+
+When the operator sets the flag explicitly:
+
+- **No** HTTP loopback exemption at all — every `/api/*` (except public) and
+  `/mcp/invoke` needs a valid device token.
+- `POST /api/pair/start` requires an **already-authenticated device**.
+- Bootstrap a new code from the host with the local admin CLI (talks to SQLite
+  directly — unreachable through a proxy):
+
+```bash
+pnpm relay:pair
+```
+
+Prints a 6-digit code + QR payload. Claim via `POST /api/pair/claim` (or Settings
+→ Devices → Register this browser).
+
+**Why CLI (not a one-time admin secret):** a secret printed at startup can still
+be replayed over HTTP if it leaks into a log or screenshot; the CLI never opens
+an HTTP surface for pairing start.
 
 ## Tokens
 
@@ -29,6 +58,13 @@ Nothing is hosted externally. See [lan-and-tailscale.md](../deploy/lan-and-tails
   once from `pair/claim` and never written to the DB or logs.
 - Send as `Authorization: Bearer <token>`.
 - Revoke with `DELETE /api/devices/:id` → subsequent requests get `401`.
+
+### Web browser under token auth
+
+The web UI keeps its device token in **`localStorage`** (`relay.device_token`),
+not `sessionStorage`. Justification: the token is a long-lived paired-device
+credential (same model as a phone); `sessionStorage` would force re-pairing on
+every tab close. Revoke from Settings → Devices if the browser is shared.
 
 ## EventSource / SSE (`GET /api/stream`)
 
@@ -60,7 +96,9 @@ proxy logs). Tickets are hashed at rest like device tokens.
 
 ### `POST /api/pair/start`
 
-Loopback or Bearer device required.
+Trusted loopback **or** Bearer device required — never when
+`RELAY_REQUIRE_TOKEN=1` is explicit (use `pnpm relay:pair`), and never when
+proxy headers are present.
 
 ```json
 {
@@ -100,8 +138,8 @@ Successful auth sets the actor to the human user and updates `last_seen_at`.
 
 | Variable | Meaning |
 | --- | --- |
-| `RELAY_HOST` | Bind address (`127.0.0.1`, `0.0.0.0`, LAN IP) |
-| `RELAY_REQUIRE_TOKEN` | Force token auth (`0`/`1`); default from bind |
+| `RELAY_HOST` | Bind address (`127.0.0.1`, `0.0.0.0`, LAN IP, Tailscale IP) |
+| `RELAY_REQUIRE_TOKEN` | Force token auth (`0`/`1`); default from bind. Explicit `1` disables HTTP loopback pairing. |
 | `RELAY_PUBLIC_URL` | Base URL in pairing QR (no trailing slash) |
 
 Never commit tokens or pairing codes. Never log them.

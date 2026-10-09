@@ -4,6 +4,8 @@
  * - Loopback bind (`127.0.0.1` / `localhost` / `::1`): tokens optional by default.
  * - Any other bind (`0.0.0.0`, LAN IP): tokens required (or refuse to start).
  * - `RELAY_REQUIRE_TOKEN` overrides the default when set to `1`/`0`/`true`/`false`.
+ * - When the flag is **explicitly** `1`/`true`, there is no loopback HTTP exemption
+ *   for pairing — use `pnpm relay:pair` (CLI → SQLite) instead.
  */
 
 export function isLoopbackHost(host: string): boolean {
@@ -32,6 +34,11 @@ export type AuthBindConfig = {
   host: string;
   /** Effective enforcement flag after defaults. */
   requireToken: boolean;
+  /**
+   * True only when the operator set `RELAY_REQUIRE_TOKEN` to on.
+   * Disables the loopback HTTP exemption for `pair/start`.
+   */
+  requireTokenExplicit: boolean;
   /** Public base URL embedded in pairing QR payloads. */
   publicUrl: string;
 };
@@ -45,6 +52,7 @@ export function resolveAuthBindConfig(input: {
   const loopback = isLoopbackHost(input.host);
   const flag = parseRequireTokenFlag(input.requireTokenEnv);
   const requireToken = flag ?? !loopback;
+  const requireTokenExplicit = flag === true;
   if (!loopback && !requireToken) {
     throw new Error(
       "Security: non-loopback RELAY_HOST requires token auth (unset RELAY_REQUIRE_TOKEN=0 or bind 127.0.0.1)",
@@ -56,6 +64,7 @@ export function resolveAuthBindConfig(input: {
   return {
     host: input.host,
     requireToken,
+    requireTokenExplicit,
     publicUrl,
   };
 }

@@ -1,3 +1,19 @@
+import { readDeviceToken } from "./device_token";
+import type {
+  Agent,
+  ContextPack,
+  InboxResult,
+  InboxSyncDelta,
+  InboxView,
+  LinkedNote,
+  Note,
+  NoteRole,
+  NotesSearchResult,
+  Recommendation,
+  SearchResult,
+  WorkItem,
+} from "./types";
+
 export type RelaySettings = {
   timezone: string;
   user_display_name: string;
@@ -25,21 +41,6 @@ export type PairingSessionResponse = {
   qr: { v: 1; url: string; code: string };
 };
 
-import type {
-  Agent,
-  ContextPack,
-  InboxResult,
-  InboxSyncDelta,
-  InboxView,
-  LinkedNote,
-  Note,
-  NoteRole,
-  NotesSearchResult,
-  Recommendation,
-  SearchResult,
-  WorkItem,
-} from "./types";
-
 const BASE = import.meta.env.VITE_API_URL ?? "http://127.0.0.1:7420";
 
 export class ApiError extends Error {
@@ -61,12 +62,20 @@ export class ApiError extends Error {
   }
 }
 
+export type HealthResponse = {
+  ok: boolean;
+  require_token?: boolean;
+  require_token_explicit?: boolean;
+};
+
 async function request<T>(path: string, init?: RequestInit): Promise<T> {
+  const token = readDeviceToken();
   const res = await fetch(`${BASE}${path}`, {
     ...init,
     headers: {
       "Content-Type": "application/json",
       "X-Relay-Source": "ui",
+      ...(token ? { Authorization: `Bearer ${token}` } : {}),
       ...(init?.headers ?? {}),
     },
   });
@@ -96,7 +105,7 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
 
 export const api = {
   base: BASE,
-  health: () => request<{ ok: boolean }>("/api/health"),
+  health: () => request<HealthResponse>("/api/health"),
   agents: () => request<{ agents: Agent[] }>("/api/agents"),
   inbox: (
     view: InboxView,
