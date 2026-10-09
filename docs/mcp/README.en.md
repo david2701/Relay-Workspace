@@ -476,11 +476,15 @@ Paged event history for one item (oldest first). Prefer `after_seq` for resume.
 | Param | Type | Required |
 |-------|------|----------|
 | `id` | string (item) | yes |
-| `after_seq` | int ≥0 | no (default 0) |
+| `after_seq` | safe int 0…`Number.MAX_SAFE_INTEGER` | no (default 0) |
 | `limit` | int 1–200 | no (default 100) |
 
 **Call:** `{ "id": "itm_maj7i9qv5r", "after_seq": 0, "limit": 20 }`  
-**Response:** `{ "events": […], "next_seq": 3, "has_more": false }`
+**Response:** `{ "events": […], "next_seq": 6, "has_more": false }`
+
+`next_seq` is the last `seq` on **this item’s page** (pass it as the next
+`after_seq` for the same item). It is not the global watermark — use
+`changes_list` / inbox `seq` for that. Invalid `after_seq` / `limit` → tool error.
 
 ### `inbox_query`
 
@@ -503,11 +507,13 @@ Global `item_events` page for sync / future SSE replay (`Last-Event-ID` ↔ `aft
 
 | Param | Type | Required |
 |-------|------|----------|
-| `after_seq` | int ≥0 | no (default 0) |
+| `after_seq` | safe int 0…`Number.MAX_SAFE_INTEGER` | no (default 0) |
 | `limit` | int 1–200 | no (default 100) |
 
 **Call:** `{ "after_seq": 0, "limit": 50 }`  
 **Response:** `{ "events": […], "next_seq": 12, "has_more": true }`
+
+`next_seq` here is the global page cursor. Invalid `after_seq` / `limit` → tool error.
 
 See also [`docs/api/events.md`](../api/events.md).
 

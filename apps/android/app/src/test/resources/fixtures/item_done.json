@@ -1,0 +1,26 @@
+{
+  "item": {
+    "id": "itm_d7kdav8eai",
+    "title": "Redactar el changelog de esta semana",
+    "goal": "Changelog publicado en el canal interno",
+    "status": "done",
+    "assignee_type": "agent",
+    "assignee_id": "agent-writing",
+    "due_at": null,
+    "reminder_at": null,
+    "reminder_intent": null,
+    "priority": "none",
+    "blocked_reason": null,
+    "needs_you_reason": null,
+    "source": "ui",
+    "created_at": "2026-10-09T03:40:42.201Z",
+    "updated_at": "2026-10-09T03:40:42.212Z",
+    "started_at": null,
+    "completed_at": "2026-10-09T03:40:42.212Z",
+    "completed_by_type": "agent",
+    "completed_by_id": "agent-writing",
+    "last_actor_type": "agent",
+    "last_actor_id": "agent-writing",
+    "list_id": null
+  }
+}

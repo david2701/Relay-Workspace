@@ -1,0 +1,23 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">Relay</string>
+    <string name="attention_title">Atención</string>
+    <string name="nav_attention">Atención</string>
+    <string name="nav_team">Equipo</string>
+    <string name="nav_notes">Notas</string>
+    <string name="section_needs_you">Te necesita</string>
+    <string name="section_blocked">Atascado</string>
+    <string name="section_today">Para hoy</string>
+    <string name="empty_title">Nada te necesita ahora</string>
+    <string name="empty_body">Tu equipo sigue. Te avisamos cuando alguno te pida algo.</string>
+    <string name="error_title">No se pudo cargar Atención</string>
+    <string name="retry">Reintentar</string>
+    <string name="sync_up_to_date">Al día</string>
+    <string name="loading">Cargando Atención</string>
+    <string name="fab_new_item">Nuevo ítem</string>
+    <string name="search">Buscar</string>
+    <string name="filter">Filtrar</string>
+    <string name="profile">Perfil</string>
+    <string name="cd_needs_you_rule">Te necesita</string>
+    <string name="cd_selected_row">Seleccionado</string>
+</resources>

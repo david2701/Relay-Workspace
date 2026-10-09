@@ -23,21 +23,70 @@ describe("item_events log", () => {
     rmSync(dir, { recursive: true, force: true });
   });
 
-  it("assigns strictly increasing gap-free seq under 200 concurrent writes", async () => {
-    const writers = Array.from({ length: 200 }, (_, i) =>
-      Promise.resolve(svc.createItem({ title: `C${i}` }, actor, "ui")),
+  it("assigns strictly increasing gap-free seq under 200 concurrent worker writes", async () => {
+    const dbPath = join(dir, "concurrent.db");
+    const total = 200;
+    const workerCount = 16;
+    // Migrate once so workers do not race schema setup.
+    const bootstrap = new RelayService({ dbPath });
+    bootstrap.close();
+    const { Worker } = await import("node:worker_threads");
+    const workerPath = new URL(
+      "./item_events_concurrent_worker.mjs",
+      import.meta.url,
     );
-    const items = await Promise.all(writers);
-    expect(items).toHaveLength(200);
-    const page = svc.listChanges({ after_seq: 0, limit: 200 });
-    expect(page.events).toHaveLength(200);
-    expect(page.has_more).toBe(false);
-    const seqs = page.events.map((e) => e.seq);
-    expect(seqs[0]).toBe(1);
-    for (let i = 1; i < seqs.length; i += 1) {
-      expect(seqs[i]).toBe((seqs[i - 1] ?? 0) + 1);
+    const base = Math.floor(total / workerCount);
+    const rem = total % workerCount;
+    let offset = 0;
+    const jobs = Array.from({ length: workerCount }, (_, w) => {
+      const count = base + (w < rem ? 1 : 0);
+      const start = offset;
+      offset += count;
+      return { count, offset: start };
+    });
+    const results = await Promise.all(
+      jobs.map((job) => {
+        return new Promise<{ ok: boolean; error?: string }>((resolve, reject) => {
+          const worker = new Worker(workerPath, {
+            workerData: { dbPath, count: job.count, offset: job.offset },
+          });
+          let msg: { ok: boolean; error?: string } | undefined;
+          worker.on("message", (m) => {
+            msg = m;
+          });
+          worker.on("error", reject);
+          worker.on("exit", (code) => {
+            if (code !== 0) {
+              reject(new Error(`worker exited ${code}: ${msg?.error ?? ""}`));
+              return;
+            }
+            if (!msg) {
+              reject(new Error("worker exited without message"));
+              return;
+            }
+            resolve(msg);
+          });
+        });
+      }),
+    );
+    const failures = results.filter((r) => !r.ok);
+    expect(failures).toEqual([]);
+    const reader = new RelayService({ dbPath });
+    try {
+      const page = reader.listChanges({ after_seq: 0, limit: 200 });
+      expect(page.events).toHaveLength(200);
+      expect(page.has_more).toBe(false);
+      const seqs = page.events.map((e) => e.seq);
+      expect(new Set(seqs).size).toBe(200);
+      expect(Math.min(...seqs)).toBe(1);
+      expect(Math.max(...seqs)).toBe(200);
+      for (let i = 1; i < seqs.length; i += 1) {
+        expect(seqs[i]).toBe((seqs[i - 1] ?? 0) + 1);
+      }
+      expect(latestEventSeq(reader.db)).toBe(200);
+    } finally {
+      reader.close();
     }
-    expect(latestEventSeq(svc.db)).toBe(200);
   });
 
   it("rolls back the item write when event append fails in the same transaction", () => {
