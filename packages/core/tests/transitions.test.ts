@@ -89,6 +89,19 @@ describe("status transitions", () => {
     expect(next.completed_at).toBeTruthy();
   });
 
+  it("cancel stamps completed_by as terminal actor (labels branch in UI)", () => {
+    const next = applyStatusChange({
+      item: baseItem(),
+      input: { status: "cancelled" },
+      actor: user,
+      source: "ui",
+    });
+    expect(next.status).toBe("cancelled");
+    expect(next.completed_by_type).toBe("user");
+    expect(next.completed_by_id).toBe(USER_ACTOR_ID);
+    expect(next.completed_at).toBeTruthy();
+  });
+
   it("reopen clears completed_* and goes to assigned when assignee exists", () => {
     const done = completeItem({
       item: baseItem(),
