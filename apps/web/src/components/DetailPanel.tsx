@@ -12,6 +12,7 @@ import { api } from "../lib/api";
 import { dueFacetLabel, statusLabel } from "../lib/copy";
 import { formatAbsolute, formatRelative } from "../lib/format";
 import { toPlainText } from "../lib/markdown";
+import { terminalByKeys } from "../lib/terminal_by_label";
 import type {
   Agent,
   ContextPack,
@@ -517,6 +518,14 @@ export function DetailPanel({
             {(() => {
               const completer = markForCompleter(item, agents);
               if (!completer) return null;
+              const keys = terminalByKeys(item);
+              const time = item.completed_at
+                ? formatAbsolute(item.completed_at)
+                : "";
+              const label =
+                completer.kind === "user"
+                  ? t(keys.byYou, { time })
+                  : t(keys.byName, { name: completer.name, time });
               return (
                 <>
                   <ActorMark
@@ -525,20 +534,7 @@ export function DetailPanel({
                     monogram={completer.monogram}
                     size={20}
                   />
-                  <span>
-                    {completer.kind === "user"
-                      ? t("item.completedByYou", {
-                          time: item.completed_at
-                            ? formatAbsolute(item.completed_at)
-                            : "",
-                        })
-                      : t("item.completedBy", {
-                          name: completer.name,
-                          time: item.completed_at
-                            ? formatAbsolute(item.completed_at)
-                            : "",
-                        })}
-                  </span>
+                  <span>{label}</span>
                 </>
               );
             })()}

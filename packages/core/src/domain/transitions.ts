@@ -54,6 +54,7 @@ export function applyStatusChange(args: ApplyStatusArgs): WorkItem {
   if (input.status === "in_progress" && item.started_at === null) {
     next.started_at = iso;
   }
+  // Terminal actor: both done and cancelled stamp completed_* (UI labels branch).
   if (input.status === "done" || input.status === "cancelled") {
     next.completed_at = iso;
     next.completed_by_type = actor.type;

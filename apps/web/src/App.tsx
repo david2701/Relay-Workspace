@@ -752,9 +752,9 @@ export default function App() {
     }
   }, [flatItems, selectedId, searchAllowedIds, view, setSelectedId]);
 
-  // Rail Atención counter: when Atención is painted, use the rendered
-  // Te necesita row count (same list as the header · N). Otherwise use
-  // the last known server counter so the rail stays coherent off-view.
+  // Rail Attention badge (§1.2): needs_you count only (hidden when 0).
+  // On Attention, prefer the painted Te necesita section length so linger /
+  // optimistic rows stay in sync; off that view, use counters.needs_you.
   const renderedNeedsYou = viewSections.find(
     (s) => s.key === "needs_you",
   )?.items.length;
