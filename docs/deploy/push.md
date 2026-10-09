@@ -19,7 +19,7 @@ Push: disabled (no APNs/FCM credentials)
 | `RELAY_APNS_TEAM_ID` | for iOS | 10-char Team ID |
 | `RELAY_APNS_TOPIC` | for iOS | App bundle id / APNs topic |
 | `RELAY_FCM_CREDENTIALS_PATH` | for Android | Path to Firebase service-account JSON |
-| `RELAY_PUSH_REDACT` | no | **Default ON** (omit titles; D3). Set `0` to include a truncated title in payloads |
+| `RELAY_PUSH_REDACT` | no | **Default ON** (omit titles; D3). Titles are included only when the value is exactly `0` or `false` (case-insensitive). Empty, typos, `no`, `off`, etc. keep redaction on |
 | `RELAY_PUSH_SKIP_OPEN_SSE` | no | Default `1` (D4: no push while SSE open). `0` = always push |
 | `RELAY_PUSH_DEDUPE_MS` | no | Dedupe window for `(device, item, reason)` (default `60000`) |
 | `RELAY_PUSH_REMINDER_POLL_MS` | no | How often to emit `reminder_fired` (default `15000`) |
@@ -70,7 +70,8 @@ cached until near expiry) and sends HTTP v1 messages with
 
 - Never log provider tokens, `.p8` contents, or service-account JSON.
 - By default push payloads are `item_id` + `reason` only (`RELAY_PUSH_REDACT`
-  defaults on). Titles reach Apple/Google only if you set `RELAY_PUSH_REDACT=0`.
+  defaults on). Titles reach Apple/Google only if you set `RELAY_PUSH_REDACT`
+  to exactly `0` or `false` (case-insensitive).
 - Revoking a device deletes its push token.
 - Prefer filesystem permissions over embedding secrets in process managers’
   world-readable env files; path-based env vars keep material out of `ps` dumps.

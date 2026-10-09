@@ -80,7 +80,8 @@ writes (MCP stdio, CLI) therefore also fan out to push.
   `RELAY_PUSH_DEDUPE_MS` (default 60s).
 - **Payload:** `item_id` and `reason` by default (owner **D3**: Apple/Google must
   not see item titles). A truncated `title` (≤80) is included only when
-  `RELAY_PUSH_REDACT=0`. No note bodies or secrets.
+  `RELAY_PUSH_REDACT` is exactly `0` or `false` (case-insensitive). No note
+  bodies or secrets.
 
 ## Provider behaviour
 
