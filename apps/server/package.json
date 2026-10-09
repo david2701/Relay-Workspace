@@ -13,6 +13,8 @@
     "test": "vitest run",
     "seed": "tsx scripts/seed.ts",
     "seed:large": "tsx scripts/seed_large.ts",
+    "seed:demo": "tsx scripts/seed_demo.ts",
+    "demo:reset": "tsx scripts/reset_demo.ts",
     "demo:ac3": "tsx scripts/ac3_demo.ts"
   },
   "dependencies": {

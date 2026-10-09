@@ -18,6 +18,7 @@ Heading toward **0.3.0** («Enseñable»).
 - Real `check:i18n-missing-keys` and `check:hardcoded-strings` CI gates (AC3-L2 / AC3-L3).
 - Minimal first-run onboarding card (ui-spec §3 / AC3-O1): empty + preloaded variants, sample seed by locale, `onboarding_completed_at` on the server.
 - Settings gaps closed versus ui-spec §2: name/initial validation + counter, autosave, timezone combobox, theme, version, keyboard (`G S`, `Esc`, `?settings=`).
+- One-command demo (`pnpm demo` / `pnpm demo:reset`): dedicated `data/relay-demo.db`, EN sample data with relative Today/Tomorrow dues, onboarding left open (PR1 / AC3-D1–D4).
 
 ### Changed
 

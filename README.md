@@ -27,14 +27,53 @@ pnpm seed   # builds @relay/core first, then seeds data/relay.db
 
 `@relay/core` publishes through `dist/` (gitignored). After a clean install,
 `pnpm build:core` emits that package. Root `pnpm typecheck`, `pnpm test`,
-`pnpm test:e2e`, `pnpm seed`, `pnpm seed:large`, and `pnpm demo:ac3` run
-`build:core` automatically. For `pnpm dev` on a fresh clone, run
+`pnpm test:e2e`, `pnpm seed`, `pnpm seed:large`, `pnpm demo`, and `pnpm demo:ac3`
+run `build:core` (or a full `build`) as needed. For `pnpm dev` on a fresh clone, run
 `pnpm build:core` once (or any of those scripts) before starting.
 
-## Run (one command)
+## Demo (one command)
+
+Requirements: **Node.js 24.21+**, **pnpm** (via Corepack), and a clone of this repo.
+No Docker for the local demo — the app is already a Node/pnpm workspace; Compose
+is reserved for self-hosted servers in v0.4.
+
+```bash
+nvm use          # Node 24.21+
+corepack enable
+pnpm demo        # install → build → seed → API+MCP + web
+```
+
+That single command:
+
+1. Runs `pnpm install --frozen-lockfile`
+2. Builds all packages
+3. Seeds **`data/relay-demo.db`** with English sample data and
+   **`onboarding_completed_at = null`** (so the preloaded onboarding card appears)
+4. Starts API+MCP on `:7420` and the web UI on `:7421`
+
+When it is ready you get the web URL and an MCP Streamable HTTP snippet.
+
+| | |
+|---|---|
+| Web | http://127.0.0.1:7421 |
+| API | http://127.0.0.1:7420/api |
+| MCP | http://127.0.0.1:7420/mcp |
+| Store | `data/relay-demo.db` (never `data/relay.db`) |
+
+Restart sample data only (≤ 30 s, demo store only; keeps name / timezone /
+onboarding flag):
+
+```bash
+pnpm demo:reset
+```
+
+Flags for `pnpm demo`: `--no-install` (skip install), `--seed-only` (seed and exit).
+
+## Run (dev, user store)
 
 ```bash
 pnpm build:core   # once after a clean install, if you have not seeded yet
+pnpm seed         # optional: fills data/relay.db and marks onboarding done (e2e/dev)
 pnpm dev
 ```
 
@@ -43,7 +82,8 @@ pnpm dev
 - MCP Streamable HTTP: `http://127.0.0.1:7420/mcp`
 - MCP JSON invoke helper (demos/tests): `POST http://127.0.0.1:7420/mcp/invoke`
 
-Server binds to **127.0.0.1 only**. Data file: `data/relay.db` (WAL).
+Server binds to **127.0.0.1 only**. Default data file: `data/relay.db` (WAL).
+The demo command uses `data/relay-demo.db` instead.
 
 ## MCP
 

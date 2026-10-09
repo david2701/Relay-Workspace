@@ -2,7 +2,12 @@ import { resolve } from "node:path";
 import {
   AGENTS_BY_LOCALE,
   type AgentLocale,
+  addZoneDays,
+  dateOnlyZoneIso,
+  fromZoneWall,
   RelayService,
+  startOfZoneDay,
+  toZoneParts,
   USER_ACTOR_ID,
 } from "@relay/core";
 
@@ -12,19 +17,47 @@ import {
  * Agents use Producto role names for that locale. No client/person names.
  * Target DB: RELAY_DB or ../../data/relay.db from apps/server.
  *
- * CLI seed marks onboarding complete so existing e2e/dev flows skip the card.
- * The demo command (later) will leave onboarding_completed_at null (PR1).
+ * CLI seed (`seedDatabase`) marks onboarding complete so existing e2e/dev
+ * flows skip the card. `seedDemoDatabase` (pnpm demo) leaves
+ * onboarding_completed_at null (PR1 / AC3-D1).
  */
 /** Default DB when seeding from apps/server (cwd or RELAY_DB). */
 export const defaultSeedDbPath =
   process.env.RELAY_DB ?? resolve(process.cwd(), "../../data/relay.db");
 
-function hoursAgo(h: number): string {
-  return new Date(Date.now() - h * 3600_000).toISOString();
+/** Dedicated demo store — never the user's `data/relay.db` (AC3-D4). */
+export const defaultDemoDbPath =
+  process.env.RELAY_DEMO_DB ??
+  resolve(process.cwd(), "../../data/relay-demo.db");
+
+const DEMO_TIMEZONE = "Europe/Paris";
+
+function hoursAgo(h: number, now: Date = new Date()): string {
+  return new Date(now.getTime() - h * 3600_000).toISOString();
 }
 
-function hoursFromNow(h: number): string {
-  return new Date(Date.now() + h * 3600_000).toISOString();
+function hoursFromNow(h: number, now: Date = new Date()): string {
+  return new Date(now.getTime() + h * 3600_000).toISOString();
+}
+
+/** Due later today in `timeZone`, or 23:59 today if 18:00 has passed (AC3-D3). */
+function dueLaterToday(now: Date, timeZone: string): string {
+  const p = toZoneParts(now, timeZone);
+  const atEighteen = fromZoneWall(
+    { y: p.y, m: p.m, d: p.d, hh: 18, mm: 0 },
+    timeZone,
+  );
+  if (atEighteen.getTime() > now.getTime()) {
+    return atEighteen.toISOString();
+  }
+  return dateOnlyZoneIso(p.y, p.m, p.d, timeZone);
+}
+
+/** Date-only due (23:59) tomorrow in `timeZone` (AC3-D3). */
+function dueTomorrowDateOnly(now: Date, timeZone: string): string {
+  const tomorrow = addZoneDays(startOfZoneDay(now, timeZone), 1, timeZone);
+  const p = toZoneParts(tomorrow, timeZone);
+  return dateOnlyZoneIso(p.y, p.m, p.d, timeZone);
 }
 
 function parseLocale(raw: string | undefined): AgentLocale {
@@ -158,11 +191,14 @@ export function applyAgentLocale(svc: RelayService, locale: AgentLocale): void {
 export type SeedIntoOptions = {
   /** When true (CLI default), set a demo profile and mark onboarding done. */
   applyDemoProfile?: boolean;
+  /** Wall-clock instant for relative due dates (AC3-D3 tests). */
+  now?: Date;
 };
 
 /**
  * Wipe work items/notes and load locale sample data into an open service.
  * Agent display names/monograms follow `locale`; ids stay stable.
+ * Open items get due dates relative to `now` in the store timezone (AC3-D3).
  */
 export function seedIntoService(
   svc: RelayService,
@@ -175,16 +211,20 @@ export function seedIntoService(
   locale: AgentLocale;
 } {
   const copy = COPY[locale];
+  const now = opts.now ?? new Date();
   svc.resetData();
   applyAgentLocale(svc, locale);
   if (opts.applyDemoProfile) {
     svc.updateSettings({
-      timezone: "Europe/Paris",
+      timezone: DEMO_TIMEZONE,
       user_display_name: "Alex",
       user_initial: "A",
-      onboarding_completed_at: new Date().toISOString(),
+      onboarding_completed_at: now.toISOString(),
     });
   }
+  const timeZone = svc.getSettings().timezone;
+  const todayDue = dueLaterToday(now, timeZone);
+  const tomorrowDue = dueTomorrowDateOnly(now, timeZone);
   const user = { type: "user" as const, id: USER_ACTOR_ID };
   const code = { type: "agent" as const, id: "agent-code" };
   const research = { type: "agent" as const, id: "agent-research" };
@@ -195,8 +235,8 @@ export function seedIntoService(
       title: copy.demoTitle,
       goal: copy.demoGoal,
       priority: "high",
-      due_at: hoursFromNow(3),
-      reminder_at: hoursFromNow(1),
+      due_at: todayDue,
+      reminder_at: hoursFromNow(1, now),
       reminder_intent: copy.demoReminder,
     },
     user,
@@ -209,8 +249,8 @@ export function seedIntoService(
     {
       title: copy.headlineTitle,
       goal: copy.headlineGoal,
-      due_at: hoursFromNow(18),
-      reminder_at: hoursFromNow(4),
+      due_at: tomorrowDue,
+      reminder_at: hoursFromNow(4, now),
       reminder_intent: copy.headlineReminder,
     },
     code,
@@ -220,7 +260,7 @@ export function seedIntoService(
   svc.askUser(titular.id, copy.headlineAsk, code, "mcp");
   svc.db
     .prepare("UPDATE work_items SET updated_at = ? WHERE id = ?")
-    .run(hoursAgo(3), titular.id);
+    .run(hoursAgo(3, now), titular.id);
 
   const migrate = svc.createItem(
     {
@@ -245,7 +285,8 @@ export function seedIntoService(
   const hosting = svc.createItem(
     {
       title: copy.hostingTitle,
-      reminder_at: hoursFromNow(18),
+      due_at: tomorrowDue,
+      reminder_at: hoursFromNow(18, now),
       reminder_intent: copy.hostingReminder,
     },
     user,
@@ -329,6 +370,89 @@ export function seedDatabase(
   console.info(`  needs_you: ${seeded.needsYouId}`);
   console.info(`  blocked: ${seeded.blockedId}`);
   console.info(`  in_progress: ${seeded.inProgressId}`);
+  svc.close();
+  return result;
+}
+
+export type DemoSeedResult = {
+  dbPath: string;
+  needsYouId: string;
+  blockedId: string;
+  inProgressId: string;
+  locale: AgentLocale;
+  workItemCount: number;
+  noteCount: number;
+  onboardingCompletedAt: string | null;
+};
+
+/**
+ * Demo store seed (AC3-D1 / PR1): English sample data, onboarding incomplete.
+ * Does not mark onboarding_completed_at (unlike CLI `seedDatabase`).
+ */
+export function seedDemoDatabase(
+  dbPath: string = defaultDemoDbPath,
+  now: Date = new Date(),
+): DemoSeedResult {
+  const svc = new RelayService({ dbPath });
+  svc.updateSettings({ timezone: DEMO_TIMEZONE });
+  const seeded = seedIntoService(svc, "en", { applyDemoProfile: false, now });
+  svc.prepareOnboardingProfile();
+  const settings = svc.getSettings();
+  const result: DemoSeedResult = {
+    dbPath,
+    needsYouId: seeded.needsYouId,
+    blockedId: seeded.blockedId,
+    inProgressId: seeded.inProgressId,
+    locale: seeded.locale,
+    workItemCount: svc.countWorkItems(),
+    noteCount: svc.listNotes().length,
+    onboardingCompletedAt: settings.onboarding_completed_at,
+  };
+  console.info("Seeded Relay demo store (EN, onboarding open):");
+  console.info(`  db: ${dbPath}`);
+  console.info(`  items: ${result.workItemCount}`);
+  console.info(`  notes: ${result.noteCount}`);
+  console.info(`  onboarding_completed_at: ${result.onboardingCompletedAt}`);
+  svc.close();
+  return result;
+}
+
+/**
+ * Restart demo data only (AC3-D4): wipe items/notes in the demo store,
+ * reload EN samples, preserve name / locale prefs / timezone / onboarding.
+ */
+export function resetDemoDatabase(
+  dbPath: string = defaultDemoDbPath,
+  now: Date = new Date(),
+): DemoSeedResult {
+  const svc = new RelayService({ dbPath });
+  if (!svc.getSettings().timezone) {
+    svc.updateSettings({ timezone: DEMO_TIMEZONE });
+  }
+  const before = svc.getSettings();
+  const seeded = seedIntoService(svc, "en", { applyDemoProfile: false, now });
+  const after = svc.getSettings();
+  if (
+    after.user_display_name !== before.user_display_name ||
+    after.user_initial !== before.user_initial ||
+    after.onboarding_completed_at !== before.onboarding_completed_at ||
+    after.timezone !== before.timezone
+  ) {
+    throw new Error("demo reset must preserve profile settings");
+  }
+  const result: DemoSeedResult = {
+    dbPath,
+    needsYouId: seeded.needsYouId,
+    blockedId: seeded.blockedId,
+    inProgressId: seeded.inProgressId,
+    locale: seeded.locale,
+    workItemCount: svc.countWorkItems(),
+    noteCount: svc.listNotes().length,
+    onboardingCompletedAt: after.onboarding_completed_at,
+  };
+  console.info("Reset Relay demo store (items/notes only):");
+  console.info(`  db: ${dbPath}`);
+  console.info(`  items: ${result.workItemCount}`);
   svc.close();
   return result;
 }
