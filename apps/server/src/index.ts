@@ -10,7 +10,7 @@ import {
   createAuthMiddleware,
   createMcpInvokeAuthMiddleware,
 } from "./auth.js";
-import { createClientIpResolver, type ClientIpResolver } from "./client_ip.js";
+import { type ClientIpResolver, createClientIpResolver } from "./client_ip.js";
 import { loadEnv } from "./env.js";
 import { idempotencyMiddleware } from "./idempotency_middleware.js";
 import { createMcpHttpHandler, invokeMcpTool } from "./mcp/http.js";

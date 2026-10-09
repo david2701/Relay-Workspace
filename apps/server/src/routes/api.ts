@@ -13,8 +13,8 @@ import {
 } from "@relay/core";
 import { Hono } from "hono";
 import { z } from "zod";
-import type { AuthOptions } from "../auth.js";
 import { actorFromRequest, sourceFromRequest } from "../actor.js";
+import type { AuthOptions } from "../auth.js";
 import { parseEventPageQuery } from "../event_query.js";
 import { handleError } from "../http_errors.js";
 import type { SseHub } from "../sse_hub.js";

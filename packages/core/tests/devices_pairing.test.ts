@@ -3,12 +3,12 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import {
+  hashToken,
   PAIRING_CODE_TTL_MS,
   PAIRING_MAX_ATTEMPTS,
   PairingRateLimitError,
   RelayService,
   ValidationError,
-  hashToken,
 } from "../src/index.js";
 
 describe("devices + pairing", () => {

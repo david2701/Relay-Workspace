@@ -86,6 +86,7 @@ import {
 } from "../store/agent_queries.js";
 import { openDatabase, type RelayDb, readSqliteDataVersion } from "../store/db.js";
 import {
+  type CreatedDevice,
   databaseContainsPlaintextToken,
   findDeviceByToken,
   getDevice,
@@ -93,7 +94,6 @@ import {
   renameDevice,
   revokeDevice,
   touchDeviceLastSeen,
-  type CreatedDevice,
 } from "../store/devices.js";
 import {
   appendItemEvent,

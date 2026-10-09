@@ -6,8 +6,8 @@ import {
 import { Hono } from "hono";
 import { z } from "zod";
 import {
-  assertPairStartAllowed,
   type AuthOptions,
+  assertPairStartAllowed,
 } from "../auth.js";
 import { handleError } from "../http_errors.js";
 

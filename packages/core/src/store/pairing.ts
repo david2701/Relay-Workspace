@@ -1,11 +1,11 @@
 import { DomainError, ValidationError } from "../domain/errors.js";
 import {
+  type DevicePlatform,
   PAIRING_CODE_TTL_MS,
   PAIRING_MAX_ATTEMPTS,
-  type DevicePlatform,
 } from "../schemas/device.js";
 import type { RelayDb } from "./db.js";
-import { createDevice, type CreatedDevice } from "./devices.js";
+import { type CreatedDevice, createDevice } from "./devices.js";
 import { generateDeviceToken, generatePairingCode } from "./tokens.js";
 
 export type PairingSession = {

@@ -1,7 +1,7 @@
 import { existsSync } from "node:fs";
 import { resolve } from "node:path";
 import { z } from "zod";
-import { resolveAuthBindConfig, type AuthBindConfig } from "./auth_config.js";
+import { type AuthBindConfig, resolveAuthBindConfig } from "./auth_config.js";
 
 function defaultDbPath(): string {
   const candidates = [

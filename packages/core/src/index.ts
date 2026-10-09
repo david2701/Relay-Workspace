@@ -30,8 +30,6 @@ export * from "./store/event_log.js";
 export * from "./store/idempotency.js";
 export * from "./store/migrations.js";
 export * from "./store/pairing.js";
-export * from "./store/stream_tickets.js";
-export * from "./store/tokens.js";
 export type { ListPageResult } from "./store/repositories.js";
 export {
   AgentRepository,
@@ -45,3 +43,5 @@ export {
   syncItemToFts,
   syncNoteToFts,
 } from "./store/search_index.js";
+export * from "./store/stream_tickets.js";
+export * from "./store/tokens.js";
