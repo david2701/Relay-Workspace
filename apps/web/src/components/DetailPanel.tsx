@@ -20,7 +20,6 @@ import type {
   Status,
   WorkItem,
 } from "../lib/types";
-import { USER_ACTOR_ID } from "../lib/url_state";
 import { ActorMark, isStaleWorking, isWorking } from "./ActorMark";
 import { DateTimePicker } from "./DateTimePicker";
 import { StatusGlyph } from "./StatusGlyph";
