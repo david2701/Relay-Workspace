@@ -3,7 +3,7 @@ export type PushReason = "needs_you" | "assigned" | "reminder";
 export type PushPayload = {
   item_id: string;
   reason: PushReason;
-  /** Truncated title; omitted unless RELAY_PUSH_REDACT=0 (default redacts). */
+  /** Truncated title; omitted unless RELAY_PUSH_REDACT is exactly 0/false. */
   title?: string;
 };
 

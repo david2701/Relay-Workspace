@@ -7,7 +7,8 @@ export type PushRuntimeConfig = {
   enabled: boolean;
   /**
    * When true (default), omit item titles from provider payloads (D3: Apple /
-   * Google must not see titles). Only `RELAY_PUSH_REDACT=0` includes titles.
+   * Google must not see titles). Titles are included only when the env value
+   * is exactly `0` or `false` (case-insensitive).
    */
   redact: boolean;
   /** D4: skip push when the device has an open SSE stream. */
@@ -23,11 +24,14 @@ export type PushRuntimeConfig = {
   fcm: FcmServiceAccount | null;
 };
 
-/** Default ON; titles only when the operator explicitly sets `0` / `false`. */
+/**
+ * Default ON. Redaction turns off only for the exact values `0` or `false`
+ * (case-insensitive). Empty, typos, `no`, `off`, etc. keep redaction on.
+ */
 export function parsePushRedactEnv(raw: string | undefined): boolean {
-  if (raw === undefined || raw === "") return true;
+  if (raw === undefined) return true;
   const v = raw.toLowerCase();
-  if (v === "0" || v === "false" || v === "off" || v === "no") return false;
+  if (v === "0" || v === "false") return false;
   return true;
 }
 

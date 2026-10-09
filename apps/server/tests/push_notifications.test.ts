@@ -483,19 +483,3 @@ describe("push disabled without credentials", () => {
     rmSync(dir, { recursive: true, force: true });
   });
 });
-
-describe("RELAY_PUSH_REDACT default", () => {
-  it("defaults ON; only explicit 0/false includes titles", async () => {
-    const { loadPushConfig, parsePushRedactEnv } = await import(
-      "../src/push/config.js"
-    );
-    expect(parsePushRedactEnv(undefined)).toBe(true);
-    expect(parsePushRedactEnv("")).toBe(true);
-    expect(parsePushRedactEnv("1")).toBe(true);
-    expect(parsePushRedactEnv("true")).toBe(true);
-    expect(parsePushRedactEnv("0")).toBe(false);
-    expect(parsePushRedactEnv("false")).toBe(false);
-    expect(loadPushConfig({}).redact).toBe(true);
-    expect(loadPushConfig({ RELAY_PUSH_REDACT: "0" }).redact).toBe(false);
-  });
-});

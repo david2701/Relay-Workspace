@@ -40,8 +40,8 @@ const EnvSchema = z.object({
   /** FCM HTTP v1 service-account JSON path. */
   RELAY_FCM_CREDENTIALS_PATH: z.string().optional(),
   /**
-   * Omit item titles from push payloads (default ON / D3). Set `0` to include
-   * a truncated title; unset/`1` keeps payloads as item id + reason only.
+   * Omit item titles from push payloads (default ON / D3). Titles are included
+   * only when the value is exactly `0` or `false` (case-insensitive).
    */
   RELAY_PUSH_REDACT: z.string().optional(),
   /**
