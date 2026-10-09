@@ -84,6 +84,8 @@ export const InboxQueryResultSchema = z.object({
     .optional(),
   sync_cursor: z.string().nullable().optional(),
   server_time: z.string().datetime({ offset: true }).optional(),
+  /** Latest global item_events.seq (SSE / after_seq resume watermark). */
+  seq: z.number().int().nonnegative().optional(),
 });
 export type InboxQueryResult = z.infer<typeof InboxQueryResultSchema>;
 
@@ -115,6 +117,8 @@ export const InboxSyncResultSchema = z.object({
   total_count: z.number().int().nonnegative(),
   sync_cursor: z.string().nullable(),
   server_time: z.string().datetime({ offset: true }),
+  /** Latest global item_events.seq (SSE / after_seq resume watermark). */
+  seq: z.number().int().nonnegative().optional(),
 });
 export type InboxSyncResult = z.infer<typeof InboxSyncResultSchema>;
 

@@ -344,7 +344,10 @@ export function queryInbox(args: InboxQueryArgs): InboxQueryResult {
 export type InboxSyncArgs = {
   items: readonly WorkItem[];
   view: InboxView;
-  since: string;
+  /** Legacy wall-clock cursor (`updated_at` text compare). Prefer `changedIds`. */
+  since?: string;
+  /** Preferred cursor: item ids that have events with seq > after_seq. */
+  changedIds?: ReadonlySet<string>;
   now?: Date;
   timeZone?: string;
 };
@@ -355,7 +358,10 @@ export function buildInboxSync(args: InboxSyncArgs): InboxSyncResult {
   const counters = { needs_you: countNeedsYou(args.items) };
   const full = buildFullView(args.items, args.view, now, timeZone);
   const inView = new Set(full.items.map((i) => i.id));
-  const changed = args.items.filter((i) => i.updated_at > args.since);
+  const changed =
+    args.changedIds !== undefined
+      ? args.items.filter((i) => args.changedIds!.has(i.id))
+      : args.items.filter((i) => i.updated_at > (args.since ?? ""));
   const upserts: WorkItem[] = [];
   const removed_ids: string[] = [];
   for (const item of changed) {

@@ -13,6 +13,7 @@ import {
 import { Hono } from "hono";
 import { z } from "zod";
 import { actorFromRequest, sourceFromRequest } from "../actor.js";
+import { parseEventPageQuery } from "../event_query.js";
 import { handleError } from "../http_errors.js";
 
 const ActorBodySchema = z
@@ -290,11 +291,31 @@ export function createApi(svc: RelayService): Hono {
 
   app.get("/items/:id/context", (c) => {
     try {
-      const pack = svc.getContext(c.req.param("id"));
-      return c.json({
-        context: pack,
-        markdown: svc.getContextMarkdown(c.req.param("id")),
+      return c.json(svc.getContextWithEvents(c.req.param("id")));
+    } catch (err) {
+      return handleError(c, err);
+    }
+  });
+
+  app.get("/items/:id/events", (c) => {
+    try {
+      const opts = parseEventPageQuery({
+        after_seq: c.req.query("after_seq"),
+        limit: c.req.query("limit"),
       });
+      return c.json(svc.listEventsForItem(c.req.param("id"), opts));
+    } catch (err) {
+      return handleError(c, err);
+    }
+  });
+
+  app.get("/changes", (c) => {
+    try {
+      const opts = parseEventPageQuery({
+        after_seq: c.req.query("after_seq"),
+        limit: c.req.query("limit"),
+      });
+      return c.json(svc.listChanges(opts));
     } catch (err) {
       return handleError(c, err);
     }
@@ -318,19 +339,22 @@ export function createApi(svc: RelayService): Hono {
   app.get("/inbox", (c) => {
     try {
       const view = InboxViewSchema.parse(c.req.query("view") ?? "attention");
-      const limitRaw = c.req.query("limit");
       const cursor = c.req.query("cursor");
       const since = c.req.query("since");
+      const page = parseEventPageQuery({
+        after_seq: c.req.query("after_seq"),
+        limit: c.req.query("limit"),
+      });
       const opts: {
         limit?: number;
         cursor?: string;
         since?: string;
+        after_seq?: number;
       } = {};
-      if (limitRaw !== undefined) {
-        opts.limit = PageLimitSchema.parse(limitRaw);
-      }
+      if (page.limit !== undefined) opts.limit = page.limit;
       if (cursor !== undefined) opts.cursor = cursor;
-      if (since !== undefined) opts.since = since;
+      if (page.after_seq !== undefined) opts.after_seq = page.after_seq;
+      else if (since !== undefined) opts.since = since;
       return c.json(
         Object.keys(opts).length > 0 ? svc.inboxQuery(view, opts) : svc.inboxQuery(view),
       );
