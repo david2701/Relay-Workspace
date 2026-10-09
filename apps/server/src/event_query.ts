@@ -1,6 +1,6 @@
 import { ValidationError } from "@relay/core";
 
-/** Inclusive upper bound for seq cursors (avoid float/scientific cursors). */
+/** Inclusive upper bound for after_seq / before_seq (avoid float/scientific cursors). */
 export const MAX_AFTER_SEQ = Number.MAX_SAFE_INTEGER;
 
 export type EventPageQuery = {
@@ -54,7 +54,7 @@ function parseLimit(raw: string | number | undefined): number | undefined {
 }
 
 /**
- * Shared query validation for event paging (`after_seq`, `before_seq`, `limit`).
+ * Shared query validation for event / handoff paging (`after_seq`, `before_seq`, `limit`).
  * Throws ValidationError with `field` set — HTTP 400 / MCP tool error.
  *
  * Empty query values (`after_seq=`, `limit=`, `before_seq=`) are **400**, not

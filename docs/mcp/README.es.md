@@ -200,6 +200,38 @@ Prioridades: `none` | `low` | `medium` | `high`
 Roles de nota: `context` | `reference` | `decision`  
 Vistas de la bandeja (*inbox*): `attention` | `agent_wip` | `upcoming` | `done` | `all`
 
+### `agents_list`
+
+Lista los agentes del catálogo con presencia (`last_seen_at`, `active`) y `counts` de ítems asignados.
+
+| Parámetro | Tipo | Obligatorio |
+|-----------|------|-------------|
+| — | — | — |
+
+**Llamada:** `{}`  
+**Respuesta:** `{ "agents": [ { "id", "display_name", "monogram", "last_seen_at", "active", "counts": { "needs_you", "blocked", "in_progress", "assigned", "done" } } ] }`
+
+Ver [`docs/api/agents.md`](../api/agents.md).
+
+### `agents_get`
+
+Perfil del agente: campos de resumen más `current_items` y `handoffs` paginados (más recientes primero).
+`after_seq` / `before_seq` / `limit` usan la misma validación que `items_events` /
+`changes_list` (`parseEventPageQuery`; inválido → `validation_error`).
+
+| Parámetro | Tipo | Obligatorio |
+|-----------|------|-------------|
+| `id` | string (agente) | sí |
+| `after_seq` | int 0…MAX_SAFE_INTEGER | no |
+| `before_seq` | int 0…MAX_SAFE_INTEGER | no |
+| `limit` | int 1–200 | no (por defecto 50) |
+| `current_items_limit` | int 1–200 | no (por defecto 10) |
+
+**Llamada:** `{ "id": "agent-code" }`  
+**Respuesta:** `{ "agent": { …resumen, "current_items": […], "handoffs": […], "handoffs_next_seq", "handoffs_has_more" } }`
+
+`handoffs_next_seq` sigue la misma semántica que el `next_seq` de ítem (último seq de la página; vacío → cursor de la petición). Id desconocido → `not_found`.
+
 ### `items_list`
 
 Lista los ítems. La paginación es opcional.
