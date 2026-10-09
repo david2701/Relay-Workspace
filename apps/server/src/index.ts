@@ -9,6 +9,7 @@ import { loadEnv } from "./env.js";
 import { idempotencyMiddleware } from "./idempotency_middleware.js";
 import { createMcpHttpHandler, invokeMcpTool } from "./mcp/http.js";
 import { createApi } from "./routes/api.js";
+import { createSseHub, type SseHub, type SseHubOptions } from "./sse_hub.js";
 
 /**
  * Resolve SPA build directory when present.
@@ -33,6 +34,9 @@ export function resolveWebDist(
 
 export type CreateAppOptions = {
   webDist?: string | null;
+  /** Shared SSE hub (tests may inject a short-interval hub). */
+  streamHub?: SseHub;
+  streamOptions?: SseHubOptions;
 };
 
 export function createApp(
@@ -40,6 +44,8 @@ export function createApp(
   webOrigin: string,
   opts: CreateAppOptions = {},
 ): Hono {
+  const streamHub =
+    opts.streamHub ?? createSseHub(svc, opts.streamOptions ?? {});
   const app = new Hono();
   app.use(
     "*",
@@ -51,13 +57,16 @@ export function createApp(
         "X-Relay-Actor",
         "X-Relay-Source",
         "Idempotency-Key",
+        "Last-Event-ID",
         "mcp-session-id",
       ],
       exposeHeaders: ["mcp-session-id"],
     }),
   );
   app.use("/api/*", idempotencyMiddleware(svc));
-  app.route("/api", createApi(svc));
+  app.route("/api", createApi(svc, { streamHub }));
+  // Stash for tests / graceful shutdown.
+  (app as Hono & { streamHub: SseHub }).streamHub = streamHub;
   const mcpHandler = createMcpHttpHandler(svc);
   app.all("/mcp", mcpHandler);
   app.post("/mcp/invoke", async (c) => {
@@ -110,7 +119,12 @@ async function main(): Promise<void> {
   }
   const svc = new RelayService({ dbPath: env.RELAY_DB });
   const webDist = resolveWebDist(process.env.RELAY_WEB_DIST);
-  const app = createApp(svc, env.RELAY_WEB_ORIGIN, { webDist });
+  const streamHub = createSseHub(svc, {
+    maxConnections: env.RELAY_SSE_MAX_CONNECTIONS,
+    resyncThreshold: env.RELAY_SSE_RESYNC_THRESHOLD,
+    watchIntervalMs: env.RELAY_SSE_WATCH_MS,
+  });
+  const app = createApp(svc, env.RELAY_WEB_ORIGIN, { webDist, streamHub });
   serve(
     {
       fetch: app.fetch,
@@ -122,6 +136,7 @@ async function main(): Promise<void> {
         `Relay API+MCP listening on http://${env.RELAY_HOST}:${info.port}`,
       );
       console.info(`SQLite: ${env.RELAY_DB}`);
+      console.info(`SSE stream: http://${env.RELAY_HOST}:${info.port}/api/stream`);
       console.info(`MCP Streamable HTTP: http://${env.RELAY_HOST}:${info.port}/mcp`);
       console.info(`MCP invoke helper: http://${env.RELAY_HOST}:${info.port}/mcp/invoke`);
       if (webDist) {

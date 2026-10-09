@@ -85,10 +85,16 @@ export const api = {
   agents: () => request<{ agents: Agent[] }>("/api/agents"),
   inbox: (
     view: InboxView,
-    opts?: { since?: string; limit?: number; cursor?: string },
+    opts?: {
+      since?: string;
+      after_seq?: number;
+      limit?: number;
+      cursor?: string;
+    },
   ) => {
     const params = new URLSearchParams({ view });
-    if (opts?.since) params.set("since", opts.since);
+    if (opts?.after_seq != null) params.set("after_seq", String(opts.after_seq));
+    else if (opts?.since) params.set("since", opts.since);
     if (opts?.limit != null) params.set("limit", String(opts.limit));
     if (opts?.cursor) params.set("cursor", opts.cursor);
     return request<InboxResult | InboxSyncDelta>(`/api/inbox?${params}`);

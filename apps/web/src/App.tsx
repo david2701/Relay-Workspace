@@ -21,7 +21,7 @@ import {
 import { ThemeSwitch } from "./components/ThemeSwitch";
 import { VirtualItemList } from "./components/VirtualItemList";
 import { useActorLabels } from "./hooks/useActorLabels";
-import { usePoll } from "./hooks/usePoll";
+import { useInboxLive } from "./hooks/useInboxLive";
 import { useTheme } from "./hooks/useTheme";
 import { useUrlState } from "./hooks/useUrlState";
 import { useI18n, useT } from "./i18n/I18nProvider";
@@ -32,16 +32,7 @@ import { groupByDue } from "./lib/date_groups";
 import { setDisplayContext } from "./lib/display_context";
 import { itemMatchesFacets } from "./lib/facet_filter";
 import { formatGroupLabel } from "./lib/group_label";
-import {
-  applyInboxDelta,
-  ensureAttentionSections,
-  isInboxDelta,
-} from "./lib/inbox_merge";
-import {
-  ATTENTION_PAGE_SIZE,
-  appendInboxPage,
-  INBOX_PAGE_SIZE,
-} from "./lib/inbox_page";
+import { appendInboxPage, INBOX_PAGE_SIZE } from "./lib/inbox_page";
 import { toPlainText } from "./lib/markdown";
 import { matchesQuery } from "./lib/normalize";
 import {
@@ -213,7 +204,6 @@ export default function App() {
   const viewEpoch = useRef(0);
   const hydratedView = useRef<InboxView | null>(null);
   const syncAge = useRef(0);
-  const syncCursorRef = useRef<string | null>(null);
   const inboxStateRef = useRef<InboxResult | null>(null);
   const searchGen = useRef(0);
   const [tick, setTick] = useState(0);
@@ -280,9 +270,8 @@ export default function App() {
   const inboxView: InboxView = view === "notes" ? "attention" : view;
   const loadingMoreRef = useRef(false);
 
-  // Reset incremental sync when the lens changes (usePoll also clears data).
+  // Reset page-append state when the lens changes (useInboxLive clears data).
   useEffect(() => {
-    syncCursorRef.current = null;
     inboxStateRef.current = null;
     loadingMoreRef.current = false;
   }, [inboxView]);
@@ -291,41 +280,12 @@ export default function App() {
     data: inboxRaw,
     error,
     offline,
+    syncState,
     lastOkAt,
     setData: setInboxRaw,
     reload,
-  } = usePoll<InboxResult>(
-    async () => {
-      if (syncCursorRef.current && inboxStateRef.current) {
-        try {
-          const payload = await api.inbox(inboxView, {
-            since: syncCursorRef.current,
-          });
-          if (isInboxDelta(payload)) {
-            const merged = applyInboxDelta(inboxStateRef.current, payload);
-            syncCursorRef.current = payload.sync_cursor;
-            inboxStateRef.current = merged;
-            return merged;
-          }
-          // Non-delta response: re-fetch a bounded first page (never adopt a
-          // multi-MB full snapshot into the web client).
-        } catch {
-          // Fall through to paged snapshot on delta errors.
-        }
-      }
-      const pageSize =
-        inboxView === "attention" ? ATTENTION_PAGE_SIZE : INBOX_PAGE_SIZE;
-      const snap = ensureAttentionSections(
-        (await api.inbox(inboxView, {
-          limit: pageSize,
-        })) as InboxResult,
-      );
-      syncCursorRef.current = snap.sync_cursor ?? null;
-      inboxStateRef.current = snap;
-      return snap;
-    },
-    [inboxView],
-  );
+    lastEventItemIds,
+  } = useInboxLive(inboxView);
 
   const loadMoreInbox = useCallback(async () => {
     const cur = inboxStateRef.current;
@@ -339,11 +299,12 @@ export default function App() {
         limit: INBOX_PAGE_SIZE,
         cursor,
       })) as InboxResult;
-      // Merge onto the *latest* ref — a delta poll may have landed while
+      // Merge onto the *latest* ref — an SSE delta may have landed while
       // this page fetch was in flight (AC3 mutations must not be wiped).
       const latest = inboxStateRef.current ?? cur;
       const merged = appendInboxPage(latest, page);
       if (latest.sync_cursor) merged.sync_cursor = latest.sync_cursor;
+      if (latest.seq !== undefined) merged.seq = latest.seq;
       if (latest.counters) merged.counters = latest.counters;
       if (latest.section_counts) merged.section_counts = latest.section_counts;
       if (latest.total_count !== undefined) {
@@ -375,43 +336,57 @@ export default function App() {
     inboxRaw && inboxRaw.view === inboxView ? inboxRaw : null;
 
   useEffect(() => {
+    if (inboxRaw) inboxStateRef.current = inboxRaw;
+  }, [inboxRaw]);
+
+  useEffect(() => {
     if (view !== "notes") return;
     void api.notes().then((r) => setNotes(r.notes));
   }, [view, lastOkAt]);
+
+  const refreshSelectedItem = useCallback((id: string) => {
+    void api.getItem(id).then((r) => {
+      setSelectedItem((prev) => {
+        const active = document.activeElement;
+        const editingField = active?.closest(
+          "[contenteditable], textarea, input, .dtp-trigger, .dtp-popover",
+        );
+        if (prev && editingField) {
+          if (prev.updated_at !== r.item.updated_at) {
+            flash(r.item.id);
+          }
+          // Keep local drafts for title / Objetivo while the field is focused.
+          const title =
+            active?.closest(".detail-title") ||
+            active?.closest("[contenteditable]")
+              ? prev.title
+              : r.item.title;
+          const goal = active?.closest("#goal-field, .goal-field")
+            ? prev.goal
+            : r.item.goal;
+          return { ...r.item, title, goal };
+        }
+        if (prev && prev.updated_at !== r.item.updated_at) flash(r.item.id);
+        return r.item;
+      });
+    });
+  }, []);
 
   useEffect(() => {
     if (!selectedId) {
       setSelectedItem(null);
       return;
     }
-    void api.getItem(selectedId).then((r) => setSelectedItem(r.item));
-    const id = window.setInterval(() => {
-      void api.getItem(selectedId).then((r) => {
-        setSelectedItem((prev) => {
-          const active = document.activeElement;
-          const editingField = active?.closest(
-            "[contenteditable], textarea, input, .dtp-trigger, .dtp-popover",
-          );
-          if (prev && editingField) {
-            if (prev.updated_at !== r.item.updated_at) {
-              flash(r.item.id);
-            }
-            // Keep local drafts for title / Objetivo while the field is focused.
-            const title =
-              active?.closest(".detail-title") || active?.closest("[contenteditable]")
-                ? prev.title
-                : r.item.title;
-            const goal =
-              active?.closest("#goal-field, .goal-field") ? prev.goal : r.item.goal;
-            return { ...r.item, title, goal };
-          }
-          if (prev && prev.updated_at !== r.item.updated_at) flash(r.item.id);
-          return r.item;
-        });
-      });
-    }, 750);
-    return () => window.clearInterval(id);
-  }, [selectedId]);
+    refreshSelectedItem(selectedId);
+  }, [selectedId, refreshSelectedItem]);
+
+  // SSE-driven detail refresh (no 750 ms poll).
+  useEffect(() => {
+    if (!selectedId || lastEventItemIds.length === 0) return;
+    if (lastEventItemIds.includes(selectedId)) {
+      refreshSelectedItem(selectedId);
+    }
+  }, [lastEventItemIds, selectedId, refreshSelectedItem]);
 
   // Keep prevView in sync when the lens changes (linger already wiped in selectView).
   useEffect(() => {
@@ -1074,15 +1049,27 @@ export default function App() {
           <span className="rail-label">{t("nav.notes")}</span>
         </button>
         <div className="rail-foot">
-          <div className="mono sync-seal">
-            {offline
+          <div
+            className="mono sync-seal"
+            data-sync-state={syncState}
+            title={
+              syncState === "reconnecting"
+                ? t("sync.reconnecting")
+                : offline
+                  ? t("sync.offline")
+                  : undefined
+            }
+          >
+            {syncState === "offline"
               ? t("sync.offline")
-              : t("sync.ok", {
-                  relative: new Intl.RelativeTimeFormat(intlLocale, {
-                    numeric: "auto",
-                    style: "short",
-                  }).format(-Math.max(0, syncAge.current), "second"),
-                })}
+              : syncState === "reconnecting"
+                ? t("sync.reconnecting")
+                : t("sync.ok", {
+                    relative: new Intl.RelativeTimeFormat(intlLocale, {
+                      numeric: "auto",
+                      style: "short",
+                    }).format(-Math.max(0, syncAge.current), "second"),
+                  })}
           </div>
           <button type="button" className="linkish" onClick={() => setShowShortcuts(true)}>
             ? {t("nav.shortcuts")}

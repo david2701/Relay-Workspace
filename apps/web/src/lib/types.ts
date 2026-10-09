@@ -93,9 +93,11 @@ export type InboxResult = {
   next_cursor?: string | null;
   has_more?: boolean;
   mode?: "snapshot";
+  /** Latest global item_events.seq. */
+  seq?: number;
 };
 
-/** Incremental inbox poll payload (GET /api/inbox?view=X&since=…). */
+/** Incremental inbox payload (GET /api/inbox?view=X&after_seq=… or since=…). */
 export type InboxSyncDelta = {
   mode: "delta";
   view?: InboxView;
@@ -107,6 +109,20 @@ export type InboxSyncDelta = {
   total_count?: number;
   sync_cursor: string;
   server_time?: string;
+  /** Latest global item_events.seq. */
+  seq?: number;
+};
+
+/** Wire shape of an item_events row (SSE `data` / changes API). */
+export type ItemEvent = {
+  id: string;
+  seq: number;
+  item_id: string;
+  type: string;
+  actor_kind: string;
+  actor_id: string;
+  payload: Record<string, unknown>;
+  created_at: string;
 };
 
 export type ContextPack = {

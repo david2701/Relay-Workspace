@@ -354,6 +354,7 @@
   "suggested.header": "Suggéré · {n}",
   "sync.offline": "Hors ligne",
   "sync.ok": "À jour · {relative}",
+  "sync.reconnecting": "Reconnexion…",
   "theme.dark": "Sombre",
   "theme.light": "Clair",
   "theme.system": "Système",

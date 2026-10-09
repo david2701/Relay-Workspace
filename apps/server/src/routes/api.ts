@@ -14,7 +14,10 @@ import {
 import { Hono } from "hono";
 import { z } from "zod";
 import { actorFromRequest, sourceFromRequest } from "../actor.js";
+import { parseEventPageQuery } from "../event_query.js";
 import { handleError } from "../http_errors.js";
+import type { SseHub } from "../sse_hub.js";
+import { createStreamHandler } from "../stream_route.js";
 
 const ActorBodySchema = z
   .object({
@@ -57,10 +60,29 @@ function parseSearchFromQuery(query: Record<string, string>) {
   return SearchQuerySchema.parse(raw);
 }
 
-export function createApi(svc: RelayService): Hono {
+export type CreateApiOptions = {
+  /** Realtime SSE hub; when omitted, GET /api/stream returns 503. */
+  streamHub?: SseHub;
+};
+
+export function createApi(svc: RelayService, opts: CreateApiOptions = {}): Hono {
   const app = new Hono();
 
   app.get("/health", (c) => c.json({ ok: true }));
+
+  if (opts.streamHub) {
+    app.get("/stream", createStreamHandler(opts.streamHub));
+  } else {
+    app.get("/stream", (c) =>
+      c.json(
+        {
+          error: "service_unavailable",
+          message: "SSE stream hub not configured",
+        },
+        503,
+      ),
+    );
+  }
 
   app.get("/agents", (c) => c.json({ agents: svc.listAgents() }));
 
@@ -372,15 +394,10 @@ export function createApi(svc: RelayService): Hono {
 
   app.get("/items/:id/events", (c) => {
     try {
-      const afterRaw = c.req.query("after_seq");
-      const limitRaw = c.req.query("limit");
-      const opts: { after_seq?: number; limit?: number } = {};
-      if (afterRaw !== undefined) {
-        opts.after_seq = z.coerce.number().int().nonnegative().parse(afterRaw);
-      }
-      if (limitRaw !== undefined) {
-        opts.limit = PageLimitSchema.parse(limitRaw);
-      }
+      const opts = parseEventPageQuery({
+        after_seq: c.req.query("after_seq"),
+        limit: c.req.query("limit"),
+      });
       return c.json(svc.listEventsForItem(c.req.param("id"), opts));
     } catch (err) {
       return handleError(c, err);
@@ -389,15 +406,10 @@ export function createApi(svc: RelayService): Hono {
 
   app.get("/changes", (c) => {
     try {
-      const afterRaw = c.req.query("after_seq");
-      const limitRaw = c.req.query("limit");
-      const opts: { after_seq?: number; limit?: number } = {};
-      if (afterRaw !== undefined) {
-        opts.after_seq = z.coerce.number().int().nonnegative().parse(afterRaw);
-      }
-      if (limitRaw !== undefined) {
-        opts.limit = PageLimitSchema.parse(limitRaw);
-      }
+      const opts = parseEventPageQuery({
+        after_seq: c.req.query("after_seq"),
+        limit: c.req.query("limit"),
+      });
       return c.json(svc.listChanges(opts));
     } catch (err) {
       return handleError(c, err);
@@ -437,7 +449,8 @@ export function createApi(svc: RelayService): Hono {
       }
       if (cursor !== undefined) opts.cursor = cursor;
       if (afterSeqRaw !== undefined) {
-        opts.after_seq = z.coerce.number().int().nonnegative().parse(afterSeqRaw);
+        const page = parseEventPageQuery({ after_seq: afterSeqRaw });
+        if (page.after_seq !== undefined) opts.after_seq = page.after_seq;
       } else if (since !== undefined) {
         opts.since = since;
       }
