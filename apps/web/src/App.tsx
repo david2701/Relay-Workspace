@@ -246,17 +246,18 @@ export default function App() {
   const needsOnboarding =
     settingsStatus === "ok" && settings.onboarding_completed_at === null;
 
-  useEffect(() => {
-    setDisplayContext({
-      timezone: settings.timezone,
-      intlLocale,
-      locale,
-    });
-    setUserProfile({
-      displayName: settings.user_display_name,
-      initial: settings.user_initial,
-    });
-  }, [settings.timezone, settings.user_display_name, settings.user_initial, intlLocale, locale]);
+  // Keep module display/profile in sync during render so ActorMark helpers
+  // see the loaded settings on the same paint (SSE no longer re-renders every
+  // 750 ms the way usePoll did).
+  setDisplayContext({
+    timezone: settings.timezone,
+    intlLocale,
+    locale,
+  });
+  setUserProfile({
+    displayName: settings.user_display_name,
+    initial: settings.user_initial,
+  });
 
   const applySettingsPatch = useCallback((patch: Partial<RelaySettings>) => {
     setSettings((prev) => ({ ...prev, ...patch }));
