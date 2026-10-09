@@ -290,11 +290,41 @@ export function createApi(svc: RelayService): Hono {
 
   app.get("/items/:id/context", (c) => {
     try {
-      const pack = svc.getContext(c.req.param("id"));
-      return c.json({
-        context: pack,
-        markdown: svc.getContextMarkdown(c.req.param("id")),
-      });
+      return c.json(svc.getContextWithEvents(c.req.param("id")));
+    } catch (err) {
+      return handleError(c, err);
+    }
+  });
+
+  app.get("/items/:id/events", (c) => {
+    try {
+      const afterRaw = c.req.query("after_seq");
+      const limitRaw = c.req.query("limit");
+      const opts: { after_seq?: number; limit?: number } = {};
+      if (afterRaw !== undefined) {
+        opts.after_seq = z.coerce.number().int().nonnegative().parse(afterRaw);
+      }
+      if (limitRaw !== undefined) {
+        opts.limit = PageLimitSchema.parse(limitRaw);
+      }
+      return c.json(svc.listEventsForItem(c.req.param("id"), opts));
+    } catch (err) {
+      return handleError(c, err);
+    }
+  });
+
+  app.get("/changes", (c) => {
+    try {
+      const afterRaw = c.req.query("after_seq");
+      const limitRaw = c.req.query("limit");
+      const opts: { after_seq?: number; limit?: number } = {};
+      if (afterRaw !== undefined) {
+        opts.after_seq = z.coerce.number().int().nonnegative().parse(afterRaw);
+      }
+      if (limitRaw !== undefined) {
+        opts.limit = PageLimitSchema.parse(limitRaw);
+      }
+      return c.json(svc.listChanges(opts));
     } catch (err) {
       return handleError(c, err);
     }
@@ -321,16 +351,22 @@ export function createApi(svc: RelayService): Hono {
       const limitRaw = c.req.query("limit");
       const cursor = c.req.query("cursor");
       const since = c.req.query("since");
+      const afterSeqRaw = c.req.query("after_seq");
       const opts: {
         limit?: number;
         cursor?: string;
         since?: string;
+        after_seq?: number;
       } = {};
       if (limitRaw !== undefined) {
         opts.limit = PageLimitSchema.parse(limitRaw);
       }
       if (cursor !== undefined) opts.cursor = cursor;
-      if (since !== undefined) opts.since = since;
+      if (afterSeqRaw !== undefined) {
+        opts.after_seq = z.coerce.number().int().nonnegative().parse(afterSeqRaw);
+      } else if (since !== undefined) {
+        opts.since = since;
+      }
       return c.json(
         Object.keys(opts).length > 0 ? svc.inboxQuery(view, opts) : svc.inboxQuery(view),
       );

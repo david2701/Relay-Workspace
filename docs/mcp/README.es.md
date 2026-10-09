@@ -452,14 +452,28 @@ Busca por texto en las notas **huérfanas**, es decir, sin enlace a ningún íte
 
 ### `context_get`
 
-Devuelve el paquete de contexto de un ítem y el mismo contenido en markdown (texto con formato simple). El agente lo usa antes de trabajar en el ítem.
+Devuelve el paquete de contexto de un ítem, el mismo contenido en markdown, y los `item_events` recientes (de más antiguo a más reciente). El agente lo usa antes de trabajar en el ítem.
 
 | Parámetro | Tipo | Obligatorio |
 |-----------|------|-------------|
 | `id` | string (ítem) | sí |
+| `event_limit` | int 1–100 | no (por defecto 20) |
 
 **Llamada:** `{ "id": "itm_maj7i9qv5r" }`  
-**Respuesta:** `{ "context": { "item_id", "title", "goal", "status", "needs_you_reason", "notes": […], … }, "markdown": "# …" }`
+**Respuesta:** `{ "context": { "item_id", "title", "goal", "status", "needs_you_reason", "notes": […], … }, "markdown": "# …", "events": [ { "seq", "type", "payload", … } ] }`
+
+### `items_events`
+
+Historial de eventos de un ítem (de más antiguo a más reciente). Usa `after_seq` para reanudar.
+
+| Parámetro | Tipo | Obligatorio |
+|-----------|------|-------------|
+| `id` | string (ítem) | sí |
+| `after_seq` | int ≥0 | no (por defecto 0) |
+| `limit` | int 1–200 | no (por defecto 100) |
+
+**Llamada:** `{ "id": "itm_maj7i9qv5r", "after_seq": 0, "limit": 20 }`  
+**Respuesta:** `{ "events": […], "next_seq": 3, "has_more": false }`
 
 ### `inbox_query`
 
@@ -468,12 +482,27 @@ Devuelve el paquete de contexto de un ítem y el mismo contenido en markdown (te
 | `view` | InboxView | no | `"attention"` |
 | `limit` | int 1–200 | no | |
 | `cursor` | string | no | paginación |
-| `since` | string | no | sincronización incremental (delta) |
+| `after_seq` | int ≥0 | no | cursor delta preferido |
+| `since` | string | no | sincronización incremental legacy |
 
 **Llamada:** `{ "view": "attention", "limit": 2 }`  
-**Respuesta:** `{ "view": "attention", "items": […], "counters": { "needs_you": 1 }, "total_count": 3, "next_cursor": "…", "has_more": true, "section_counts": {…}, "sections": […], "sync_cursor", "server_time" }`
+**Respuesta:** `{ "view": "attention", "items": […], "counters": { "needs_you": 1 }, "total_count": 3, "next_cursor": "…", "has_more": true, "section_counts": {…}, "sections": […], "sync_cursor", "server_time", "seq" }`
 
-Si pasas `since`, el resultado es un delta: solo los cambios (`upserts` / `removed_ids`), no una página completa.
+Si pasas `after_seq` (preferido) o `since`, el resultado es un delta: solo los cambios (`upserts` / `removed_ids`), no una página completa. `seq` es la secuencia global de eventos más reciente.
+
+### `changes_list`
+
+Página global de `item_events` para sync / futuro SSE (`Last-Event-ID` ↔ `after_seq`).
+
+| Parámetro | Tipo | Obligatorio |
+|-----------|------|-------------|
+| `after_seq` | int ≥0 | no (por defecto 0) |
+| `limit` | int 1–200 | no (por defecto 100) |
+
+**Llamada:** `{ "after_seq": 0, "limit": 50 }`  
+**Respuesta:** `{ "events": […], "next_seq": 12, "has_more": true }`
+
+Ver también [`docs/api/events.md`](../api/events.md).
 
 ### `search`
 

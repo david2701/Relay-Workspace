@@ -37,6 +37,12 @@ import type {
   SearchResult,
 } from "../schemas/inbox.js";
 import type {
+  ChangesPage,
+  ItemEvent,
+  ItemEventsPage,
+  ItemEventType,
+} from "../schemas/item_event.js";
+import type {
   CreateNoteInput,
   ItemNoteLink,
   Note,
@@ -58,6 +64,13 @@ import type {
   WorkItem,
 } from "../schemas/work_item.js";
 import { openDatabase, type RelayDb, readSqliteDataVersion } from "../store/db.js";
+import {
+  appendItemEvent,
+  itemIdsWithEventsAfter,
+  latestEventSeq,
+  listItemEvents,
+  listRecentItemEvents,
+} from "../store/event_log.js";
 import type { ListPageResult } from "../store/repositories.js";
 import {
   AgentRepository,
@@ -65,6 +78,22 @@ import {
   NoteRepository,
   WorkItemRepository,
 } from "../store/repositories.js";
+
+const SYSTEM_ACTOR: Actor = { type: "system", id: "relay" };
+
+const TRACKED_ITEM_FIELDS = [
+  "title",
+  "goal",
+  "due_at",
+  "reminder_at",
+  "reminder_intent",
+  "priority",
+  "assignee_type",
+  "assignee_id",
+  "blocked_reason",
+  "needs_you_reason",
+  "status",
+] as const;
 
 export type RelayServiceOptions = {
   dbPath: string;
@@ -76,6 +105,13 @@ export type InboxQueryOptions = {
   limit?: number;
   cursor?: string;
   since?: string;
+  /** Preferred inbox delta cursor (global item_events.seq). */
+  after_seq?: number;
+};
+
+export type EventPageOptions = {
+  after_seq?: number;
+  limit?: number;
 };
 
 export class RelayService {
@@ -154,6 +190,80 @@ export class RelayService {
     this.cachedDataVersion = readSqliteDataVersion(this.db);
   }
 
+  /** Run a mutating write + event append in one IMMEDIATE transaction. */
+  private runInWriteTx<T>(fn: () => T): T {
+    this.db.exec("BEGIN IMMEDIATE");
+    try {
+      const result = fn();
+      this.db.exec("COMMIT");
+      this.afterLocalWrite();
+      return result;
+    } catch (err) {
+      this.db.exec("ROLLBACK");
+      throw err;
+    }
+  }
+
+  private emitItemEvent(
+    itemId: string,
+    type: ItemEventType,
+    actor: Actor,
+    payload: Record<string, unknown> = {},
+  ): ItemEvent {
+    return appendItemEvent(this.db, { itemId, type, actor, payload });
+  }
+
+  private classifyUpdateEvent(
+    current: WorkItem,
+    next: WorkItem,
+  ): { type: ItemEventType; payload: Record<string, unknown> } {
+    const changed = TRACKED_ITEM_FIELDS.filter((key) => current[key] !== next[key]);
+    const assigneeChanged =
+      changed.includes("assignee_type") || changed.includes("assignee_id");
+    const reminderChanged =
+      changed.includes("reminder_at") || changed.includes("reminder_intent");
+    const otherThanAssignee = changed.filter(
+      (key) =>
+        key !== "assignee_type" && key !== "assignee_id" && key !== "status",
+    );
+    if (assigneeChanged && otherThanAssignee.length === 0) {
+      if (next.assignee_type === "agent") {
+        return {
+          type: "delegated",
+          payload: {
+            agent_id: next.assignee_id,
+            from_assignee_type: current.assignee_type,
+            from_assignee_id: current.assignee_id,
+            status: next.status,
+          },
+        };
+      }
+      return {
+        type: "assigned",
+        payload: {
+          assignee_type: next.assignee_type,
+          assignee_id: next.assignee_id,
+          from_assignee_type: current.assignee_type,
+          from_assignee_id: current.assignee_id,
+          status: next.status,
+        },
+      };
+    }
+    const otherThanReminder = changed.filter(
+      (key) => key !== "reminder_at" && key !== "reminder_intent",
+    );
+    if (reminderChanged && otherThanReminder.length === 0) {
+      return {
+        type: "reminder_set",
+        payload: {
+          reminder_at: next.reminder_at,
+          reminder_intent: next.reminder_intent,
+        },
+      };
+    }
+    return { type: "updated", payload: { changed } };
+  }
+
   /**
    * Wall-clock cursor persisted in `relay_meta` so every process shares the
    * watermark. Meta-only writes bump data_version — adopt it without
@@ -217,16 +327,10 @@ export class RelayService {
       patch.timezone !== undefined && patch.timezone !== current.timezone;
     if (timezoneChanged) {
       // PR2: re-anchor date-only (23:59) dues in one transaction.
-      this.db.exec("BEGIN");
-      try {
+      this.runInWriteTx(() => {
         this.writeMeta("timezone", merged.timezone);
         this.reanchorDateOnlyDues(current.timezone, merged.timezone);
-        this.db.exec("COMMIT");
-      } catch (err) {
-        this.db.exec("ROLLBACK");
-        throw err;
-      }
-      this.afterLocalWrite();
+      });
     } else if (patch.timezone !== undefined) {
       this.writeMeta("timezone", merged.timezone);
     }
@@ -284,6 +388,10 @@ export class RelayService {
       const next = dateOnlyZoneIso(p.y, p.m, p.d, newTz);
       if (next === row.due_at) continue;
       update.run(next, wall, row.id);
+      this.emitItemEvent(row.id, "updated", SYSTEM_ACTOR, {
+        changed: ["due_at"],
+        reason: "timezone_reanchor",
+      });
     }
   }
 
@@ -378,9 +486,16 @@ export class RelayService {
       last_actor_id: actor.id,
       list_id: null,
     };
-    this.items.upsert(item);
-    this.afterLocalWrite();
-    return item;
+    return this.runInWriteTx(() => {
+      this.items.upsert(item);
+      this.emitItemEvent(item.id, "created", actor, {
+        title: item.title,
+        status: item.status,
+        assignee_type: item.assignee_type,
+        assignee_id: item.assignee_id,
+      });
+      return item;
+    });
   }
 
   updateItem(id: string, input: UpdateItemInput, actor: Actor): WorkItem {
@@ -432,58 +547,95 @@ export class RelayService {
       },
       actor,
     );
-    this.items.upsert(next);
-    this.afterLocalWrite();
-    return next;
+    const event = this.classifyUpdateEvent(current, next);
+    return this.runInWriteTx(() => {
+      this.items.upsert(next);
+      this.emitItemEvent(next.id, event.type, actor, event.payload);
+      return next;
+    });
   }
 
   setStatus(id: string, input: SetStatusInput, actor: Actor, source: Source): WorkItem {
     const current = this.getItem(id);
     const next = applyStatusChange({ item: current, input, actor, source });
-    this.items.upsert(next);
-    this.afterLocalWrite();
-    return next;
+    return this.runInWriteTx(() => {
+      this.items.upsert(next);
+      this.emitItemEvent(next.id, "status_changed", actor, {
+        from: current.status,
+        to: next.status,
+        blocked_reason: next.blocked_reason,
+        needs_you_reason: next.needs_you_reason,
+      });
+      return next;
+    });
   }
 
   complete(id: string, actor: Actor, source: Source): WorkItem {
-    const next = completeItem({ item: this.getItem(id), actor, source });
-    this.items.upsert(next);
-    this.afterLocalWrite();
-    return next;
+    const current = this.getItem(id);
+    const next = completeItem({ item: current, actor, source });
+    return this.runInWriteTx(() => {
+      this.items.upsert(next);
+      this.emitItemEvent(next.id, "status_changed", actor, {
+        from: current.status,
+        to: next.status,
+      });
+      return next;
+    });
   }
 
   reopen(id: string, actor: Actor): WorkItem {
-    const next = reopenItem({ item: this.getItem(id), actor });
-    this.items.upsert(next);
-    this.afterLocalWrite();
-    return next;
+    const current = this.getItem(id);
+    const next = reopenItem({ item: current, actor });
+    return this.runInWriteTx(() => {
+      this.items.upsert(next);
+      this.emitItemEvent(next.id, "status_changed", actor, {
+        from: current.status,
+        to: next.status,
+      });
+      return next;
+    });
   }
 
   delegate(id: string, agentId: string, actor: Actor, source: Source): WorkItem {
     if (!this.agents.get(agentId)) {
       throw new ValidationError(`Unknown agent id: ${agentId}`);
     }
+    const current = this.getItem(id);
     const next = delegateItem({
-      item: this.getItem(id),
+      item: current,
       agentId,
       actor,
       source,
     });
-    this.items.upsert(next);
-    this.afterLocalWrite();
-    return next;
+    return this.runInWriteTx(() => {
+      this.items.upsert(next);
+      this.emitItemEvent(next.id, "delegated", actor, {
+        agent_id: agentId,
+        from_assignee_type: current.assignee_type,
+        from_assignee_id: current.assignee_id,
+        status: next.status,
+      });
+      return next;
+    });
   }
 
   askUser(id: string, reason: string, actor: Actor, source: Source): WorkItem {
+    const current = this.getItem(id);
     const next = askUser({
-      item: this.getItem(id),
+      item: current,
       reason,
       actor,
       source,
     });
-    this.items.upsert(next);
-    this.afterLocalWrite();
-    return next;
+    return this.runInWriteTx(() => {
+      this.items.upsert(next);
+      this.emitItemEvent(next.id, "status_changed", actor, {
+        from: current.status,
+        to: next.status,
+        needs_you_reason: next.needs_you_reason,
+      });
+      return next;
+    });
   }
 
   listNotes(): Note[];
@@ -545,12 +697,26 @@ export class RelayService {
     this.getItem(itemId);
     this.getNote(noteId);
     const link: ItemNoteLink = { item_id: itemId, note_id: noteId, role };
-    this.links.link(link);
-    return link;
+    return this.runInWriteTx(() => {
+      this.links.link(link);
+      this.emitItemEvent(itemId, "note_linked", SYSTEM_ACTOR, {
+        note_id: noteId,
+        role,
+      });
+      return link;
+    });
   }
 
   unlinkNote(itemId: string, noteId: string): void {
-    this.links.unlink(itemId, noteId);
+    const item = this.items.get(itemId);
+    this.runInWriteTx(() => {
+      this.links.unlink(itemId, noteId);
+      if (item) {
+        this.emitItemEvent(itemId, "note_unlinked", SYSTEM_ACTOR, {
+          note_id: noteId,
+        });
+      }
+    });
   }
 
   linksForItem(itemId: string): ItemNoteLink[] {
@@ -579,12 +745,69 @@ export class RelayService {
     return contextPackToMarkdown(this.getContext(itemId));
   }
 
+  /** Context pack plus recent item events (oldest first) for agent handoff. */
+  getContextWithEvents(
+    itemId: string,
+    eventLimit = 20,
+  ): { context: ContextPack; markdown: string; events: ItemEvent[] } {
+    const context = this.getContext(itemId);
+    return {
+      context,
+      markdown: contextPackToMarkdown(context),
+      events: listRecentItemEvents(this.db, itemId, eventLimit),
+    };
+  }
+
+  latestSeq(): number {
+    return latestEventSeq(this.db);
+  }
+
+  listEventsForItem(itemId: string, opts?: EventPageOptions): ItemEventsPage {
+    this.getItem(itemId);
+    const afterSeq = opts?.after_seq ?? 0;
+    const limit = opts?.limit ?? 100;
+    const { events, has_more } = listItemEvents(this.db, {
+      itemId,
+      afterSeq,
+      limit,
+    });
+    const next_seq =
+      events.length > 0 ? (events[events.length - 1]?.seq ?? afterSeq) : afterSeq;
+    return { events, next_seq, has_more };
+  }
+
+  listChanges(opts?: EventPageOptions): ChangesPage {
+    const afterSeq = opts?.after_seq ?? 0;
+    const limit = opts?.limit ?? 100;
+    const { events, has_more } = listItemEvents(this.db, { afterSeq, limit });
+    const next_seq =
+      events.length > 0 ? (events[events.length - 1]?.seq ?? afterSeq) : afterSeq;
+    return { events, next_seq, has_more };
+  }
+
   inboxQuery(
     view: InboxView,
     opts?: InboxQueryOptions,
   ): InboxQueryResult | InboxSyncResult {
     const now = opts?.now ?? new Date();
     const timeZone = this.getSettings().timezone;
+    const seq = this.latestSeq();
+    if (opts?.after_seq !== undefined) {
+      const changedIds = itemIdsWithEventsAfter(this.db, opts.after_seq);
+      const syncArgs: Parameters<typeof buildInboxSync>[0] = {
+        items: this.listAllItems(),
+        view,
+        changedIds,
+        now,
+        timeZone,
+      };
+      const delta = buildInboxSync(syncArgs);
+      const cursor = this.stampSyncCursor(now);
+      delta.sync_cursor = cursor;
+      delta.server_time = cursor;
+      delta.seq = seq;
+      return delta;
+    }
     if (opts?.since !== undefined) {
       // Delta sync needs the full table so completions leave the view via removed_ids.
       // ensureCachesFresh (via listAllItems) picks up mcp:stdio / SQL writers.
@@ -599,6 +822,7 @@ export class RelayService {
       const cursor = this.stampSyncCursor(now);
       delta.sync_cursor = cursor;
       delta.server_time = cursor;
+      delta.seq = seq;
       return delta;
     }
     // Todo snapshot: open rows only (skip ~36% done/cancelled) + fast group_counts.
@@ -615,6 +839,7 @@ export class RelayService {
     const cursor = this.stampSyncCursor(now);
     snap.sync_cursor = cursor;
     snap.server_time = cursor;
+    snap.seq = seq;
     return snap;
   }
 
@@ -667,8 +892,10 @@ export class RelayService {
 
   /** Test/seed helper */
   resetData(): void {
-    this.items.deleteAll();
-    this.notes.deleteAll();
-    this.afterLocalWrite();
+    this.runInWriteTx(() => {
+      this.items.deleteAll();
+      this.notes.deleteAll();
+      this.db.prepare(`UPDATE event_seq SET next_seq = 1 WHERE id = 1`).run();
+    });
   }
 }

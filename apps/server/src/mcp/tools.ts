@@ -273,24 +273,55 @@ export function createMcpTools(svc: RelayService): McpToolDef[] {
     },
     {
       name: "context_get",
-      description: "Context pack for an agent (goal, notes, reasons, reminder)",
-      inputSchema: z.object({ id: z.string() }),
+      description:
+        "Context pack for an agent (goal, notes, reasons, reminder) plus recent item events",
+      inputSchema: z.object({
+        id: z.string(),
+        event_limit: z.number().int().min(1).max(100).optional(),
+      }),
       handler: (raw) => {
-        const { id } = z.object({ id: z.string() }).parse(raw);
-        return {
-          context: svc.getContext(id),
-          markdown: svc.getContextMarkdown(id),
-        };
+        const { id, event_limit } = z
+          .object({
+            id: z.string(),
+            event_limit: z.number().int().min(1).max(100).optional(),
+          })
+          .parse(raw);
+        return svc.getContextWithEvents(id, event_limit ?? 20);
+      },
+    },
+    {
+      name: "items_events",
+      description:
+        "Item event history (oldest first) for handoff / SSE resume; use after_seq + limit",
+      inputSchema: z.object({
+        id: z.string(),
+        after_seq: z.number().int().nonnegative().optional(),
+        limit: z.number().int().min(1).max(200).optional(),
+      }),
+      handler: (raw) => {
+        const parsed = z
+          .object({
+            id: z.string(),
+            after_seq: z.number().int().nonnegative().optional(),
+            limit: z.number().int().min(1).max(200).optional(),
+          })
+          .parse(raw);
+        const opts: { after_seq?: number; limit?: number } = {};
+        if (parsed.after_seq !== undefined) opts.after_seq = parsed.after_seq;
+        if (parsed.limit !== undefined) opts.limit = parsed.limit;
+        return svc.listEventsForItem(parsed.id, opts);
       },
     },
     {
       name: "inbox_query",
-      description: "Query an inbox view (optional limit/cursor pagination or since sync)",
+      description:
+        "Query an inbox view (optional limit/cursor pagination, after_seq or since sync)",
       inputSchema: z.object({
         view: InboxViewSchema.default("attention"),
         limit: z.number().int().min(1).max(200).optional(),
         cursor: z.string().optional(),
         since: z.string().optional(),
+        after_seq: z.number().int().nonnegative().optional(),
       }),
       handler: (raw) => {
         const parsed = z
@@ -299,15 +330,43 @@ export function createMcpTools(svc: RelayService): McpToolDef[] {
             limit: z.number().int().min(1).max(200).optional(),
             cursor: z.string().optional(),
             since: z.string().optional(),
+            after_seq: z.number().int().nonnegative().optional(),
           })
           .parse(raw ?? {});
-        const opts: { limit?: number; cursor?: string; since?: string } = {};
+        const opts: {
+          limit?: number;
+          cursor?: string;
+          since?: string;
+          after_seq?: number;
+        } = {};
         if (parsed.limit !== undefined) opts.limit = parsed.limit;
         if (parsed.cursor !== undefined) opts.cursor = parsed.cursor;
-        if (parsed.since !== undefined) opts.since = parsed.since;
+        if (parsed.after_seq !== undefined) opts.after_seq = parsed.after_seq;
+        else if (parsed.since !== undefined) opts.since = parsed.since;
         return Object.keys(opts).length > 0
           ? svc.inboxQuery(parsed.view, opts)
           : svc.inboxQuery(parsed.view);
+      },
+    },
+    {
+      name: "changes_list",
+      description:
+        "Global item_events page for sync/SSE replay ({ events, next_seq, has_more })",
+      inputSchema: z.object({
+        after_seq: z.number().int().nonnegative().optional(),
+        limit: z.number().int().min(1).max(200).optional(),
+      }),
+      handler: (raw) => {
+        const parsed = z
+          .object({
+            after_seq: z.number().int().nonnegative().optional(),
+            limit: z.number().int().min(1).max(200).optional(),
+          })
+          .parse(raw ?? {});
+        const opts: { after_seq?: number; limit?: number } = {};
+        if (parsed.after_seq !== undefined) opts.after_seq = parsed.after_seq;
+        if (parsed.limit !== undefined) opts.limit = parsed.limit;
+        return svc.listChanges(opts);
       },
     },
     {

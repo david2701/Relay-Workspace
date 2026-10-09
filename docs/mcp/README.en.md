@@ -429,14 +429,28 @@ Search **orphan** (unlinked) notes by text. Linked notes are excluded; use `sear
 
 ### `context_get`
 
-Context pack + markdown for an agent before working an item.
+Context pack + markdown for an agent before working an item, plus recent `item_events` (oldest first).
 
 | Param | Type | Required |
 |-------|------|----------|
 | `id` | string (item) | yes |
+| `event_limit` | int 1–100 | no (default 20) |
 
 **Call:** `{ "id": "itm_maj7i9qv5r" }`  
-**Response:** `{ "context": { "item_id", "title", "goal", "status", "needs_you_reason", "notes": […], … }, "markdown": "# …" }`
+**Response:** `{ "context": { "item_id", "title", "goal", "status", "needs_you_reason", "notes": […], … }, "markdown": "# …", "events": [ { "seq", "type", "payload", … } ] }`
+
+### `items_events`
+
+Paged event history for one item (oldest first). Prefer `after_seq` for resume.
+
+| Param | Type | Required |
+|-------|------|----------|
+| `id` | string (item) | yes |
+| `after_seq` | int ≥0 | no (default 0) |
+| `limit` | int 1–200 | no (default 100) |
+
+**Call:** `{ "id": "itm_maj7i9qv5r", "after_seq": 0, "limit": 20 }`  
+**Response:** `{ "events": […], "next_seq": 3, "has_more": false }`
 
 ### `inbox_query`
 
@@ -445,12 +459,27 @@ Context pack + markdown for an agent before working an item.
 | `view` | InboxView | no | `"attention"` |
 | `limit` | int 1–200 | no | |
 | `cursor` | string | no | pagination |
-| `since` | string | no | delta sync mode |
+| `after_seq` | int ≥0 | no | preferred delta cursor |
+| `since` | string | no | legacy delta sync mode |
 
 **Call:** `{ "view": "attention", "limit": 2 }`  
-**Response:** `{ "view": "attention", "items": […], "counters": { "needs_you": 1 }, "total_count": 3, "next_cursor": "…", "has_more": true, "section_counts": {…}, "sections": […], "sync_cursor", "server_time" }`
+**Response:** `{ "view": "attention", "items": […], "counters": { "needs_you": 1 }, "total_count": 3, "next_cursor": "…", "has_more": true, "section_counts": {…}, "sections": […], "sync_cursor", "server_time", "seq" }`
 
-With `since`, result is a delta (`upserts` / `removed_ids`) instead of a full page.
+With `after_seq` (preferred) or `since`, result is a delta (`upserts` / `removed_ids`) instead of a full page. `seq` is the latest global event sequence.
+
+### `changes_list`
+
+Global `item_events` page for sync / future SSE replay (`Last-Event-ID` ↔ `after_seq`).
+
+| Param | Type | Required |
+|-------|------|----------|
+| `after_seq` | int ≥0 | no (default 0) |
+| `limit` | int 1–200 | no (default 100) |
+
+**Call:** `{ "after_seq": 0, "limit": 50 }`  
+**Response:** `{ "events": […], "next_seq": 12, "has_more": true }`
+
+See also [`docs/api/events.md`](../api/events.md).
 
 ### `search`
 

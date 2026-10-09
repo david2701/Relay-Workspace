@@ -192,4 +192,67 @@ INSERT OR IGNORE INTO relay_meta(key, value) VALUES ('user_initial', '');
 INSERT OR IGNORE INTO relay_meta(key, value) VALUES ('onboarding_completed_at', '');
 `,
   },
+  {
+    version: 6,
+    sql: `
+-- Global monotonic event log (SSE / mobile sync / handoff history foundation).
+CREATE TABLE IF NOT EXISTS item_events (
+  id TEXT PRIMARY KEY,
+  seq INTEGER NOT NULL UNIQUE,
+  item_id TEXT NOT NULL,
+  type TEXT NOT NULL,
+  actor_kind TEXT NOT NULL,
+  actor_id TEXT NOT NULL,
+  payload TEXT NOT NULL,
+  created_at TEXT NOT NULL,
+  FOREIGN KEY (item_id) REFERENCES work_items(id) ON DELETE CASCADE
+);
+
+CREATE INDEX IF NOT EXISTS idx_item_events_item_seq
+  ON item_events(item_id, seq);
+CREATE INDEX IF NOT EXISTS idx_item_events_seq
+  ON item_events(seq);
+
+CREATE TABLE IF NOT EXISTS event_seq (
+  id INTEGER PRIMARY KEY CHECK (id = 1),
+  next_seq INTEGER NOT NULL
+);
+INSERT OR IGNORE INTO event_seq(id, next_seq) VALUES (1, 1);
+
+-- One synthetic created event per existing item (history non-empty after upgrade).
+INSERT INTO item_events (id, seq, item_id, type, actor_kind, actor_id, payload, created_at)
+SELECT
+  printf('evt_bf%08d', ordered.rn),
+  ordered.rn,
+  ordered.id,
+  'created',
+  ordered.last_actor_type,
+  ordered.last_actor_id,
+  json_object(
+    'title', ordered.title,
+    'status', ordered.status,
+    'assignee_type', ordered.assignee_type,
+    'assignee_id', ordered.assignee_id,
+    'backfill', 1
+  ),
+  ordered.created_at
+FROM (
+  SELECT
+    id,
+    title,
+    status,
+    assignee_type,
+    assignee_id,
+    last_actor_type,
+    last_actor_id,
+    created_at,
+    ROW_NUMBER() OVER (ORDER BY created_at ASC, id ASC) AS rn
+  FROM work_items
+) AS ordered;
+
+UPDATE event_seq
+  SET next_seq = (SELECT COALESCE(MAX(seq), 0) + 1 FROM item_events)
+  WHERE id = 1;
+`,
+  },
 ];
