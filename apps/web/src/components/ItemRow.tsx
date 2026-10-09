@@ -12,6 +12,7 @@ import {
   formatReminder,
   formatRowAccessibleDate,
 } from "../lib/format";
+import { terminalByKeys } from "../lib/terminal_by_label";
 import type { Agent, SearchMatch, Status, WorkItem } from "../lib/types";
 import { ActorMark, isStaleWorking, isWorking } from "./ActorMark";
 import { MatchSnippet } from "./MatchSnippet";
@@ -174,6 +175,11 @@ export const ItemRow = memo(function ItemRow({
               const rel = formatRelative(
                 item.completed_at ?? item.updated_at,
               );
+              const keys = terminalByKeys(item);
+              const label =
+                completer.kind === "user"
+                  ? t(keys.byYou, { time: rel })
+                  : t(keys.byName, { name: completer.name, time: rel });
               return (
                 <>
                   <ActorMark
@@ -182,14 +188,7 @@ export const ItemRow = memo(function ItemRow({
                     monogram={completer.monogram}
                     size={16}
                   />
-                  <span>
-                    {completer.kind === "user"
-                      ? t("item.completedByYou", { time: rel })
-                      : t("item.completedBy", {
-                          name: completer.name,
-                          time: rel,
-                        })}
-                  </span>
+                  <span>{label}</span>
                 </>
               );
             })()}

@@ -11,6 +11,11 @@ import { SUPPORTED_LOCALES } from "../i18n/types";
 import type { RelaySettings } from "../lib/api";
 import { graphemeCount, MAX_NAME_GRAPHEMES } from "../lib/grapheme";
 import { initialFromName } from "../lib/initial_from_name";
+import {
+  browserTimeZone,
+  listTimeZones,
+  sameTimeZone,
+} from "../lib/time_zones";
 import { ThemeSwitch } from "./ThemeSwitch";
 
 type Theme = "light" | "dark" | "system";
@@ -48,33 +53,6 @@ const SECTION_KEYS: Record<SettingsSection, MessageKey> = {
 };
 
 const SECTIONS = Object.keys(SECTION_KEYS) as SettingsSection[];
-
-function browserTimeZone(): string {
-  try {
-    return Intl.DateTimeFormat().resolvedOptions().timeZone || "UTC";
-  } catch {
-    return "UTC";
-  }
-}
-
-function listTimeZones(): string[] {
-  try {
-    const supported = (
-      Intl as unknown as { supportedValuesOf?: (k: string) => string[] }
-    ).supportedValuesOf;
-    if (supported) return supported("timeZone");
-  } catch {
-    /* ignore */
-  }
-  return [
-    "UTC",
-    "Europe/Paris",
-    "America/New_York",
-    "America/Los_Angeles",
-    "Europe/London",
-    "Asia/Tokyo",
-  ];
-}
 
 export function SettingsPanel({
   open,
@@ -498,7 +476,7 @@ export function SettingsPanel({
                 {t("settings.timezone.now", { time: nowInZone })}
               </p>
               <p className="settings-hint">{t("settings.timezone.dateOnlyNote")}</p>
-              {browserZone !== settings.timezone ? (
+              {!sameTimeZone(browserZone, settings.timezone) ? (
                 <div className="settings-tz-diff">
                   <p>
                     {t("settings.timezone.browserDiffers", {

@@ -139,6 +139,8 @@
   "item.agentFallback": "Agent",
   "item.blockedPrefix": "Bloqué : ",
   "item.chatBadge": "Créé depuis le chat",
+  "item.cancelledBy": "Annulé par {name} · {time}",
+  "item.cancelledByYou": "Annulé par vous · {time}",
   "item.completedBy": "Terminé par {name} · {time}",
   "item.completedByYou": "Terminé par vous · {time}",
   "item.noTitle": "Sans titre",

@@ -10,6 +10,11 @@ import { SUPPORTED_LOCALES } from "../i18n/types";
 import { api, type RelaySettings } from "../lib/api";
 import { graphemeCount, MAX_NAME_GRAPHEMES } from "../lib/grapheme";
 import { initialFromName } from "../lib/initial_from_name";
+import {
+  browserTimeZone,
+  isKnownTimeZone,
+  listTimeZones,
+} from "../lib/time_zones";
 
 type Props = {
   /** True when the store already has work items (demo-preloaded variant). */
@@ -22,46 +27,6 @@ const LANG_LABEL: Record<LocaleCode, MessageKey> = {
   fr: "lang.fr",
   es: "lang.es",
 };
-
-function browserTimeZone(): string {
-  try {
-    return Intl.DateTimeFormat().resolvedOptions().timeZone || "UTC";
-  } catch {
-    return "UTC";
-  }
-}
-
-function isKnownTimeZone(zone: string): boolean {
-  try {
-    const supported = (
-      Intl as unknown as { supportedValuesOf?: (k: string) => string[] }
-    ).supportedValuesOf;
-    if (supported) return supported("timeZone").includes(zone);
-    Intl.DateTimeFormat(undefined, { timeZone: zone });
-    return true;
-  } catch {
-    return false;
-  }
-}
-
-function listTimeZones(): string[] {
-  try {
-    const supported = (
-      Intl as unknown as { supportedValuesOf?: (k: string) => string[] }
-    ).supportedValuesOf;
-    if (supported) return supported("timeZone");
-  } catch {
-    /* ignore */
-  }
-  return [
-    "UTC",
-    "Europe/Paris",
-    "America/New_York",
-    "America/Los_Angeles",
-    "Europe/London",
-    "Asia/Tokyo",
-  ];
-}
 
 function zoneLongName(zone: string, intlLocale: string): string {
   try {
@@ -309,11 +274,10 @@ export function OnboardingCard({ isPreloaded, onCompleted }: Props) {
                   aria-autocomplete="list"
                   aria-expanded
                   aria-controls="onboarding-tz-list"
-                  placeholder={t("settings.timezone.search")}
-                  value={tzQuery || timezone}
+                  placeholder={timezone || t("settings.timezone.search")}
+                  value={tzQuery}
                   disabled={submitting}
                   onChange={(e) => setTzQuery(e.target.value)}
-                  onFocus={() => setTzQuery("")}
                 />
                 <ul id="onboarding-tz-list" className="settings-tz-list" role="listbox">
                   {filteredZones.map((z) => (
