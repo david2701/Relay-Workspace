@@ -469,11 +469,15 @@ Historial de eventos de un ítem (de más antiguo a más reciente). Usa `after_s
 | Parámetro | Tipo | Obligatorio |
 |-----------|------|-------------|
 | `id` | string (ítem) | sí |
-| `after_seq` | int ≥0 | no (por defecto 0) |
+| `after_seq` | entero seguro 0…`Number.MAX_SAFE_INTEGER` | no (por defecto 0) |
 | `limit` | int 1–200 | no (por defecto 100) |
 
 **Llamada:** `{ "id": "itm_maj7i9qv5r", "after_seq": 0, "limit": 20 }`  
-**Respuesta:** `{ "events": […], "next_seq": 3, "has_more": false }`
+**Respuesta:** `{ "events": […], "next_seq": 6, "has_more": false }`
+
+`next_seq` es el último `seq` de **esta página de este ítem** (pásalo como
+`after_seq` siguiente del mismo ítem). No es la marca global — usa
+`changes_list` / `seq` del inbox. `after_seq` / `limit` inválidos → error de tool.
 
 ### `inbox_query`
 
@@ -496,11 +500,13 @@ Página global de `item_events` para sync / futuro SSE (`Last-Event-ID` ↔ `aft
 
 | Parámetro | Tipo | Obligatorio |
 |-----------|------|-------------|
-| `after_seq` | int ≥0 | no (por defecto 0) |
+| `after_seq` | entero seguro 0…`Number.MAX_SAFE_INTEGER` | no (por defecto 0) |
 | `limit` | int 1–200 | no (por defecto 100) |
 
 **Llamada:** `{ "after_seq": 0, "limit": 50 }`  
 **Respuesta:** `{ "events": […], "next_seq": 12, "has_more": true }`
+
+Aquí `next_seq` es el cursor de página global. `after_seq` / `limit` inválidos → error de tool.
 
 Ver también [`docs/api/events.md`](../api/events.md).
 

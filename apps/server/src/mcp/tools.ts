@@ -8,8 +8,10 @@ import {
   SetStatusInputSchema,
   UpdateItemInputSchema,
   UpdateNoteInputSchema,
+  ValidationError,
 } from "@relay/core";
 import { z } from "zod";
+import { MAX_AFTER_SEQ, parseEventPageQuery } from "../event_query.js";
 
 const ActorParam = z.object({
   actor: z
@@ -295,21 +297,22 @@ export function createMcpTools(svc: RelayService): McpToolDef[] {
         "Item event history (oldest first) for handoff / SSE resume; use after_seq + limit",
       inputSchema: z.object({
         id: z.string(),
-        after_seq: z.number().int().nonnegative().optional(),
+        after_seq: z.number().int().min(0).max(MAX_AFTER_SEQ).optional(),
         limit: z.number().int().min(1).max(200).optional(),
       }),
       handler: (raw) => {
-        const parsed = z
-          .object({
-            id: z.string(),
-            after_seq: z.number().int().nonnegative().optional(),
-            limit: z.number().int().min(1).max(200).optional(),
-          })
-          .parse(raw);
-        const opts: { after_seq?: number; limit?: number } = {};
-        if (parsed.after_seq !== undefined) opts.after_seq = parsed.after_seq;
-        if (parsed.limit !== undefined) opts.limit = parsed.limit;
-        return svc.listEventsForItem(parsed.id, opts);
+        const base = z.object({ id: z.string() }).safeParse(raw);
+        if (!base.success) {
+          throw new ValidationError("id is required");
+        }
+        const page = parseEventPageQuery({
+          after_seq: (raw as { after_seq?: unknown }).after_seq as
+            | string
+            | number
+            | undefined,
+          limit: (raw as { limit?: unknown }).limit as string | number | undefined,
+        });
+        return svc.listEventsForItem(base.data.id, page);
       },
     },
     {
@@ -321,31 +324,33 @@ export function createMcpTools(svc: RelayService): McpToolDef[] {
         limit: z.number().int().min(1).max(200).optional(),
         cursor: z.string().optional(),
         since: z.string().optional(),
-        after_seq: z.number().int().nonnegative().optional(),
+        after_seq: z.number().int().min(0).max(MAX_AFTER_SEQ).optional(),
       }),
       handler: (raw) => {
-        const parsed = z
-          .object({
-            view: InboxViewSchema.default("attention"),
-            limit: z.number().int().min(1).max(200).optional(),
-            cursor: z.string().optional(),
-            since: z.string().optional(),
-            after_seq: z.number().int().nonnegative().optional(),
-          })
-          .parse(raw ?? {});
+        const record = (raw ?? {}) as Record<string, unknown>;
+        const viewParsed = InboxViewSchema.safeParse(
+          record.view ?? "attention",
+        );
+        if (!viewParsed.success) {
+          throw new ValidationError("view is invalid");
+        }
+        const page = parseEventPageQuery({
+          after_seq: record.after_seq as string | number | undefined,
+          limit: record.limit as string | number | undefined,
+        });
         const opts: {
           limit?: number;
           cursor?: string;
           since?: string;
           after_seq?: number;
         } = {};
-        if (parsed.limit !== undefined) opts.limit = parsed.limit;
-        if (parsed.cursor !== undefined) opts.cursor = parsed.cursor;
-        if (parsed.after_seq !== undefined) opts.after_seq = parsed.after_seq;
-        else if (parsed.since !== undefined) opts.since = parsed.since;
+        if (page.limit !== undefined) opts.limit = page.limit;
+        if (typeof record.cursor === "string") opts.cursor = record.cursor;
+        if (page.after_seq !== undefined) opts.after_seq = page.after_seq;
+        else if (typeof record.since === "string") opts.since = record.since;
         return Object.keys(opts).length > 0
-          ? svc.inboxQuery(parsed.view, opts)
-          : svc.inboxQuery(parsed.view);
+          ? svc.inboxQuery(viewParsed.data, opts)
+          : svc.inboxQuery(viewParsed.data);
       },
     },
     {
@@ -353,20 +358,16 @@ export function createMcpTools(svc: RelayService): McpToolDef[] {
       description:
         "Global item_events page for sync/SSE replay ({ events, next_seq, has_more })",
       inputSchema: z.object({
-        after_seq: z.number().int().nonnegative().optional(),
+        after_seq: z.number().int().min(0).max(MAX_AFTER_SEQ).optional(),
         limit: z.number().int().min(1).max(200).optional(),
       }),
       handler: (raw) => {
-        const parsed = z
-          .object({
-            after_seq: z.number().int().nonnegative().optional(),
-            limit: z.number().int().min(1).max(200).optional(),
-          })
-          .parse(raw ?? {});
-        const opts: { after_seq?: number; limit?: number } = {};
-        if (parsed.after_seq !== undefined) opts.after_seq = parsed.after_seq;
-        if (parsed.limit !== undefined) opts.limit = parsed.limit;
-        return svc.listChanges(opts);
+        const record = (raw ?? {}) as Record<string, unknown>;
+        const page = parseEventPageQuery({
+          after_seq: record.after_seq as string | number | undefined,
+          limit: record.limit as string | number | undefined,
+        });
+        return svc.listChanges(page);
       },
     },
     {

@@ -24,7 +24,7 @@ export function openDatabase(dbPath: string): RelayDb {
   const db = new DatabaseSync(dbPath);
   db.exec("PRAGMA journal_mode = WAL;");
   db.exec("PRAGMA foreign_keys = ON;");
-  db.exec("PRAGMA busy_timeout = 5000;");
+  db.exec("PRAGMA busy_timeout = 30000;");
   migrate(db);
   seedAgents(db);
   return db;

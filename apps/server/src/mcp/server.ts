@@ -2,8 +2,8 @@ import { readFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
-import type { RelayService } from "@relay/core";
-import { z } from "zod";
+import { type RelayService, ValidationError } from "@relay/core";
+import { ZodError, z } from "zod";
 import { createMcpTools } from "./tools.js";
 
 function readServerPackageVersion(): string {
@@ -63,7 +63,19 @@ export function createMcpServer(svc: RelayService): McpServer {
                 : { value: result },
           };
         } catch (err) {
-          const message = err instanceof Error ? err.message : String(err);
+          let message: string;
+          if (err instanceof ValidationError) {
+            message = err.message;
+          } else if (err instanceof ZodError) {
+            const first = err.issues[0];
+            message = first
+              ? `${first.path.length ? `${first.path.join(".")}: ` : ""}${first.message}`
+              : "Invalid tool arguments";
+          } else if (err instanceof Error) {
+            message = err.message;
+          } else {
+            message = String(err);
+          }
           return {
             isError: true,
             content: [{ type: "text" as const, text: message }],
