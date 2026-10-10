@@ -1,7 +1,15 @@
-import { expect, type Page, test } from "@playwright/test";
+import {
+  expect,
+  test,
+  type APIRequestContext,
+  type Page,
+  E2E_API,
+} from "./fixtures";
 
 /** Fixed wall clock so shortcut preview strings (and widths) stay stable. */
 const FROZEN_NOW = new Date("2026-10-08T12:00:00.000Z");
+/** Match demo seed timezone so the picker does not grow a UTC≠Paris tz hint. */
+const LAYOUT_TZ = "Europe/Paris";
 
 async function freezeClock(page: Page): Promise<void> {
   await page.clock.install({ time: FROZEN_NOW });
@@ -25,16 +33,33 @@ async function waitFontsAndLayout(page: Page): Promise<void> {
   await page.waitForTimeout(300);
 }
 
-async function openDuePicker(page: Page) {
+/**
+ * Create a dedicated due item so layout does not depend on whichever row is
+ * first after earlier specs mutated the shared inbox.
+ */
+async function createLayoutItem(request: APIRequestContext): Promise<string> {
+  const res = await request.post(`${E2E_API}/api/items`, {
+    data: {
+      title: `DTP-LAYOUT-${Date.now()}`,
+      // Mid-month fixed due — stable calendar + shortcut preview under FROZEN_NOW.
+      due_at: "2026-10-15T10:00:00.000+02:00",
+    },
+    headers: {
+      "X-Relay-Actor": "user",
+      "X-Relay-Source": "ui",
+    },
+  });
+  expect(res.ok(), await res.text()).toBeTruthy();
+  const body = (await res.json()) as { item: { id: string } };
+  await request.put(`${E2E_API}/api/settings`, {
+    data: { timezone: LAYOUT_TZ },
+  });
+  return body.item.id;
+}
+
+async function openDuePicker(page: Page, request: APIRequestContext) {
   await freezeClock(page);
-  await page.goto("/all");
-  await page.locator('[data-inbox-view="all"]').waitFor({ timeout: 30_000 });
-  await waitFontsAndLayout(page);
-  const option = page.getByRole("option").first();
-  await option.waitFor({ state: "visible", timeout: 30_000 });
-  const id = await option.getAttribute("id");
-  const itemId = id?.replace(/^row-/, "");
-  expect(itemId).toBeTruthy();
+  const itemId = await createLayoutItem(request);
   // Deep-link selection (reliable at narrow widths where the detail sheet covers the list).
   await page.goto(`/all?item=${itemId}`);
   await page.locator('[data-inbox-view="all"]').waitFor({ timeout: 30_000 });
@@ -50,6 +75,18 @@ async function openDuePicker(page: Page) {
   const dialog = page.getByRole("dialog");
   await expect(dialog).toBeVisible({ timeout: 10_000 });
   await waitFontsAndLayout(page);
+  // Explicit readiness: popover geometry must settle inside the viewport.
+  await expect
+    .poll(async () => {
+      const box = await dialog.boundingBox();
+      if (!box) return "no-box";
+      const bottom = box.y + box.height;
+      const vh = page.viewportSize()?.height ?? 900;
+      if (bottom > vh + 1) return `bottom=${bottom}`;
+      if (box.y < -1) return `top=${box.y}`;
+      return "ok";
+    }, { timeout: 5_000 })
+    .toBe("ok");
   return dialog;
 }
 
@@ -75,11 +112,15 @@ function shortcutLabelOverlapsValue(
   return boxesOverlap(name, when);
 }
 
+// Align browser TZ with seed/settings so layout width/height stay hermetic
+// across the full suite (host is often Etc/UTC in CI).
+test.use({ timezoneId: LAYOUT_TZ });
+
 test.describe("DatePicker sheet focus trap @ 390px (V12-D16)", () => {
   test.use({ viewport: { width: 390, height: 900 } });
 
-  async function openSheet(page: Page) {
-    const dialog = await openDuePicker(page);
+  async function openSheet(page: Page, request: APIRequestContext) {
+    const dialog = await openDuePicker(page, request);
     await expect(dialog).toHaveClass(/sheet/);
     await expect(dialog).toHaveAttribute("aria-modal", "true");
     // Wait until focus has moved into the sheet and #root is inert.
@@ -99,8 +140,11 @@ test.describe("DatePicker sheet focus trap @ 390px (V12-D16)", () => {
     return dialog;
   }
 
-  test("Tab ×30 and Shift+Tab ×30 stay inside the sheet", async ({ page }) => {
-    const dialog = await openSheet(page);
+  test("Tab ×30 and Shift+Tab ×30 stay inside the sheet", async ({
+    page,
+    request,
+  }) => {
+    const dialog = await openSheet(page, request);
     for (let i = 0; i < 30; i += 1) {
       await page.keyboard.press("Tab");
       const inside = await page.evaluate(() => {
@@ -124,8 +168,9 @@ test.describe("DatePicker sheet focus trap @ 390px (V12-D16)", () => {
 
   test("background is inert — nothing behind the sheet is focusable", async ({
     page,
+    request,
   }) => {
-    await openSheet(page);
+    await openSheet(page, request);
     const probe = await page.evaluate(() => {
       const root = document.getElementById("root") as
         | (HTMLElement & { inert?: boolean })
@@ -155,16 +200,16 @@ test.describe("DatePicker sheet focus trap @ 390px (V12-D16)", () => {
     expect(probe.ok, JSON.stringify(probe)).toBe(true);
   });
 
-  test("Esc returns focus to .dtp-trigger", async ({ page }) => {
-    await openSheet(page);
+  test("Esc returns focus to .dtp-trigger", async ({ page, request }) => {
+    await openSheet(page, request);
     const trigger = page.locator(".detail-zone .dtp-trigger").first();
     await page.keyboard.press("Escape");
     await expect(page.getByRole("dialog")).toHaveCount(0);
     await expect(trigger).toBeFocused();
   });
 
-  test("Listo returns focus to .dtp-trigger", async ({ page }) => {
-    await openSheet(page);
+  test("Listo returns focus to .dtp-trigger", async ({ page, request }) => {
+    await openSheet(page, request);
     const trigger = page.locator(".detail-zone .dtp-trigger").first();
     await page.getByRole("button", { name: /^Listo$/ }).click();
     await expect(page.getByRole("dialog")).toHaveCount(0, { timeout: 10_000 });
@@ -175,9 +220,10 @@ test.describe("DatePicker sheet focus trap @ 390px (V12-D16)", () => {
 for (const width of [1440, 768, 390] as const) {
   test(`DatePicker layout @ ${width}px — no clip/overlap, in viewport, footer baseline`, async ({
     page,
+    request,
   }) => {
     await page.setViewportSize({ width, height: 900 });
-    const dialog = await openDuePicker(page);
+    const dialog = await openDuePicker(page, request);
     const dialogBox = await dialog.boundingBox();
     expect(dialogBox).toBeTruthy();
     const vb = dialogBox!;

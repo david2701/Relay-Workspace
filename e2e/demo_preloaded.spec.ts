@@ -2,9 +2,9 @@
  * After the demo store path (EN sample data, onboarding open), the card is
  * the preloaded variant: FR checkbox on, EN checkbox off (PR1 / V03-O10).
  */
-import { expect, test, type APIRequestContext, type Page } from "@playwright/test";
+import { expect, test, type APIRequestContext, type Page, E2E_API } from "./fixtures";
 
-const API = "http://127.0.0.1:7430";
+const API = E2E_API;
 
 async function prepareDemoPreloaded(request: APIRequestContext): Promise<void> {
   // Same contract as `pnpm demo` seed: EN data + onboarding_completed_at null.

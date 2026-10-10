@@ -69,7 +69,7 @@ fun RelayTheme(
     ) {
         MaterialTheme(
             colorScheme = colorScheme,
-            typography = MaterialTheme.typography,
+            typography = RelayTypography,
             content = content,
         )
     }

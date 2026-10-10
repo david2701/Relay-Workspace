@@ -14,17 +14,26 @@ public final class RelayClient: @unchecked Sendable {
     public let baseURL: URL
     private let session: URLSession
     private let decoder: JSONDecoder
+    private let encoder: JSONEncoder
 
     public init(baseURL: URL, session: URLSession = .shared) {
         self.baseURL = baseURL
         self.session = session
         self.decoder = JSONDecoder()
+        self.encoder = JSONEncoder()
     }
 
     /// Convenience for the default local server bind.
     public static func localDefault(session: URLSession = .shared) -> RelayClient {
-        guard let url = URL(string: "http://127.0.0.1:7420") else {
+        guard let url = URL(string: RelayDefaults.apiBaseURLString) else {
             preconditionFailure("Static local URL must parse")
+        }
+        return RelayClient(baseURL: url, session: session)
+    }
+
+    public static func make(baseURLString: String, session: URLSession = .shared) throws -> RelayClient {
+        guard let url = URL(string: baseURLString), url.scheme != nil else {
+            throw RelayAPIError.invalidURL(baseURLString)
         }
         return RelayClient(baseURL: url, session: session)
     }
@@ -56,6 +65,48 @@ public final class RelayClient: @unchecked Sendable {
         return envelope.agents
     }
 
+    public func createItem(title: String) async throws -> WorkItem {
+        let body = CreateItemBody(title: title)
+        let envelope: ItemEnvelope = try await send(
+            path: "/api/items",
+            method: "POST",
+            body: body
+        )
+        return envelope.item
+    }
+
+    public func setStatus(id: String, status: Status) async throws -> WorkItem {
+        let body = SetStatusBody(status: status)
+        let envelope: ItemEnvelope = try await send(
+            path: "/api/items/\(id)/status",
+            method: "POST",
+            body: body
+        )
+        return envelope.item
+    }
+
+    public func assignToHuman(id: String) async throws -> WorkItem {
+        let body = AssignMeBody(
+            assigneeType: .user,
+            assigneeId: RelayDefaults.humanActorId
+        )
+        let envelope: ItemEnvelope = try await send(
+            path: "/api/items/\(id)",
+            method: "PATCH",
+            body: body
+        )
+        return envelope.item
+    }
+
+    public func complete(id: String) async throws -> WorkItem {
+        let envelope: ItemEnvelope = try await send(
+            path: "/api/items/\(id)/complete",
+            method: "POST",
+            body: EmptyBody()
+        )
+        return envelope.item
+    }
+
     /// Decode a type from raw Data (used by tests with fixtures).
     public func decode<T: Decodable>(_ type: T.Type, from data: Data) throws -> T {
         do {
@@ -69,6 +120,40 @@ public final class RelayClient: @unchecked Sendable {
         path: String,
         query: [String: String] = [:]
     ) async throws -> T {
+        let url = try makeURL(path: path, query: query)
+        var request = URLRequest(url: url)
+        request.httpMethod = "GET"
+        request.setValue("application/json", forHTTPHeaderField: "Accept")
+        return try await execute(request)
+    }
+
+    private func send<Body: Encodable, T: Decodable>(
+        path: String,
+        method: String,
+        body: Body
+    ) async throws -> T {
+        let url = try makeURL(path: path, query: [:])
+        var request = URLRequest(url: url)
+        request.httpMethod = method
+        request.setValue("application/json", forHTTPHeaderField: "Accept")
+        request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+        request.httpBody = try encoder.encode(body)
+        return try await execute(request)
+    }
+
+    private func execute<T: Decodable>(_ request: URLRequest) async throws -> T {
+        let (data, response) = try await perform(request)
+        guard let http = response as? HTTPURLResponse else {
+            throw RelayAPIError.transport("Non-HTTP response")
+        }
+        guard (200 ..< 300).contains(http.statusCode) else {
+            let body = String(data: data, encoding: .utf8) ?? ""
+            throw RelayAPIError.httpStatus(http.statusCode, body: body)
+        }
+        return try decode(T.self, from: data)
+    }
+
+    private func makeURL(path: String, query: [String: String]) throws -> URL {
         guard var components = URLComponents(
             url: baseURL,
             resolvingAgainstBaseURL: false
@@ -90,18 +175,7 @@ public final class RelayClient: @unchecked Sendable {
         guard let url = components.url else {
             throw RelayAPIError.invalidURL(path)
         }
-        var request = URLRequest(url: url)
-        request.httpMethod = "GET"
-        request.setValue("application/json", forHTTPHeaderField: "Accept")
-        let (data, response) = try await perform(request)
-        guard let http = response as? HTTPURLResponse else {
-            throw RelayAPIError.transport("Non-HTTP response")
-        }
-        guard (200 ..< 300).contains(http.statusCode) else {
-            let body = String(data: data, encoding: .utf8) ?? ""
-            throw RelayAPIError.httpStatus(http.statusCode, body: body)
-        }
-        return try decode(T.self, from: data)
+        return url
     }
 
     /// `URLSession.data(for:)` is unavailable on Linux FoundationNetworking;
@@ -121,5 +195,25 @@ public final class RelayClient: @unchecked Sendable {
             }
             task.resume()
         }
+    }
+}
+
+private struct EmptyBody: Encodable {}
+
+private struct CreateItemBody: Encodable {
+    let title: String
+}
+
+private struct SetStatusBody: Encodable {
+    let status: Status
+}
+
+private struct AssignMeBody: Encodable {
+    let assigneeType: AssigneeType
+    let assigneeId: String
+
+    enum CodingKeys: String, CodingKey {
+        case assigneeType = "assignee_type"
+        case assigneeId = "assignee_id"
     }
 }

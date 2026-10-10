@@ -36,11 +36,46 @@ const EnvSchema = z.object({
    * A non-loopback value on a loopback bind enforces token auth.
    */
   RELAY_PUBLIC_URL: z.string().optional(),
+  /**
+   * Expose test-only store helpers (POST /api/store/e2e-reset).
+   * Must stay unset in production; the route also requires a trusted
+   * loopback peer (no proxy headers).
+   */
+  RELAY_E2E: z.string().optional(),
+  /** APNs token-auth (.p8) — see docs/deploy/push.md. Never commit keys. */
+  RELAY_APNS_KEY_PATH: z.string().optional(),
+  RELAY_APNS_KEY_ID: z.string().optional(),
+  RELAY_APNS_TEAM_ID: z.string().optional(),
+  RELAY_APNS_TOPIC: z.string().optional(),
+  /** FCM HTTP v1 service-account JSON path. */
+  RELAY_FCM_CREDENTIALS_PATH: z.string().optional(),
+  /**
+   * Omit item titles from push payloads (default ON / D3). Titles are included
+   * only when the value is exactly `0` or `false` (case-insensitive).
+   */
+  RELAY_PUSH_REDACT: z.string().optional(),
+  /**
+   * When "1"/true (default), skip push if the device has an open SSE stream
+   * (owner decision D4). Set "0" to always push.
+   */
+  RELAY_PUSH_SKIP_OPEN_SSE: z.string().optional(),
+  /** Dedupe window for (device, item, reason) in ms (default 60000). */
+  RELAY_PUSH_DEDUPE_MS: z.string().optional(),
+  /** How often to emit reminder_fired for due reminders (ms, default 15000). */
+  RELAY_PUSH_REMINDER_POLL_MS: z.string().optional(),
 });
 
 export type Env = z.infer<typeof EnvSchema> & {
   auth: AuthBindConfig;
+  /** True only when RELAY_E2E is an explicit on-flag (1/true/yes/on). */
+  e2eMode: boolean;
 };
+
+function parseE2eFlag(raw: string | undefined): boolean {
+  if (raw === undefined || raw === "") return false;
+  const v = raw.trim().toLowerCase();
+  return v === "1" || v === "true" || v === "yes" || v === "on";
+}
 
 export function loadEnv(env: NodeJS.ProcessEnv = process.env): Env {
   const parsed = EnvSchema.safeParse({
@@ -60,5 +95,9 @@ export function loadEnv(env: NodeJS.ProcessEnv = process.env): Env {
     ...(requireTokenEnv !== undefined ? { requireTokenEnv } : {}),
     ...(publicUrlEnv !== undefined ? { publicUrlEnv } : {}),
   });
-  return { ...data, auth };
+  return {
+    ...data,
+    auth,
+    e2eMode: parseE2eFlag(data.RELAY_E2E ?? env.RELAY_E2E),
+  };
 }
