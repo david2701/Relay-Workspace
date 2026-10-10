@@ -52,3 +52,14 @@ test.use({ isolateSharedServer: false });
 Prefer explicit readiness (`data-sync-state=connected`, `readHeadSeq`) over
 fixed sleeps. Close pages normally; the fixture reset clears any hub leftovers
 server-side.
+
+### DatePicker layout
+
+`datepicker_layout.spec.ts` was order-dependent at 1440/768: a polluted inbox
+pushed the due trigger lower, and desktop `place()` did not clamp the popover
+bottom to the viewport (`y + height` → 918 > 901). The product now clamps after
+measuring popover height; the spec also:
+
+- uses `timezoneId: Europe/Paris` (matches seed — avoids UTC≠Paris tz-hint growth)
+- opens a dedicated API-created item (not `option.first()`)
+- polls until the dialog box sits inside the viewport before asserting
