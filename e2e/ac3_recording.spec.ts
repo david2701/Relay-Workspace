@@ -58,6 +58,8 @@ test.use({
 });
 
 test("AC3 paced loop on clean seed", async ({ page }) => {
+  // Video capture + paced waits can exceed the default 60s once teardown encodes.
+  test.setTimeout(120_000);
   mkdirSync(ART, { recursive: true });
   await reseedCleanDemo();
   const stamps: Stamp[] = [];
