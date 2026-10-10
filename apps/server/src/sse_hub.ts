@@ -24,6 +24,8 @@ export type SseAttachOptions = {
   deviceId?: string | null;
 };
 
+export type SseEventListener = (events: ItemEvent[]) => void;
+
 export type SseHub = {
   readonly size: number;
   readonly maxConnections: number;
@@ -40,6 +42,13 @@ export type SseHub = {
    * Required after store resets that rewind `item_events` seq.
    */
   reset(): void;
+  /** True when this device currently has at least one open SSE stream. */
+  hasDeviceStream(deviceId: string): boolean;
+  /**
+   * Subscribe to the same fan-out as SSE clients (same-process + cross-process
+   * via the seq watcher). Returns an unsubscribe function.
+   */
+  subscribe(listener: SseEventListener): () => void;
   /** Test helper: force one watcher tick. */
   pollOnce(): void;
   close(): void;
@@ -92,6 +101,7 @@ export function createSseHub(
   const replayPageSize = options.replayPageSize ?? 200;
 
   const clients = new Map<string, LiveClient>();
+  const listeners = new Set<SseEventListener>();
   let lastKnownSeq = svc.latestSeq();
   let watchTimer: ReturnType<typeof setInterval> | null = null;
   let heartbeatTimer: ReturnType<typeof setInterval> | null = null;
@@ -105,7 +115,7 @@ export function createSseHub(
         watchTimer.unref();
       }
     }
-    if (heartbeatTimer === null) {
+    if (heartbeatTimer === null && clients.size > 0) {
       heartbeatTimer = setInterval(() => {
         const chunk = formatHeartbeat();
         for (const client of clients.values()) {
@@ -123,14 +133,14 @@ export function createSseHub(
   }
 
   function stopTimersIfIdle(): void {
-    if (clients.size > 0) return;
+    if (clients.size === 0 && heartbeatTimer !== null) {
+      clearInterval(heartbeatTimer);
+      heartbeatTimer = null;
+    }
+    if (clients.size > 0 || listeners.size > 0) return;
     if (watchTimer !== null) {
       clearInterval(watchTimer);
       watchTimer = null;
-    }
-    if (heartbeatTimer !== null) {
-      clearInterval(heartbeatTimer);
-      heartbeatTimer = null;
     }
   }
 
@@ -180,6 +190,13 @@ export function createSseHub(
           detach(client.id);
           break;
         }
+      }
+    }
+    for (const listener of listeners) {
+      try {
+        listener(events);
+      } catch {
+        // listeners must not break fan-out
       }
     }
   }
@@ -282,10 +299,27 @@ export function createSseHub(
     lastKnownSeq = svc.latestSeq();
   }
 
+  function hasDeviceStream(deviceId: string): boolean {
+    for (const client of clients.values()) {
+      if (client.deviceId === deviceId) return true;
+    }
+    return false;
+  }
+
+  function subscribe(listener: SseEventListener): () => void {
+    listeners.add(listener);
+    ensureTimers();
+    return () => {
+      listeners.delete(listener);
+      stopTimersIfIdle();
+    };
+  }
+
   function close(): void {
     for (const id of [...clients.keys()]) {
       detach(id);
     }
+    listeners.clear();
     stopTimersIfIdle();
   }
 
@@ -298,6 +332,8 @@ export function createSseHub(
     detach,
     closeDevice,
     reset,
+    hasDeviceStream,
+    subscribe,
     pollOnce,
     close,
   };

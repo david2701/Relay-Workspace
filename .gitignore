@@ -20,6 +20,12 @@ test-results/
 *.tsbuildinfo
 uploads/
 
+# Push credentials (APNs .p8 / FCM service accounts) — see docs/deploy/push.md
+*.p8
+*firebase-adminsdk*.json
+fcm-credentials*.json
+AuthKey_*.p8
+
 # Native clients
 apps/android/.gradle/
 apps/android/**/build/

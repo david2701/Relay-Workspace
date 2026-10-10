@@ -13,6 +13,7 @@
     <string name="error_title">No se pudo cargar Atención</string>
     <string name="retry">Reintentar</string>
     <string name="sync_up_to_date">Al día</string>
+    <string name="sync_up_to_date_relative">Al día · %1$s</string>
     <string name="loading">Cargando Atención</string>
     <string name="fab_new_item">Nuevo ítem</string>
     <string name="search">Buscar</string>
@@ -20,4 +21,22 @@
     <string name="profile">Perfil</string>
     <string name="cd_needs_you_rule">Te necesita</string>
     <string name="cd_selected_row">Seleccionado</string>
+    <string name="detail_placeholder">Selecciona un ítem para ver su contexto</string>
+    <string name="decision_placeholder">Tu decisión o instrucción</string>
+    <string name="cta_return_to_agent">Devolver a %1$s</string>
+    <string name="cta_do_myself">Lo hago yo</string>
+    <string name="cta_assign">Asignar</string>
+    <string name="cta_note">Nota</string>
+    <string name="cta_notice">Aviso</string>
+    <string name="section_handoff">Traspaso</string>
+    <string name="section_context">Contexto</string>
+    <string name="context_decision">Decisión</string>
+    <string name="context_product_name">Nombre del producto: Relay provisional</string>
+    <string name="back">Atrás</string>
+    <string name="more">Más</string>
+    <string name="link">Enlace</string>
+    <string name="default_agent_name">Agente de redacción</string>
+    <string name="needs_you_meta">%1$s necesita tu decisión · %2$s</string>
+    <string name="handoff_summary">%1$s te lo pasó</string>
+    <string name="cd_nav_attention_badge">%1$d te necesitan</string>
 </resources>

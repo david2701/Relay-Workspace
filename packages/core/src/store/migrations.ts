@@ -319,4 +319,18 @@ CREATE TABLE IF NOT EXISTS stream_tickets (
 CREATE INDEX IF NOT EXISTS idx_stream_tickets_expires ON stream_tickets(expires_at);
 `,
   },
+  {
+    version: 9,
+    sql: `
+-- Push notification registration (APNs / FCM) on the device row.
+ALTER TABLE devices ADD COLUMN push_platform TEXT;
+ALTER TABLE devices ADD COLUMN push_token TEXT;
+ALTER TABLE devices ADD COLUMN push_environment TEXT;
+ALTER TABLE devices ADD COLUMN push_topic TEXT;
+ALTER TABLE devices ADD COLUMN push_muted INTEGER NOT NULL DEFAULT 0;
+
+CREATE INDEX IF NOT EXISTS idx_devices_push_token
+  ON devices(push_token) WHERE push_token IS NOT NULL;
+`,
+  },
 ];
