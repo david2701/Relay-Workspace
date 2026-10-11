@@ -207,7 +207,7 @@ Agent profile: summary fields plus `current_items` and paged `handoffs` (newest 
 **Call:** `{ "id": "agent-code" }`  
 **Response:** `{ "agent": { …summary, "current_items": […], "handoffs": […], "handoffs_next_seq", "handoffs_has_more" } }`
 
-`handoffs_next_seq` matches item `next_seq` semantics (last seq in this page; empty → request cursor). Unknown id → `not_found`.
+`handoffs_next_seq` matches item `next_seq` semantics (last seq in this page; empty → request cursor). Unknown id → **`not_found`** (same as HTTP `GET /api/agents/:id` **404**; `/mcp/invoke` returns HTTP 404 with `{ "error": "not_found", "message": "…" }`).
 
 ### `items_list`
 
@@ -614,7 +614,7 @@ Seed demo that already waits on the user: item «Elegir titular del post de lanz
 
 ## 6. Errors and how to handle them
 
-MCP tool handlers throw domain / Zod errors. Over Streamable HTTP MCP they surface as `isError` tool results with the message text. Over REST they map to HTTP status via `handleError`. Over `/mcp/invoke`, failures return `{ "error": "<message>" }` with status 400.
+MCP tool handlers throw domain / Zod errors. Over Streamable HTTP MCP they surface as `isError` tool results with the message text. Over REST they map to HTTP status via `handleError`. Over `/mcp/invoke`, domain/Zod failures use the same `{ "error": "<code>", "message": "…" }` mapping (e.g. unknown `agents_get` id → **404** `not_found`); other failures still return `{ "error": "<message>" }` with status 400.
 
 | Code / kind | Typical message | HTTP (API) | Agent action |
 |-------------|-----------------|------------|--------------|

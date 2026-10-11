@@ -57,7 +57,8 @@ derived only from the event log.
 
 ### `GET /api/agents/:id`
 
-Profile for one agent. Unknown id → `404`.
+Profile for one agent. Unknown id → **404** `not_found`
+(`{ "error": "not_found", "message": "Agent not found: …" }`), never **400**.
 
 Query (shared validation via `parseEventPageQuery` — same rules as
 [`docs/api/events.md`](./events.md)):
@@ -127,7 +128,7 @@ User-only field updates (`updated`, `reminder_set`, …) and agent `status_chang
 | Tool | Role |
 | --- | --- |
 | `agents_list` | Same as `GET /api/agents`. |
-| `agents_get` | Same as `GET /api/agents/:id` (`id`, optional paging fields). |
+| `agents_get` | Same as `GET /api/agents/:id` (`id`, optional paging fields). Unknown id → `not_found` (HTTP `/mcp/invoke` → **404**; Streamable tool error with the same message). |
 
 ## Missing vs Team designs
 

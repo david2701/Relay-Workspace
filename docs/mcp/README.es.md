@@ -230,7 +230,7 @@ Perfil del agente: campos de resumen más `current_items` y `handoffs` paginados
 **Llamada:** `{ "id": "agent-code" }`  
 **Respuesta:** `{ "agent": { …resumen, "current_items": […], "handoffs": […], "handoffs_next_seq", "handoffs_has_more" } }`
 
-`handoffs_next_seq` sigue la misma semántica que el `next_seq` de ítem (último seq de la página; vacío → cursor de la petición). Id desconocido → `not_found`.
+`handoffs_next_seq` sigue la misma semántica que el `next_seq` de ítem (último seq de la página; vacío → cursor de la petición). Id desconocido → **`not_found`** (igual que HTTP `GET /api/agents/:id` **404**; `/mcp/invoke` responde HTTP 404 con `{ "error": "not_found", "message": "…" }`).
 
 ### `items_list`
 
@@ -641,7 +641,10 @@ Los *handlers* de MCP (las funciones que ejecutan cada tool) lanzan dos tipos de
 
 - Por Streamable HTTP MCP, como resultado de tool con `isError` y el texto del mensaje.
 - Por la API REST, como código de estado HTTP, mediante `handleError`.
-- Por `/mcp/invoke`, como `{ "error": "<message>" }` con estado 400.
+- Por `/mcp/invoke`, los errores de dominio/Zod usan el mismo mapeo
+  `{ "error": "<código>", "message": "…" }` (p. ej. `agents_get` con id
+  desconocido → **404** `not_found`); el resto sigue como
+  `{ "error": "<message>" }` con estado 400.
 
 | Código / tipo | Mensaje típico | HTTP (API) | Qué debe hacer el agente |
 |---------------|----------------|------------|--------------------------|

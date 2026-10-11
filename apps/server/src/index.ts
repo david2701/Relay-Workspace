@@ -2,9 +2,10 @@ import { existsSync, readFileSync } from "node:fs";
 import { join, relative, resolve } from "node:path";
 import { serve } from "@hono/node-server";
 import { serveStatic } from "@hono/node-server/serve-static";
-import { RelayService } from "@relay/core";
+import { DomainError, RelayService } from "@relay/core";
 import { Hono } from "hono";
 import { cors } from "hono/cors";
+import { ZodError } from "zod";
 import {
   type AuthOptions,
   createAuthMiddleware,
@@ -12,6 +13,7 @@ import {
 } from "./auth.js";
 import { type ClientIpResolver, createClientIpResolver } from "./client_ip.js";
 import { loadEnv } from "./env.js";
+import { handleError } from "./http_errors.js";
 import { idempotencyMiddleware } from "./idempotency_middleware.js";
 import { createMcpHttpHandler, invokeMcpTool } from "./mcp/http.js";
 import {
@@ -146,6 +148,9 @@ export function createApp(
         const result = await invokeMcpTool(svc, name, args, headerActor);
         return c.json({ result });
       } catch (err) {
+        if (err instanceof DomainError || err instanceof ZodError) {
+          return handleError(c, err);
+        }
         const message = err instanceof Error ? err.message : String(err);
         return c.json({ error: message }, 400);
       }
@@ -218,6 +223,7 @@ async function main(): Promise<void> {
         `Relay API+MCP listening on http://${env.RELAY_HOST}:${info.port}`,
       );
       console.info(`SQLite: ${env.RELAY_DB}`);
+      console.info(env.auth.authModeNotice);
       if (env.e2eMode) {
         console.info(
           "RELAY_E2E=1: POST /api/store/e2e-reset enabled (loopback only)",

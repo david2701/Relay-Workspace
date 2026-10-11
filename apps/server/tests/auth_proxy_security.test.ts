@@ -3,6 +3,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { RelayService } from "@relay/core";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
+import { resolveAuthBindConfig } from "../src/auth_config.js";
 import { createApp } from "../src/index.js";
 import { formatPairCliOutput, startPairingViaCli } from "../src/pair_cli.js";
 
@@ -195,5 +196,52 @@ describe("proxy + explicit token security", () => {
         })
       ).status,
     ).toBe(200);
+  });
+
+  it("(f) default bind + non-loopback RELAY_PUBLIC_URL, no proxy headers → 401; pair/start refused", async () => {
+    const cfg = resolveAuthBindConfig({
+      host: "127.0.0.1",
+      port: 7420,
+      publicUrlEnv: "https://host.tailnet-name.ts.net",
+    });
+    expect(cfg.requireToken).toBe(true);
+    expect(cfg.requireTokenExplicit).toBe(true);
+    const app = createApp(svc, "http://127.0.0.1:7421", {
+      requireToken: cfg.requireToken,
+      requireTokenExplicit: cfg.requireTokenExplicit,
+      publicUrl: cfg.publicUrl,
+    });
+    expect((await app.request("http://127.0.0.1/api/items")).status).toBe(401);
+    expect((await app.request("http://127.0.0.1/api/stream")).status).toBe(401);
+    expect(
+      (
+        await app.request("http://127.0.0.1/mcp", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            jsonrpc: "2.0",
+            id: 1,
+            method: "tools/list",
+            params: {},
+          }),
+        })
+      ).status,
+    ).toBe(401);
+    expect(
+      (
+        await app.request("http://127.0.0.1/mcp/invoke", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ name: "notes_list", arguments: {} }),
+        })
+      ).status,
+    ).toBe(401);
+    expect(
+      (
+        await app.request("http://127.0.0.1/api/pair/start", {
+          method: "POST",
+        })
+      ).status,
+    ).toBe(401);
   });
 });

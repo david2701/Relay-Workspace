@@ -39,4 +39,14 @@ describe("time_zones", () => {
     expect(sameTimeZone("UTC", "Europe/Paris")).toBe(false);
     expect(sameTimeZone("Europe/Paris", "Etc/UTC")).toBe(false);
   });
+
+  it("treats +00:00 and +0000 as UTC aliases", () => {
+    expect(canonicalizeTimeZone("+00:00")).toBe("UTC");
+    expect(canonicalizeTimeZone("+0000")).toBe("UTC");
+    expect(sameTimeZone("+00:00", "UTC")).toBe(true);
+    expect(sameTimeZone("+0000", "Etc/UTC")).toBe(true);
+    expect(sameTimeZone("+00:00", "GMT")).toBe(true);
+    expect(isKnownTimeZone("+00:00")).toBe(true);
+    expect(isKnownTimeZone("+0000")).toBe(true);
+  });
 });
