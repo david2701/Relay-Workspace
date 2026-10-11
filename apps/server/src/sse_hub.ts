@@ -37,6 +37,11 @@ export type SseHub = {
   detach(clientId: string): void;
   /** Close every open SSE connection for this device (revoke). */
   closeDevice(deviceId: string): void;
+  /**
+   * Drop every client and resync the watcher cursor to `latestSeq()`.
+   * Required after store resets that rewind `item_events` seq.
+   */
+  reset(): void;
   /** True when this device currently has at least one open SSE stream. */
   hasDeviceStream(deviceId: string): boolean;
   /**
@@ -286,6 +291,14 @@ export function createSseHub(
     }
   }
 
+  function reset(): void {
+    for (const id of [...clients.keys()]) {
+      detach(id);
+    }
+    stopTimersIfIdle();
+    lastKnownSeq = svc.latestSeq();
+  }
+
   function hasDeviceStream(deviceId: string): boolean {
     for (const client of clients.values()) {
       if (client.deviceId === deviceId) return true;
@@ -318,6 +331,7 @@ export function createSseHub(
     attach,
     detach,
     closeDevice,
+    reset,
     hasDeviceStream,
     subscribe,
     pollOnce,

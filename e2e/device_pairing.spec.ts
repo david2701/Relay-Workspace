@@ -2,9 +2,8 @@ import { spawn, type ChildProcess } from "node:child_process";
 import { mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { expect, test } from "@playwright/test";
+import { expect, test, E2E_API, E2E_DB } from "./fixtures";
 
-const E2E_API = "http://127.0.0.1:7430";
 
 async function waitHealth(url: string, timeoutMs = 30_000): Promise<void> {
   const deadline = Date.now() + timeoutMs;
@@ -55,7 +54,7 @@ test.describe("device pairing (Settings + LAN token)", () => {
 
     // Non-loopback bind with token enforcement (same DB as e2e seed).
     const lanDir = mkdtempSync(join(tmpdir(), "relay-lan-e2e-"));
-    const lanDb = "/tmp/relay-e2e.db";
+    const lanDb = E2E_DB;
     const lanPort = 7432;
     let child: ChildProcess | null = null;
     try {

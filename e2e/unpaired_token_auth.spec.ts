@@ -7,7 +7,7 @@ import { execFileSync, spawn, type ChildProcess } from "node:child_process";
 import { mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { expect, test, type Page, type Request } from "@playwright/test";
+import { expect, test, type Page, type Request } from "./fixtures";
 
 const API_PORT = 7460;
 const WEB_PORT = 7461;
@@ -71,6 +71,9 @@ async function completeOnboardingIfPresent(page: Page): Promise<void> {
 test.describe.configure({ mode: "serial" });
 
 test.describe("unpaired token auth UX", () => {
+  // Own API+Vite on 7460/7461 — do not hit shared-server e2e-reset.
+  test.use({ isolateSharedServer: false });
+
   let dbDir: string;
   let dbPath: string;
   let server: ChildProcess | null = null;

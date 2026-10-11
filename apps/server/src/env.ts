@@ -32,6 +32,12 @@ const EnvSchema = z.object({
   RELAY_REQUIRE_TOKEN: z.string().optional(),
   /** Base URL embedded in pairing QR (e.g. http://192.168.1.10:7420). */
   RELAY_PUBLIC_URL: z.string().optional(),
+  /**
+   * Expose test-only store helpers (POST /api/store/e2e-reset).
+   * Must stay unset in production; the route also requires a trusted
+   * loopback peer (no proxy headers).
+   */
+  RELAY_E2E: z.string().optional(),
   /** APNs token-auth (.p8) — see docs/deploy/push.md. Never commit keys. */
   RELAY_APNS_KEY_PATH: z.string().optional(),
   RELAY_APNS_KEY_ID: z.string().optional(),
@@ -57,7 +63,15 @@ const EnvSchema = z.object({
 
 export type Env = z.infer<typeof EnvSchema> & {
   auth: AuthBindConfig;
+  /** True only when RELAY_E2E is an explicit on-flag (1/true/yes/on). */
+  e2eMode: boolean;
 };
+
+function parseE2eFlag(raw: string | undefined): boolean {
+  if (raw === undefined || raw === "") return false;
+  const v = raw.trim().toLowerCase();
+  return v === "1" || v === "true" || v === "yes" || v === "on";
+}
 
 export function loadEnv(env: NodeJS.ProcessEnv = process.env): Env {
   const parsed = EnvSchema.safeParse({
@@ -77,5 +91,9 @@ export function loadEnv(env: NodeJS.ProcessEnv = process.env): Env {
     ...(requireTokenEnv !== undefined ? { requireTokenEnv } : {}),
     ...(publicUrlEnv !== undefined ? { publicUrlEnv } : {}),
   });
-  return { ...data, auth };
+  return {
+    ...data,
+    auth,
+    e2eMode: parseE2eFlag(data.RELAY_E2E ?? env.RELAY_E2E),
+  };
 }

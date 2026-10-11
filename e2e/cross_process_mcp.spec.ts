@@ -1,10 +1,16 @@
 import { execFileSync } from "node:child_process";
 import { resolve } from "node:path";
 import { DatabaseSync } from "node:sqlite";
-import { expect, test } from "@playwright/test";
+import {
+  E2E_API,
+  E2E_DB,
+  expect,
+  readHeadSeq,
+  test,
+} from "./fixtures";
 
-const API = process.env.VITE_API_URL ?? "http://127.0.0.1:7430";
-const E2E_DB = resolve(process.env.RELAY_DB ?? "/tmp/relay-e2e.db");
+const API = E2E_API;
+const DB = resolve(E2E_DB);
 
 function stdioOps(ops: Array<{ tool: string; args?: Record<string, unknown> }>) {
   let lastErr: unknown;
@@ -22,7 +28,7 @@ function stdioOps(ops: Array<{ tool: string; args?: Record<string, unknown> }>) 
         ],
         {
           cwd: process.cwd(),
-          env: { ...process.env, RELAY_DB: E2E_DB },
+          env: { ...process.env, RELAY_DB: DB },
           encoding: "utf8",
           timeout: 90_000,
         },
@@ -57,8 +63,13 @@ async function waitSearch(title: string, id: string, budget = 2000) {
 test.describe("cross-process MCP stdio → HTTP (AC3 ≤2000ms)", () => {
   test("create / complete / needs_you / note edit + raw SQL", async ({
     page,
+    request,
   }) => {
     const latencies: number[] = [];
+    // Stable cursor: observe head before mutating so later assertions are
+    // relative to this baseline (not a stale suite-wide seq).
+    const headBefore = await readHeadSeq(request);
+    expect(headBefore).toBeGreaterThanOrEqual(0);
 
     await fetch(`${API}/api/inbox?view=all&limit=50`);
     await fetch(`${API}/api/search?q=warmup`);
@@ -133,13 +144,16 @@ test.describe("cross-process MCP stdio → HTTP (AC3 ≤2000ms)", () => {
     const target = lj.items[0]?.id;
     expect(target).toBeTruthy();
     const sqlMarker = `SQL-E2E-${Date.now()}`;
-    const db = new DatabaseSync(E2E_DB);
+    const db = new DatabaseSync(DB);
     db.prepare(
       `UPDATE work_items SET title = ?, updated_at = ? WHERE id = ?`,
     ).run(sqlMarker, new Date().toISOString(), target);
     db.close();
     const sqlHit = await waitSearch(sqlMarker, target!);
     latencies.push(sqlHit.ms);
+
+    const headAfter = await readHeadSeq(request);
+    expect(headAfter).toBeGreaterThan(headBefore);
 
     const sorted = [...latencies].sort((a, b) => a - b);
     const p95 =
@@ -152,6 +166,8 @@ test.describe("cross-process MCP stdio → HTTP (AC3 ≤2000ms)", () => {
         cross_process_latencies_ms: latencies,
         max,
         p95,
+        headBefore,
+        headAfter,
       }),
     );
     expect(max).toBeLessThanOrEqual(2000);

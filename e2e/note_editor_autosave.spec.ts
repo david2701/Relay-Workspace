@@ -1,4 +1,4 @@
-import { expect, type Page, test } from "@playwright/test";
+import { expect, type Page, test } from "./fixtures";
 
 async function openNoteEditor(page: Page, base = "") {
   const root = base.replace(/\/$/, "");

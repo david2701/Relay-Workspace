@@ -1,9 +1,17 @@
 import { execFileSync } from "node:child_process";
 import { resolve } from "node:path";
-import { expect, test, type Page, type Request } from "@playwright/test";
+import {
+  E2E_API,
+  E2E_DB,
+  expect,
+  readHeadSeq,
+  test,
+  type Page,
+  type Request,
+} from "./fixtures";
 
-const API = process.env.VITE_API_URL ?? "http://127.0.0.1:7430";
-const E2E_DB = resolve(process.env.RELAY_DB ?? "/tmp/relay-e2e.db");
+const API = E2E_API;
+const DB = resolve(E2E_DB);
 
 function stdioOps(ops: Array<{ tool: string; args?: Record<string, unknown> }>) {
   const out = execFileSync(
@@ -18,7 +26,7 @@ function stdioOps(ops: Array<{ tool: string; args?: Record<string, unknown> }>) 
     ],
     {
       cwd: process.cwd(),
-      env: { ...process.env, RELAY_DB: E2E_DB },
+      env: { ...process.env, RELAY_DB: DB },
       encoding: "utf8",
       timeout: 90_000,
     },
@@ -38,18 +46,26 @@ async function completeOnboarding(page: Page): Promise<void> {
   }
 }
 
+async function waitSyncConnected(page: Page): Promise<void> {
+  await expect(page.locator(".sync-seal")).toBeVisible();
+  await expect(page.locator(".sync-seal")).toHaveAttribute(
+    "data-sync-state",
+    "connected",
+    { timeout: 10_000 },
+  );
+}
+
 test.describe("SSE realtime (PR 1c)", () => {
   test("MCP change appears in UI ≤2000ms with no 750ms inbox polling", async ({
     page,
+    request,
   }) => {
     await completeOnboarding(page);
     await page.goto("/all");
-    await expect(page.locator(".sync-seal")).toBeVisible();
-    await expect(page.locator(".sync-seal")).toHaveAttribute(
-      "data-sync-state",
-      "connected",
-      { timeout: 10_000 },
-    );
+    await waitSyncConnected(page);
+    // Explicit readiness + stable cursor before the timed MCP write.
+    const headBefore = await readHeadSeq(request);
+    expect(headBefore).toBeGreaterThanOrEqual(0);
 
     const inboxGets: number[] = [];
     page.on("request", (req: Request) => {
@@ -71,23 +87,24 @@ test.describe("SSE realtime (PR 1c)", () => {
       `expected no 750ms inbox poll cadence; gaps=${JSON.stringify(gaps)} count=${inboxGets.length}`,
     ).toBeLessThan(3);
 
+    await waitSyncConnected(page);
     const title = `SSE-MCP-${Date.now()}`;
     const t0 = performance.now();
     stdioOps([{ tool: "items_create", args: { title } }]);
     await expect(page.getByText(title).first()).toBeVisible({ timeout: 2000 });
     expect(performance.now() - t0).toBeLessThanOrEqual(2000);
+    const headAfter = await readHeadSeq(request);
+    expect(headAfter).toBeGreaterThan(headBefore);
   });
 
   test("SSE drop + 3 changes → reconnect shows all 3; seal reconnecting→ok", async ({
     page,
+    request,
   }) => {
     await completeOnboarding(page);
     await page.goto("/all");
-    await expect(page.locator(".sync-seal")).toHaveAttribute(
-      "data-sync-state",
-      "connected",
-      { timeout: 10_000 },
-    );
+    await waitSyncConnected(page);
+    const headBefore = await readHeadSeq(request);
 
     // Abort stream *then* reload so the new EventSource fails (an already-open
     // SSE socket is not torn down by Playwright route.abort alone).
@@ -105,6 +122,8 @@ test.describe("SSE realtime (PR 1c)", () => {
 
     const titles = [0, 1, 2].map((i) => `SSE-RECOVER-${Date.now()}-${i}`);
     stdioOps(titles.map((title) => ({ tool: "items_create", args: { title } })));
+    const headAfterWrites = await readHeadSeq(request);
+    expect(headAfterWrites).toBeGreaterThan(headBefore);
 
     // Restore stream; reload opens EventSource which resumes via after_seq /
     // Last-Event-ID (and snapshot includes the three writes).
@@ -116,11 +135,7 @@ test.describe("SSE realtime (PR 1c)", () => {
         timeout: 5000,
       });
     }
-    await expect(page.locator(".sync-seal")).toHaveAttribute(
-      "data-sync-state",
-      "connected",
-      { timeout: 10_000 },
-    );
+    await waitSyncConnected(page);
     await expect(page.locator(".sync-seal")).toContainText(/up to date|al día|à jour/i);
   });
 

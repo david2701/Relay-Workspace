@@ -203,6 +203,9 @@ export function DateTimePicker({
 
   useLayoutEffect(() => {
     if (!open) return;
+    const margin = 8;
+    const gap = 4;
+    /** Desktop popover must stay fully inside the viewport (e2e: bottom ≤ vh+1). */
     function place() {
       const trig = triggerRef.current;
       if (!trig) return;
@@ -210,7 +213,6 @@ export function DateTimePicker({
       const vw = window.innerWidth;
       const vh = window.innerHeight;
       const pickerW = Math.min(580, vw - 32);
-      const spaceBelow = vh - r.bottom;
       // Spec §1.3.7: sheet when viewport < 768 or free width < picker + 2×space-4.
       // Also sheet when the detail overlay is full-bleed (≤1023) and can't fit the popover.
       const isNarrow =
@@ -220,22 +222,38 @@ export function DateTimePicker({
         setPos(null);
         return;
       }
-      const openUp = spaceBelow < 360 && r.top > spaceBelow;
-      const top = openUp ? Math.max(8, r.top - 8) : r.bottom + 4;
-      // Anchor to trigger’s right edge; clamp so the popover stays in the viewport.
+      const pop = popoverRef.current;
+      // Prefer measured height after paint; estimate before the first layout.
+      const popH = Math.max(
+        pop?.getBoundingClientRect().height ?? 0,
+        360,
+      );
+      const spaceBelow = vh - r.bottom - margin;
+      const spaceAbove = r.top - margin;
+      const openUp = spaceBelow < popH && spaceAbove > spaceBelow;
+      let top = openUp ? r.top - gap - popH : r.bottom + gap;
+      // Clamp so the popover cannot hang past the viewport bottom/top.
+      // Shared-suite item lists used to push the trigger lower → 918 > 901 without this.
+      top = Math.min(top, vh - margin - popH);
+      top = Math.max(margin, top);
       let left = r.right - pickerW;
-      left = Math.min(left, vw - pickerW - 8);
-      left = Math.max(8, left);
+      left = Math.min(left, vw - pickerW - margin);
+      left = Math.max(margin, left);
       setPos({ top, left });
     }
     place();
+    // Re-measure after content (tz hint / shortcuts) paints — height can grow.
+    const raf = window.requestAnimationFrame(() => {
+      place();
+    });
     window.addEventListener("resize", place);
     window.addEventListener("scroll", place, true);
     return () => {
+      window.cancelAnimationFrame(raf);
       window.removeEventListener("resize", place);
       window.removeEventListener("scroll", place, true);
     };
-  }, [open]);
+  }, [open, draft, previewIso, dstNote, parseError, pastWarn]);
 
   useEffect(() => {
     if (!open) return;

@@ -1,7 +1,7 @@
-import { expect, test, type Page } from "@playwright/test";
+import { expect, test, type Page, E2E_API } from "./fixtures";
 import { waitInboxView } from "./helpers";
 
-const API = "http://127.0.0.1:7430";
+const API = E2E_API;
 const SLA_MS = 5000;
 
 /** Thu 8 Oct 2026, 10:00 Europe/Paris — clock from ui-spec §7 / V03-L29. */
