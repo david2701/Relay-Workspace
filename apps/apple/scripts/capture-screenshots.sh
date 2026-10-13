@@ -12,7 +12,7 @@ PROJECT="${ROOT}/apps/apple/Relay.xcodeproj"
 OUT="${RELAY_SCREENSHOT_DIR:-${ROOT}/artifacts/apple-screenshots}"
 XCRESULT_OUT="${RELAY_XCRESULT_DIR:-${ROOT}/artifacts/apple-xcresults}"
 TMP_SHOTS="/tmp/relay-apple-screenshots"
-PINNED_IOS_DEVICE="${RELAY_IOS_SIM_DEVICE:-iPhone 16}"
+PINNED_IOS_DEVICE="${RELAY_IOS_SIM_DEVICE:-iPhone 17}"
 mkdir -p "${OUT}" "${XCRESULT_OUT}" "${TMP_SHOTS}"
 export RELAY_SCREENSHOT_DIR="${OUT}"
 export RELAY_UI_SCREENSHOTS=1
@@ -26,16 +26,34 @@ sw_vers
 
 resolve_iphone_device() {
   # Prints: <udid>|<name>|<runtime>
-  local preferred=("${PINNED_IOS_DEVICE}" "iPhone 16 Pro" "iPhone 15" "iPhone 15 Pro")
+  local preferred=(
+    "${PINNED_IOS_DEVICE}"
+    "iPhone 17"
+    "iPhone 17 Pro"
+    "iPhone 16"
+    "iPhone 16 Pro"
+    "iPhone 16e"
+    "iPhone 15"
+    "iPhone 15 Pro"
+  )
   local name line udid runtime_id runtime_name
-  for name in "${preferred[@]}"; do
-    line="$(xcrun simctl list devices available | grep -F "${name} (" | grep -E 'Shutdown|Booted' | head -n 1 || true)"
-    if [[ -z "${line}" ]]; then
-      continue
-    fi
-    udid="$(printf '%s\n' "${line}" | sed -nE 's/.*\(([A-F0-9-]{36})\).*/\1/p')"
+  pick_from_line() {
+    local raw="$1"
+    local want_name="$2"
+    udid="$(printf '%s\n' "${raw}" | sed -nE 's/.*\(([A-F0-9-]{36})\).*/\1/p')"
     if [[ -z "${udid}" ]]; then
-      continue
+      return 1
+    fi
+    # Exact device-name match (avoid "iPhone 16" matching "iPhone 16e").
+    if [[ -n "${want_name}" ]]; then
+      if ! printf '%s\n' "${raw}" | grep -Eq "[[:space:]]${want_name// /[[:space:]]}[[:space:]]*\\("; then
+        # Fallback: line starts with the name after indent.
+        if ! printf '%s\n' "${raw}" | grep -Fq "${want_name} ("; then
+          return 1
+        fi
+      fi
+    else
+      want_name="$(printf '%s\n' "${raw}" | sed -nE 's/^[[:space:]]*([^(]+).*/\1/p' | sed -E 's/[[:space:]]+$//')"
     fi
     runtime_id="$(xcrun simctl list devices -j 2>/dev/null | python3 -c "
 import json,sys
@@ -52,9 +70,24 @@ for rt, devices in data.get('devices', {}).items():
     if [[ -z "${runtime_name}" ]]; then
       runtime_name="unknown"
     fi
-    echo "${udid}|${name}|${runtime_name}"
+    echo "${udid}|${want_name}|${runtime_name}"
     return 0
+  }
+  for name in "${preferred[@]}"; do
+    # Match "Name (" but not longer prefixes (iPhone 16 vs iPhone 16e).
+    line="$(xcrun simctl list devices available | grep -E "^[[:space:]]*${name} \\(" | grep -E 'Shutdown|Booted' | head -n 1 || true)"
+    if [[ -z "${line}" ]]; then
+      continue
+    fi
+    if pick_from_line "${line}" "${name}"; then
+      return 0
+    fi
   done
+  # Last resort: any available iPhone.
+  line="$(xcrun simctl list devices available | grep -E '^[[:space:]]*iPhone .+\(' | grep -E 'Shutdown|Booted' | head -n 1 || true)"
+  if [[ -n "${line}" ]] && pick_from_line "${line}" ""; then
+    return 0
+  fi
   echo "ERROR: pinned/preferred iPhone simulator not found (wanted ${PINNED_IOS_DEVICE})." >&2
   echo "Available devices:" >&2
   xcrun simctl list devices available >&2 || true
