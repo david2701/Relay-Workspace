@@ -42,10 +42,31 @@ enum RelayScreenshotWriter {
 
     #if canImport(AppKit)
     @MainActor
-    static func captureMacView<V: View>(named name: String, size: CGSize, content: V) {
+    static func captureMacView<V: View>(
+        named name: String,
+        size: CGSize,
+        colorScheme: ColorScheme?,
+        content: V
+    ) {
+        // RelayTheme uses NSColor dynamicProvider — ImageRenderer follows NSApp.appearance,
+        // not SwiftUI preferredColorScheme alone. Force aqua/darkAqua for distinct light/dark PNGs.
+        let previousAppearance = NSApp.appearance
+        switch colorScheme {
+        case .dark:
+            NSApp.appearance = NSAppearance(named: .darkAqua)
+        case .light:
+            NSApp.appearance = NSAppearance(named: .aqua)
+        default:
+            break
+        }
+        defer { NSApp.appearance = previousAppearance }
+
+        let scheme = colorScheme ?? .light
         let rooted = content
+            .environment(\.colorScheme, scheme)
+            .preferredColorScheme(scheme)
             .frame(width: size.width, height: size.height)
-            .background(Color(nsColor: .windowBackgroundColor))
+            .background(RelayTheme.paper)
         let renderer = ImageRenderer(content: rooted)
         renderer.scale = 2
         guard let nsImage = renderer.nsImage,
@@ -117,6 +138,7 @@ enum RelayScreenshotWriter {
                 captureMacView(
                     named: name,
                     size: CGSize(width: 720, height: 760),
+                    colorScheme: scheme,
                     content: detail
                 )
             } else {
@@ -125,6 +147,7 @@ enum RelayScreenshotWriter {
                 captureMacView(
                     named: name,
                     size: CGSize(width: 1180, height: 760),
+                    colorScheme: scheme,
                     content: root
                 )
             }
