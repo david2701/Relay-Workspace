@@ -1,6 +1,7 @@
 import XCTest
 
 /// UI screenshots for RelayiOS Atención (DEBUG Penpot samples via `-RelayUIScreenshots`).
+/// Matrix: Attention light/dark + detail light/dark.
 final class RelayiOSScreenshotTests: XCTestCase {
     private let sampleItemId = "attention-item-itm_32pxnq1110"
     private let sampleTitle = "Elegir el titular del post de lanzamiento"
@@ -13,12 +14,13 @@ final class RelayiOSScreenshotTests: XCTestCase {
         try captureList(appearance: "light", named: "iphone-attention-light")
         try captureList(appearance: "dark", named: "iphone-attention-dark")
         try captureDetail(appearance: "light", named: "iphone-attention-detail-light")
+        try captureDetail(appearance: "dark", named: "iphone-attention-detail-dark")
     }
 
     private func captureList(appearance: String, named name: String) throws {
         let app = launchApp(appearance: appearance, screen: "list")
         XCTAssertTrue(waitForAttentionShell(in: app), "Atención shell missing for \(name)")
-        _ = waitForSampleRow(in: app, timeout: 12)
+        XCTAssertTrue(waitForSampleRow(in: app, timeout: 12), "Sample row missing for \(name)")
         try saveScreenshot(named: name)
         app.terminate()
     }
@@ -26,12 +28,11 @@ final class RelayiOSScreenshotTests: XCTestCase {
     private func captureDetail(appearance: String, named name: String) throws {
         let app = launchApp(appearance: appearance, screen: "detail")
         XCTAssertTrue(waitForAttentionShell(in: app), "Atención shell missing for \(name)")
-        if waitForSampleRow(in: app, timeout: 8) {
-            let detail = app.descendants(matching: .any)["attention-detail"]
-            if !detail.exists {
-                sampleRow(in: app).tap()
-                _ = detail.waitForExistence(timeout: 8)
-            }
+        let detail = app.descendants(matching: .any)["attention-detail"]
+        if !detail.waitForExistence(timeout: 8) {
+            XCTAssertTrue(waitForSampleRow(in: app, timeout: 8), "Sample row missing for \(name)")
+            sampleRow(in: app).tap()
+            XCTAssertTrue(detail.waitForExistence(timeout: 8), "Detail missing for \(name)")
         }
         try saveScreenshot(named: name)
         app.terminate()
@@ -69,6 +70,9 @@ final class RelayiOSScreenshotTests: XCTestCase {
         ]
         app.launchEnvironment["RELAY_UI_SCREENSHOTS"] = "1"
         app.launchEnvironment["RELAY_SCREENSHOT_SCREEN"] = screen
+        if let dir = ProcessInfo.processInfo.environment["RELAY_SCREENSHOT_DIR"], !dir.isEmpty {
+            app.launchEnvironment["RELAY_SCREENSHOT_DIR"] = dir
+        }
         app.launch()
         return app
     }

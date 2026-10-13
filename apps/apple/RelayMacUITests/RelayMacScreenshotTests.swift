@@ -1,6 +1,7 @@
 import XCTest
 
 /// UI screenshots for RelayMac Atención (DEBUG Penpot samples via `-RelayUIScreenshots`).
+/// Matrix: Attention light/dark + detail light/dark.
 final class RelayMacScreenshotTests: XCTestCase {
     private let sampleItemId = "attention-item-itm_32pxnq1110"
     private let sampleTitle = "Elegir el titular del post de lanzamiento"
@@ -10,28 +11,40 @@ final class RelayMacScreenshotTests: XCTestCase {
     }
 
     func testCaptureAttentionScreens() throws {
-        try capture(appearance: "light", named: "mac-attention-light")
-        try capture(appearance: "dark", named: "mac-attention-dark")
+        try captureList(appearance: "light", named: "mac-attention-light")
+        try captureList(appearance: "dark", named: "mac-attention-dark")
+        try captureDetail(appearance: "light", named: "mac-attention-detail-light")
+        try captureDetail(appearance: "dark", named: "mac-attention-detail-dark")
     }
 
-    private func capture(appearance: String, named name: String) throws {
-        let app = XCUIApplication()
-        app.launchArguments = [
-            "-RelayUIScreenshots",
-            "-RelayAppearance", appearance,
-            "-RelayScreenshotScreen", "list",
-        ]
-        app.launchEnvironment["RELAY_UI_SCREENSHOTS"] = "1"
-        app.launch()
-        app.activate()
+    private func captureList(appearance: String, named name: String) throws {
+        let app = launchApp(appearance: appearance, screen: "list")
         XCTAssertTrue(waitForAttentionShell(in: app), "Atención shell missing for \(name)")
-        _ = waitForSampleRow(in: app, timeout: 12)
+        XCTAssertTrue(waitForSampleRow(in: app, timeout: 12), "Sample row missing for \(name)")
+        focusWindow(in: app)
+        try saveScreenshot(named: name)
+        app.terminate()
+    }
+
+    private func captureDetail(appearance: String, named name: String) throws {
+        let app = launchApp(appearance: appearance, screen: "detail")
+        XCTAssertTrue(waitForAttentionShell(in: app), "Atención shell missing for \(name)")
+        let detail = app.descendants(matching: .any)["attention-detail"]
+        if !detail.waitForExistence(timeout: 8) {
+            XCTAssertTrue(waitForSampleRow(in: app, timeout: 8), "Sample row missing for \(name)")
+            sampleRow(in: app).click()
+            XCTAssertTrue(detail.waitForExistence(timeout: 8), "Detail missing for \(name)")
+        }
+        focusWindow(in: app)
+        try saveScreenshot(named: name)
+        app.terminate()
+    }
+
+    private func focusWindow(in app: XCUIApplication) {
         if app.windows.firstMatch.waitForExistence(timeout: 5) {
             app.windows.firstMatch.click()
         }
-        RunLoop.current.run(until: Date().addingTimeInterval(1.0))
-        try saveScreenshot(named: name)
-        app.terminate()
+        RunLoop.current.run(until: Date().addingTimeInterval(0.8))
     }
 
     private func sampleRow(in app: XCUIApplication) -> XCUIElement {
@@ -42,9 +55,12 @@ final class RelayMacScreenshotTests: XCTestCase {
         ).firstMatch
     }
 
-    private func waitForAttentionShell(in app: XCUIApplication, timeout: TimeInterval = 30) -> Bool {
-        app.staticTexts["Atención"].waitForExistence(timeout: timeout)
-            || app.descendants(matching: .any)["attention-title"].waitForExistence(timeout: 2)
+    private func waitForAttentionShell(in app: XCUIApplication, timeout: TimeInterval = 45) -> Bool {
+        app.activate()
+        if app.staticTexts["Atención"].waitForExistence(timeout: timeout) {
+            return true
+        }
+        return app.descendants(matching: .any)["attention-title"].waitForExistence(timeout: 5)
     }
 
     private func waitForSampleRow(in app: XCUIApplication, timeout: TimeInterval = 30) -> Bool {
@@ -55,6 +71,23 @@ final class RelayMacScreenshotTests: XCTestCase {
             }
         }
         return sampleRow(in: app).exists
+    }
+
+    private func launchApp(appearance: String, screen: String) -> XCUIApplication {
+        let app = XCUIApplication()
+        app.launchArguments = [
+            "-RelayUIScreenshots",
+            "-RelayAppearance", appearance,
+            "-RelayScreenshotScreen", screen,
+        ]
+        app.launchEnvironment["RELAY_UI_SCREENSHOTS"] = "1"
+        app.launchEnvironment["RELAY_SCREENSHOT_SCREEN"] = screen
+        if let dir = ProcessInfo.processInfo.environment["RELAY_SCREENSHOT_DIR"], !dir.isEmpty {
+            app.launchEnvironment["RELAY_SCREENSHOT_DIR"] = dir
+        }
+        app.launch()
+        app.activate()
+        return app
     }
 
     private func saveScreenshot(named name: String) throws {
