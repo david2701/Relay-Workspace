@@ -2,6 +2,7 @@ import XCTest
 
 /// UI screenshots for RelayiOS Atención (DEBUG Penpot samples via `-RelayUIScreenshots`).
 final class RelayiOSScreenshotTests: XCTestCase {
+    private let sampleItemId = "attention-item-itm_32pxnq1110"
     private let sampleTitle = "Elegir el titular del post de lanzamiento"
 
     override func setUpWithError() throws {
@@ -16,27 +17,50 @@ final class RelayiOSScreenshotTests: XCTestCase {
 
     private func captureList(appearance: String, named name: String) throws {
         let app = launchApp(appearance: appearance, screen: "list")
-        let row = app.staticTexts[sampleTitle]
-        XCTAssertTrue(row.waitForExistence(timeout: 30), "Sample list row missing for \(name)")
+        XCTAssertTrue(waitForSampleRow(in: app), "Sample list row missing for \(name)")
         try saveScreenshot(named: name)
         app.terminate()
     }
 
     private func captureDetail(appearance: String, named name: String) throws {
         let app = launchApp(appearance: appearance, screen: "detail")
-        // Detail opens via launch arg; fall back to tapping the sample row.
-        let detailTitle = app.staticTexts[sampleTitle]
-        if !detailTitle.waitForExistence(timeout: 8) {
-            let row = app.descendants(matching: .any)["attention-item-itm_32pxnq1110"]
-            if row.waitForExistence(timeout: 10) {
-                row.tap()
-            } else {
-                app.staticTexts[sampleTitle].tap()
-            }
+        if !waitForSampleRow(in: app, timeout: 8) {
+            XCTFail("Sample detail content missing for \(name)")
+            return
         }
-        XCTAssertTrue(detailTitle.waitForExistence(timeout: 20), "Sample detail missing for \(name)")
+        // If still on the list (auto-push failed), tap the sample row.
+        let detail = app.descendants(matching: .any)["attention-detail"]
+        if !detail.exists {
+            sampleRow(in: app).tap()
+            _ = detail.waitForExistence(timeout: 10)
+        }
         try saveScreenshot(named: name)
         app.terminate()
+    }
+
+    private func sampleRow(in app: XCUIApplication) -> XCUIElement {
+        let byId = app.descendants(matching: .any)[sampleItemId]
+        if byId.exists { return byId }
+        let byButton = app.buttons.matching(
+            NSPredicate(format: "label CONTAINS %@", sampleTitle)
+        ).firstMatch
+        if byButton.exists { return byButton }
+        return app.descendants(matching: .any).matching(
+            NSPredicate(format: "label CONTAINS %@ OR identifier == %@", sampleTitle, sampleItemId)
+        ).firstMatch
+    }
+
+    private func waitForSampleRow(in app: XCUIApplication, timeout: TimeInterval = 30) -> Bool {
+        let deadline = Date().addingTimeInterval(timeout)
+        while Date() < deadline {
+            let row = sampleRow(in: app)
+            if row.waitForExistence(timeout: 1.5) {
+                return true
+            }
+            // Title alone proves the shell rendered; keep polling for sample data.
+            _ = app.staticTexts["Atención"].waitForExistence(timeout: 0.2)
+        }
+        return sampleRow(in: app).exists
     }
 
     private func launchApp(appearance: String, screen: String) -> XCUIApplication {

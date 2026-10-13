@@ -2,6 +2,7 @@ import XCTest
 
 /// UI screenshots for RelayMac Atención (DEBUG Penpot samples via `-RelayUIScreenshots`).
 final class RelayMacScreenshotTests: XCTestCase {
+    private let sampleItemId = "attention-item-itm_32pxnq1110"
     private let sampleTitle = "Elegir el titular del post de lanzamiento"
 
     override func setUpWithError() throws {
@@ -25,12 +26,29 @@ final class RelayMacScreenshotTests: XCTestCase {
             app.launchEnvironment["RELAY_SCREENSHOT_DIR"] = dir
         }
         app.launch()
-        let row = app.staticTexts[sampleTitle]
-        XCTAssertTrue(row.waitForExistence(timeout: 30), "Sample Mac row missing for \(name)")
-        // Ensure detail column is populated (split view selects first item in samples).
+        XCTAssertTrue(waitForSampleRow(in: app), "Sample Mac row missing for \(name)")
         RunLoop.current.run(until: Date().addingTimeInterval(0.8))
         try saveScreenshot(named: name)
         app.terminate()
+    }
+
+    private func sampleRow(in app: XCUIApplication) -> XCUIElement {
+        let byId = app.descendants(matching: .any)[sampleItemId]
+        if byId.exists { return byId }
+        return app.descendants(matching: .any).matching(
+            NSPredicate(format: "label CONTAINS %@ OR identifier == %@", sampleTitle, sampleItemId)
+        ).firstMatch
+    }
+
+    private func waitForSampleRow(in app: XCUIApplication, timeout: TimeInterval = 30) -> Bool {
+        let deadline = Date().addingTimeInterval(timeout)
+        while Date() < deadline {
+            if sampleRow(in: app).waitForExistence(timeout: 1.5) {
+                return true
+            }
+            _ = app.staticTexts["Atención"].waitForExistence(timeout: 0.2)
+        }
+        return sampleRow(in: app).exists
     }
 
     private func saveScreenshot(named name: String) throws {
