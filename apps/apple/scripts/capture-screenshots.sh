@@ -131,23 +131,56 @@ if ! have_png iphone-attention-light || ! have_png iphone-attention-dark || ! ha
 fi
 
 echo "=== Mac in-app ImageRenderer screenshots ==="
-# Debug dylib executor cannot be launched outside Xcode; build a normal Debug binary.
-xcodebuild \
-  -project "${PROJECT}" \
-  -scheme RelayMac \
-  -destination 'platform=macOS' \
-  -configuration Debug \
-  CODE_SIGN_IDENTITY=- \
-  CODE_SIGNING_REQUIRED=NO \
-  ENABLE_DEBUG_DYLIB=NO \
-  build | tee /tmp/xcode-mac-noddebug.log
-grep -q "BUILD SUCCEEDED" /tmp/xcode-mac-noddebug.log
-MAC_APP="$(ls -d "${HOME}/Library/Developer/Xcode/DerivedData"/Relay-*/Build/Products/Debug/RelayMac.app 2>/dev/null | head -n 1)"
+# RelayMac Debug uses ENABLE_DEBUG_DYLIB=NO so the binary launches outside Xcode.
+build_mac_noddebug() {
+  local do_clean="${1:-}"
+  # Drop stale debug-executor dylib before (re)build to avoid codesign exit 65.
+  local stale
+  for stale in "${HOME}/Library/Developer/Xcode/DerivedData"/Relay-*/Build/Products/Debug/RelayMac.app; do
+    [[ -d "${stale}" ]] || continue
+    rm -f "${stale}/Contents/MacOS/"*.debug.dylib 2>/dev/null || true
+  done
+  local args=(
+    -project "${PROJECT}"
+    -scheme RelayMac
+    -destination 'platform=macOS'
+    -configuration Debug
+    CODE_SIGNING_ALLOWED=NO
+    ENABLE_DEBUG_DYLIB=NO
+  )
+  if [[ "${do_clean}" == "clean" ]]; then
+    xcodebuild "${args[@]}" clean build | tee /tmp/xcode-mac-noddebug.log
+  else
+    xcodebuild "${args[@]}" build | tee /tmp/xcode-mac-noddebug.log
+  fi
+  grep -q "BUILD SUCCEEDED" /tmp/xcode-mac-noddebug.log
+}
+
+MAC_APP="$(ls -d "${HOME}/Library/Developer/Xcode/DerivedData"/Relay-*/Build/Products/Debug/RelayMac.app 2>/dev/null | head -n 1 || true)"
 if [[ -z "${MAC_APP}" ]]; then
-  echo "ERROR: RelayMac.app missing after ENABLE_DEBUG_DYLIB=NO build" >&2
+  build_mac_noddebug
+  MAC_APP="$(ls -d "${HOME}/Library/Developer/Xcode/DerivedData"/Relay-*/Build/Products/Debug/RelayMac.app 2>/dev/null | head -n 1)"
+fi
+if [[ -z "${MAC_APP}" ]]; then
+  echo "ERROR: RelayMac.app missing" >&2
+  exit 1
+fi
+# Sanity: refuse the blank debug-executor stub; rebuild clean without it.
+if grep -q '__debug_blank_executor_main\|RelayMac.debug.dylib' \
+  <(otool -L "${MAC_APP}/Contents/MacOS/RelayMac" 2>/dev/null || true) \
+  || [[ -f "${MAC_APP}/Contents/MacOS/RelayMac.debug.dylib" ]]; then
+  echo "Rebuilding RelayMac without debug dylib…"
+  build_mac_noddebug clean
+  MAC_APP="$(ls -d "${HOME}/Library/Developer/Xcode/DerivedData"/Relay-*/Build/Products/Debug/RelayMac.app 2>/dev/null | head -n 1)"
+fi
+if [[ -z "${MAC_APP}" ]]; then
+  echo "ERROR: RelayMac.app missing after noddebug rebuild" >&2
   exit 1
 fi
 echo "Using ${MAC_APP}"
+file "${MAC_APP}/Contents/MacOS/RelayMac" || true
+otool -L "${MAC_APP}/Contents/MacOS/RelayMac" | head -20 || true
+ls -la "${MAC_APP}/Contents/MacOS/" || true
 
 capture_mac_inapp() {
   local appearance="$1"
