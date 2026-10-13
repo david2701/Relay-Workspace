@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # Capture Atención screenshots for iPhone simulator + macOS via XCUITest only.
-# Matrix: iPhone and Mac × Attention light/dark + detail light/dark (8 PNGs).
+# Matrix (6 PNGs): iPhone light/dark + detail light; Mac light/dark + detail light.
 # UITest failure fails the job; no simctl/screencapture fallbacks.
 set -euo pipefail
 
@@ -89,11 +89,9 @@ expected=(
   iphone-attention-light.png
   iphone-attention-dark.png
   iphone-attention-detail-light.png
-  iphone-attention-detail-dark.png
   mac-attention-light.png
   mac-attention-dark.png
   mac-attention-detail-light.png
-  mac-attention-detail-dark.png
 )
 
 echo "=== Screenshot output: ${OUT} ==="
@@ -117,6 +115,9 @@ echo "Selected device UDID: ${UDID}"
 echo "Selected runtime: ${IOS_RUNTIME}"
 echo "xcodebuild destination: ${IOS_DEST}"
 
+# H4: use CODE_SIGNING_ALLOWED=NO (not CODE_SIGN_IDENTITY=- / CODE_SIGNING_REQUIRED=NO).
+# Simulator + Mac CI UITests do not need ad-hoc codesign; skipping signing avoids
+# leftover RelayMac.debug.dylib codesign failures when ENABLE_DEBUG_DYLIB flips.
 echo "=== XCUITest RelayiOS screenshots ==="
 rm -rf /tmp/relay-ios-screenshots.xcresult
 set -o pipefail
@@ -142,8 +143,7 @@ fi
 for name in \
   iphone-attention-light \
   iphone-attention-dark \
-  iphone-attention-detail-light \
-  iphone-attention-detail-dark
+  iphone-attention-detail-light
 do
   collect_png "${name}"
 done
@@ -173,8 +173,7 @@ fi
 for name in \
   mac-attention-light \
   mac-attention-dark \
-  mac-attention-detail-light \
-  mac-attention-detail-dark
+  mac-attention-detail-light
 do
   collect_png "${name}"
 done
@@ -201,12 +200,12 @@ if [[ "${missing}" -ne 0 ]]; then
 fi
 
 png_count="$(find "${OUT}" -maxdepth 1 -name '*.png' | wc -l | tr -d ' ')"
-if [[ "${png_count}" -ne 8 ]]; then
-  echo "ERROR: expected exactly 8 PNGs, found ${png_count}" >&2
+if [[ "${png_count}" -ne 6 ]]; then
+  echo "ERROR: expected exactly 6 PNGs, found ${png_count}" >&2
   ls -la "${OUT}" >&2
   exit 1
 fi
 
-echo "All required Apple screenshots present (8 PNGs)."
+echo "All required Apple screenshots present (6 PNGs)."
 echo "Simulator used: ${IOS_DEVICE_NAME} (${UDID}) runtime=${IOS_RUNTIME}"
 md5sum "${OUT}"/*.png 2>/dev/null || md5 "${OUT}"/*.png

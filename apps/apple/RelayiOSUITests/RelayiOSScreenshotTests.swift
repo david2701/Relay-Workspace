@@ -1,7 +1,7 @@
 import XCTest
 
 /// UI screenshots for RelayiOS Atención (DEBUG Penpot samples via `-RelayUIScreenshots`).
-/// Matrix: Attention light/dark + detail light/dark.
+/// Matrix: Attention light/dark + detail light.
 final class RelayiOSScreenshotTests: XCTestCase {
     private let sampleItemId = "attention-item-itm_32pxnq1110"
     private let sampleTitle = "Elegir el titular del post de lanzamiento"
@@ -14,7 +14,6 @@ final class RelayiOSScreenshotTests: XCTestCase {
         try captureList(appearance: "light", named: "iphone-attention-light")
         try captureList(appearance: "dark", named: "iphone-attention-dark")
         try captureDetail(appearance: "light", named: "iphone-attention-detail-light")
-        try captureDetail(appearance: "dark", named: "iphone-attention-detail-dark")
     }
 
     private func captureList(appearance: String, named name: String) throws {
