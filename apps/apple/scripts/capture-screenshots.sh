@@ -342,6 +342,10 @@ if [[ "${png_count}" -ne 6 ]]; then
   exit 1
 fi
 
+echo "=== Mac PNG digests ==="
+md5sum "${OUT}/mac-attention-light.png" "${OUT}/mac-attention-dark.png" "${OUT}/mac-attention-detail-light.png" \
+  2>/dev/null || md5 "${OUT}/mac-attention-"*.png
+ls -la "${OUT}/mac-attention-"*.png
 if cmp -s "${OUT}/mac-attention-light.png" "${OUT}/mac-attention-dark.png"; then
   echo "ERROR: Mac light/dark screenshots are byte-identical" >&2
   exit 1

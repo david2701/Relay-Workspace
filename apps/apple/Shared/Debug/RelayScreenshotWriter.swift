@@ -108,6 +108,8 @@ enum RelayScreenshotWriter {
         }
         let scheme = RelayScreenshotAppearance.preferredColorScheme
         log("scheduling \(name) screen=\(screen) appearance=\(appearance)")
+        RelayScreenshotPalette.forceDark = (appearance == "dark")
+        log("palette forceDark=\(String(describing: RelayScreenshotPalette.forceDark))")
 
         viewModel.bootstrap()
         if viewModel.selectedItemId == nil, let first = viewModel.itemIds.first {

@@ -7,12 +7,22 @@ import AppKit
 import UIKit
 #endif
 
+#if DEBUG
+/// Forces RelayTheme token resolution for ImageRenderer screenshot captures.
+enum RelayScreenshotPalette {
+    /// When non-nil, `RelayColor.swiftUIColor` returns static light/dark tokens.
+    static var forceDark: Bool?
+}
+#endif
+
 public extension RelayColor {
     /// Asset-free dynamic SwiftUI color: light/dark resolved via platform dynamic provider.
     static func swiftUIColor(light: RelayColor, dark: RelayColor) -> Color {
         #if DEBUG
-        // ImageRenderer / headless Mac CI does not honor NSColor dynamic appearance.
-        // When capturing Atención screenshots, pin tokens to -RelayAppearance.
+        // ImageRenderer does not honor NSColor dynamic appearance. Pin tokens for screenshots.
+        if let forceDark = RelayScreenshotPalette.forceDark {
+            return (forceDark ? dark : light).color
+        }
         if PenpotSampleData.shouldLoadForUIScreenshots {
             let useDark = RelayScreenshotAppearance.preferredColorScheme == .dark
             return (useDark ? dark : light).color
@@ -65,27 +75,27 @@ public extension RelayColor {
 }
 
 public enum RelayTheme {
-    public static let paper = RelayColor.swiftUIColor(light: RelayTokens.light.paper, dark: RelayTokens.dark.paper)
-    public static let raised = RelayColor.swiftUIColor(light: RelayTokens.light.raised, dark: RelayTokens.dark.raised)
-    public static let sunken = RelayColor.swiftUIColor(light: RelayTokens.light.sunken, dark: RelayTokens.dark.sunken)
-    public static let line = RelayColor.swiftUIColor(light: RelayTokens.light.line, dark: RelayTokens.dark.line)
-    public static let lineStrong = RelayColor.swiftUIColor(light: RelayTokens.light.lineStrong, dark: RelayTokens.dark.lineStrong)
-    public static let control = RelayColor.swiftUIColor(light: RelayTokens.light.control, dark: RelayTokens.dark.control)
-    public static let ink = RelayColor.swiftUIColor(light: RelayTokens.light.ink, dark: RelayTokens.dark.ink)
-    public static let ink2 = RelayColor.swiftUIColor(light: RelayTokens.light.ink2, dark: RelayTokens.dark.ink2)
-    public static let inkMuted = RelayColor.swiftUIColor(light: RelayTokens.light.inkMuted, dark: RelayTokens.dark.inkMuted)
-    public static let hl = RelayColor.swiftUIColor(light: RelayTokens.light.hl, dark: RelayTokens.dark.hl)
-    public static let onHl = RelayColor.swiftUIColor(light: RelayTokens.light.onHl, dark: RelayTokens.dark.onHl)
-    public static let accent = RelayColor.swiftUIColor(light: RelayTokens.light.accent, dark: RelayTokens.dark.accent)
-    public static let accentInk = RelayColor.swiftUIColor(light: RelayTokens.light.accentInk, dark: RelayTokens.dark.accentInk)
-    public static let accentTint = RelayColor.swiftUIColor(light: RelayTokens.light.accentTint, dark: RelayTokens.dark.accentTint)
-    public static let attentionRule = RelayColor.swiftUIColor(
-        light: RelayTokens.light.attentionRule,
-        dark: RelayTokens.dark.attentionRule
-    )
-    public static let ok = RelayColor.swiftUIColor(light: RelayTokens.light.ok, dark: RelayTokens.dark.ok)
-    public static let warn = RelayColor.swiftUIColor(light: RelayTokens.light.warn, dark: RelayTokens.dark.warn)
-    public static let crit = RelayColor.swiftUIColor(light: RelayTokens.light.crit, dark: RelayTokens.dark.crit)
+    // Computed so DEBUG screenshot palette can flip light/dark per capture process.
+    public static var paper: Color { RelayColor.swiftUIColor(light: RelayTokens.light.paper, dark: RelayTokens.dark.paper) }
+    public static var raised: Color { RelayColor.swiftUIColor(light: RelayTokens.light.raised, dark: RelayTokens.dark.raised) }
+    public static var sunken: Color { RelayColor.swiftUIColor(light: RelayTokens.light.sunken, dark: RelayTokens.dark.sunken) }
+    public static var line: Color { RelayColor.swiftUIColor(light: RelayTokens.light.line, dark: RelayTokens.dark.line) }
+    public static var lineStrong: Color { RelayColor.swiftUIColor(light: RelayTokens.light.lineStrong, dark: RelayTokens.dark.lineStrong) }
+    public static var control: Color { RelayColor.swiftUIColor(light: RelayTokens.light.control, dark: RelayTokens.dark.control) }
+    public static var ink: Color { RelayColor.swiftUIColor(light: RelayTokens.light.ink, dark: RelayTokens.dark.ink) }
+    public static var ink2: Color { RelayColor.swiftUIColor(light: RelayTokens.light.ink2, dark: RelayTokens.dark.ink2) }
+    public static var inkMuted: Color { RelayColor.swiftUIColor(light: RelayTokens.light.inkMuted, dark: RelayTokens.dark.inkMuted) }
+    public static var hl: Color { RelayColor.swiftUIColor(light: RelayTokens.light.hl, dark: RelayTokens.dark.hl) }
+    public static var onHl: Color { RelayColor.swiftUIColor(light: RelayTokens.light.onHl, dark: RelayTokens.dark.onHl) }
+    public static var accent: Color { RelayColor.swiftUIColor(light: RelayTokens.light.accent, dark: RelayTokens.dark.accent) }
+    public static var accentInk: Color { RelayColor.swiftUIColor(light: RelayTokens.light.accentInk, dark: RelayTokens.dark.accentInk) }
+    public static var accentTint: Color { RelayColor.swiftUIColor(light: RelayTokens.light.accentTint, dark: RelayTokens.dark.accentTint) }
+    public static var attentionRule: Color {
+        RelayColor.swiftUIColor(light: RelayTokens.light.attentionRule, dark: RelayTokens.dark.attentionRule)
+    }
+    public static var ok: Color { RelayColor.swiftUIColor(light: RelayTokens.light.ok, dark: RelayTokens.dark.ok) }
+    public static var warn: Color { RelayColor.swiftUIColor(light: RelayTokens.light.warn, dark: RelayTokens.dark.warn) }
+    public static var crit: Color { RelayColor.swiftUIColor(light: RelayTokens.light.crit, dark: RelayTokens.dark.crit) }
 
     public static let selectedRowRadius: CGFloat = CGFloat(RelayTokens.light.selectedRowRadius)
     public static let needsYouRuleWidth: CGFloat = CGFloat(RelayTokens.light.needsYouRuleWidth)
