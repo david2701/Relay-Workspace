@@ -12,6 +12,14 @@ final class RelayMacScreenshotDelegate: NSObject, NSApplicationDelegate {
     func applicationDidFinishLaunching(_ notification: Notification) {
         fputs("RelayMacScreenshotDelegate: applicationDidFinishLaunching\n", stderr)
         fflush(stderr)
+        // Pin theme tokens before any SwiftUI body evaluates RelayTheme colors.
+        RelayScreenshotPalette.forceDark =
+            (RelayScreenshotAppearance.preferredColorScheme == .dark)
+        fputs(
+            "RelayMacScreenshotDelegate: forceDark=\(String(describing: RelayScreenshotPalette.forceDark))\n",
+            stderr
+        )
+        fflush(stderr)
         NSApp.setActivationPolicy(.regular)
         NSApp.activate(ignoringOtherApps: true)
         Task { @MainActor in
