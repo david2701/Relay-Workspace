@@ -226,9 +226,17 @@ do
 done
 
 echo "=== Mac in-app ImageRenderer screenshots (primary; not XCUITest fallback) ==="
-# Always rebuild a launchable Debug binary (ENABLE_DEBUG_DYLIB=NO) for CI capture.
+# Rebuild a launchable Debug binary (ENABLE_DEBUG_DYLIB=NO) for CI capture.
+# Prefer incremental rebuild; fall back to clean if a debug dylib is still present.
 echo "Building RelayMac without debug dylib for in-app capture…"
-build_mac_noddebug clean
+build_mac_noddebug
+MAC_APP="$(ls -d "${HOME}/Library/Developer/Xcode/DerivedData"/Relay-*/Build/Products/Debug/RelayMac.app 2>/dev/null | head -n 1 || true)"
+if [[ -n "${MAC_APP}" ]] && { grep -q '__debug_blank_executor_main\|RelayMac.debug.dylib' \
+  <(otool -L "${MAC_APP}/Contents/MacOS/RelayMac" 2>/dev/null || true) \
+  || [[ -f "${MAC_APP}/Contents/MacOS/RelayMac.debug.dylib" ]]; }; then
+  echo "Debug dylib still present — clean rebuild…"
+  build_mac_noddebug clean
+fi
 MAC_APP="$(ls -d "${HOME}/Library/Developer/Xcode/DerivedData"/Relay-*/Build/Products/Debug/RelayMac.app 2>/dev/null | head -n 1)"
 if [[ -z "${MAC_APP}" ]]; then
   echo "ERROR: RelayMac.app missing after noddebug rebuild" >&2
