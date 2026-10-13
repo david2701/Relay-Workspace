@@ -175,8 +175,14 @@ jobs:
       - name: Capture Apple screenshots
         env:
           RELAY_SCREENSHOT_DIR: ${{ github.workspace }}/artifacts/apple-screenshots
+          RELAY_XCRESULT_DIR: ${{ github.workspace }}/artifacts/apple-xcresults
+          RELAY_IOS_SIM_DEVICE: iPhone 16
         run: |
           set -euo pipefail
+          echo "=== Capture preflight ==="
+          xcodebuild -version
+          xcrun simctl list runtimes
+          xcrun simctl list devices available | grep -E 'iPhone|== ' || true
           chmod +x apps/apple/scripts/capture-screenshots.sh
           apps/apple/scripts/capture-screenshots.sh
 
@@ -186,4 +192,13 @@ jobs:
           name: apple-screenshots
           path: artifacts/apple-screenshots/*.png
           if-no-files-found: error
+          retention-days: 14
+
+      - name: Upload Apple screenshot xcresults
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: apple-screenshot-xcresults
+          path: artifacts/apple-xcresults/*.xcresult
+          if-no-files-found: warn
           retention-days: 14
