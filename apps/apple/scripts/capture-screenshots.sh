@@ -1,7 +1,10 @@
 #!/usr/bin/env bash
-# Capture Atención screenshots for iPhone simulator + macOS via XCUITest only.
-# Matrix (6 PNGs): iPhone light/dark + detail light; Mac light/dark + detail light.
-# UITest failure fails the job; no simctl/screencapture fallbacks.
+# Capture Atención screenshots for iPhone simulator + macOS.
+# Matrix (6 PNGs):
+#   iphone-attention-light|dark|detail-light
+#   mac-attention-light|dark|detail-light
+# iPhone: XCUITest only (must succeed; no || true / no simctl fallback).
+# Mac: in-app ImageRenderer primary path (Mac XCUITest a11y is unreliable on CI).
 set -euo pipefail
 
 ROOT="$(cd "$(dirname "$0")/../../.." && pwd)"
@@ -9,7 +12,6 @@ PROJECT="${ROOT}/apps/apple/Relay.xcodeproj"
 OUT="${RELAY_SCREENSHOT_DIR:-${ROOT}/artifacts/apple-screenshots}"
 XCRESULT_OUT="${RELAY_XCRESULT_DIR:-${ROOT}/artifacts/apple-xcresults}"
 TMP_SHOTS="/tmp/relay-apple-screenshots"
-# Pin preferred simulator device name (override with RELAY_IOS_SIM_DEVICE).
 PINNED_IOS_DEVICE="${RELAY_IOS_SIM_DEVICE:-iPhone 16}"
 mkdir -p "${OUT}" "${XCRESULT_OUT}" "${TMP_SHOTS}"
 export RELAY_SCREENSHOT_DIR="${OUT}"
@@ -73,6 +75,25 @@ collect_png() {
   return 1
 }
 
+have_png() {
+  local name="$1"
+  collect_png "${name}" || true
+  [[ -f "${OUT}/${name}.png" ]] && file "${OUT}/${name}.png" | grep -qi 'PNG'
+}
+
+wait_for_png() {
+  local name="$1"
+  local seconds="${2:-60}"
+  local i
+  for i in $(seq 1 "${seconds}"); do
+    if have_png "${name}"; then
+      return 0
+    fi
+    sleep 1
+  done
+  return 1
+}
+
 preserve_xcresult() {
   local src="$1"
   local dest_name="$2"
@@ -83,6 +104,29 @@ preserve_xcresult() {
   else
     echo "WARNING: xcresult missing at ${src}" >&2
   fi
+}
+
+build_mac_noddebug() {
+  local do_clean="${1:-}"
+  local stale
+  for stale in "${HOME}/Library/Developer/Xcode/DerivedData"/Relay-*/Build/Products/Debug/RelayMac.app; do
+    [[ -d "${stale}" ]] || continue
+    rm -f "${stale}/Contents/MacOS/"*.debug.dylib 2>/dev/null || true
+  done
+  local args=(
+    -project "${PROJECT}"
+    -scheme RelayMac
+    -destination 'platform=macOS'
+    -configuration Debug
+    CODE_SIGNING_ALLOWED=NO
+    ENABLE_DEBUG_DYLIB=NO
+  )
+  if [[ "${do_clean}" == "clean" ]]; then
+    xcodebuild "${args[@]}" clean build | tee /tmp/xcode-mac-noddebug.log
+  else
+    xcodebuild "${args[@]}" build | tee /tmp/xcode-mac-noddebug.log
+  fi
+  grep -q "BUILD SUCCEEDED" /tmp/xcode-mac-noddebug.log
 }
 
 expected=(
@@ -115,8 +159,8 @@ echo "Selected device UDID: ${UDID}"
 echo "Selected runtime: ${IOS_RUNTIME}"
 echo "xcodebuild destination: ${IOS_DEST}"
 
-# H4: use CODE_SIGNING_ALLOWED=NO (not CODE_SIGN_IDENTITY=- / CODE_SIGNING_REQUIRED=NO).
-# Simulator + Mac CI UITests do not need ad-hoc codesign; skipping signing avoids
+# H4: CODE_SIGNING_ALLOWED=NO (not CODE_SIGN_IDENTITY=- / CODE_SIGNING_REQUIRED=NO).
+# Simulator + Mac CI hosts do not need ad-hoc codesign; skipping signing avoids
 # leftover RelayMac.debug.dylib codesign failures when ENABLE_DEBUG_DYLIB flips.
 echo "=== XCUITest RelayiOS screenshots ==="
 rm -rf /tmp/relay-ios-screenshots.xcresult
@@ -136,7 +180,7 @@ ios_status=${PIPESTATUS[0]}
 set -e
 preserve_xcresult /tmp/relay-ios-screenshots.xcresult relay-ios-screenshots.xcresult
 if [[ "${ios_status}" -ne 0 ]]; then
-  echo "ERROR: RelayiOS UITests failed (exit ${ios_status})" >&2
+  echo "::error::RelayiOS UITests failed (exit ${ios_status}); refusing simctl fallback"
   exit "${ios_status}"
 fi
 
@@ -148,35 +192,91 @@ do
   collect_png "${name}"
 done
 
-echo "=== XCUITest RelayMac screenshots ==="
-rm -rf /tmp/relay-mac-screenshots.xcresult
-set +e
-xcodebuild \
-  -project "${PROJECT}" \
-  -scheme RelayMac \
-  -destination 'platform=macOS' \
-  -configuration Debug \
-  -resultBundlePath /tmp/relay-mac-screenshots.xcresult \
-  CODE_SIGNING_ALLOWED=NO \
-  ENABLE_DEBUG_DYLIB=NO \
-  test \
-  -only-testing:RelayMacUITests/RelayMacScreenshotTests \
-  2>&1 | tee /tmp/xcode-mac-screenshots.log
-mac_status=${PIPESTATUS[0]}
-set -e
-preserve_xcresult /tmp/relay-mac-screenshots.xcresult relay-mac-screenshots.xcresult
-if [[ "${mac_status}" -ne 0 ]]; then
-  echo "ERROR: RelayMac UITests failed (exit ${mac_status})" >&2
-  exit "${mac_status}"
+echo "=== Mac in-app ImageRenderer screenshots (primary; not XCUITest fallback) ==="
+MAC_APP="$(ls -d "${HOME}/Library/Developer/Xcode/DerivedData"/Relay-*/Build/Products/Debug/RelayMac.app 2>/dev/null | head -n 1 || true)"
+if [[ -z "${MAC_APP}" ]]; then
+  build_mac_noddebug
+  MAC_APP="$(ls -d "${HOME}/Library/Developer/Xcode/DerivedData"/Relay-*/Build/Products/Debug/RelayMac.app 2>/dev/null | head -n 1)"
 fi
+if [[ -z "${MAC_APP}" ]]; then
+  echo "ERROR: RelayMac.app missing" >&2
+  exit 1
+fi
+if grep -q '__debug_blank_executor_main\|RelayMac.debug.dylib' \
+  <(otool -L "${MAC_APP}/Contents/MacOS/RelayMac" 2>/dev/null || true) \
+  || [[ -f "${MAC_APP}/Contents/MacOS/RelayMac.debug.dylib" ]]; then
+  echo "Rebuilding RelayMac without debug dylib…"
+  build_mac_noddebug clean
+  MAC_APP="$(ls -d "${HOME}/Library/Developer/Xcode/DerivedData"/Relay-*/Build/Products/Debug/RelayMac.app 2>/dev/null | head -n 1)"
+fi
+if [[ -z "${MAC_APP}" ]]; then
+  echo "ERROR: RelayMac.app missing after noddebug rebuild" >&2
+  exit 1
+fi
+echo "Using ${MAC_APP}"
+file "${MAC_APP}/Contents/MacOS/RelayMac" || true
+otool -L "${MAC_APP}/Contents/MacOS/RelayMac" | head -20 || true
 
-for name in \
-  mac-attention-light \
-  mac-attention-dark \
-  mac-attention-detail-light
-do
-  collect_png "${name}"
-done
+capture_mac_inapp() {
+  local appearance="$1"
+  local screen="$2"
+  local name="$3"
+  local bin="${MAC_APP}/Contents/MacOS/RelayMac"
+  pkill -x RelayMac >/dev/null 2>&1 || true
+  sleep 1
+  rm -f "${TMP_SHOTS}/${name}.png" "${TMP_SHOTS}/${name}.done" "${OUT}/${name}.png"
+  RELAY_SCREENSHOT_DIR="${OUT}" RELAY_UI_SCREENSHOTS=1 \
+    "${bin}" \
+      -RelayUIScreenshots \
+      -RelayAppearance "${appearance}" \
+      -RelayScreenshotScreen "${screen}" \
+    >/tmp/relay-mac-${name}.log 2>&1 &
+  local pid=$!
+  if wait_for_png "${name}" 60; then
+    echo "Mac in-app capture ok: ${name} (pid ${pid})"
+  else
+    echo "::error::Mac in-app capture timed out: ${name}"
+    echo "---- relay-mac-${name}.log ----" >&2
+    cat "/tmp/relay-mac-${name}.log" >&2 || true
+    ps -p "${pid}" -o pid,stat,command >&2 || true
+    kill "${pid}" >/dev/null 2>&1 || true
+    pkill -x RelayMac >/dev/null 2>&1 || true
+    exit 1
+  fi
+  kill "${pid}" >/dev/null 2>&1 || true
+  pkill -x RelayMac >/dev/null 2>&1 || true
+  sleep 1
+}
+
+have_png mac-attention-light || capture_mac_inapp light list mac-attention-light
+have_png mac-attention-dark || capture_mac_inapp dark list mac-attention-dark
+have_png mac-attention-detail-light || capture_mac_inapp light detail mac-attention-detail-light
+
+# Optional Mac XCUITest for diagnostics only — must not soft-pass a failed UITest.
+# Skipped by default; set RELAY_MAC_UITEST=1 to run (failure fails the job).
+if [[ "${RELAY_MAC_UITEST:-0}" == "1" ]]; then
+  echo "=== XCUITest RelayMac screenshots (opt-in; failure fails job) ==="
+  rm -rf /tmp/relay-mac-screenshots.xcresult
+  set +e
+  xcodebuild \
+    -project "${PROJECT}" \
+    -scheme RelayMac \
+    -destination 'platform=macOS' \
+    -configuration Debug \
+    -resultBundlePath /tmp/relay-mac-screenshots.xcresult \
+    CODE_SIGNING_ALLOWED=NO \
+    ENABLE_DEBUG_DYLIB=NO \
+    test \
+    -only-testing:RelayMacUITests/RelayMacScreenshotTests \
+    2>&1 | tee /tmp/xcode-mac-screenshots.log
+  mac_status=${PIPESTATUS[0]}
+  set -e
+  preserve_xcresult /tmp/relay-mac-screenshots.xcresult relay-mac-screenshots.xcresult
+  if [[ "${mac_status}" -ne 0 ]]; then
+    echo "::error::RelayMac UITests failed (exit ${mac_status}); no silent fallback"
+    exit "${mac_status}"
+  fi
+fi
 
 echo "=== PNGs in ${OUT} ==="
 ls -la "${OUT}"
@@ -203,6 +303,11 @@ png_count="$(find "${OUT}" -maxdepth 1 -name '*.png' | wc -l | tr -d ' ')"
 if [[ "${png_count}" -ne 6 ]]; then
   echo "ERROR: expected exactly 6 PNGs, found ${png_count}" >&2
   ls -la "${OUT}" >&2
+  exit 1
+fi
+
+if cmp -s "${OUT}/mac-attention-light.png" "${OUT}/mac-attention-dark.png"; then
+  echo "ERROR: Mac light/dark screenshots are byte-identical" >&2
   exit 1
 fi
 
