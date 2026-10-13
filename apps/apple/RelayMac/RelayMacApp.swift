@@ -13,7 +13,7 @@ struct RelayMacApp: App {
                 .onAppear {
                     viewModel.bootstrap()
                     #if DEBUG
-                    RelayScreenshotWriter.scheduleMacCapturesIfNeeded()
+                    RelayScreenshotWriter.scheduleMacCapturesIfNeeded(viewModel: viewModel)
                     #endif
                 }
                 #if DEBUG

@@ -147,18 +147,23 @@ fi
 capture_mac_inapp() {
   local appearance="$1"
   local name="mac-attention-${appearance}"
+  local bin="${MAC_APP}/Contents/MacOS/RelayMac"
   pkill -x RelayMac >/dev/null 2>&1 || true
   sleep 1
   rm -f "${TMP_SHOTS}/${name}.png" "${TMP_SHOTS}/${name}.done" "${OUT}/${name}.png"
-  # Ensure child process inherits RELAY_SCREENSHOT_DIR.
+  # Launch binary directly so RELAY_SCREENSHOT_DIR is inherited.
   RELAY_SCREENSHOT_DIR="${OUT}" RELAY_UI_SCREENSHOTS=1 \
-    open "${MAC_APP}" --env RELAY_SCREENSHOT_DIR="${OUT}" --env RELAY_UI_SCREENSHOTS=1 \
-    --args -RelayUIScreenshots -RelayAppearance "${appearance}"
+    "${bin}" -RelayUIScreenshots -RelayAppearance "${appearance}" \
+    >/tmp/relay-mac-${appearance}.log 2>&1 &
+  local pid=$!
   if wait_for_png "${name}" 45; then
-    echo "Mac in-app capture ok: ${name}"
+    echo "Mac in-app capture ok: ${name} (pid ${pid})"
   else
     echo "Mac in-app capture timed out: ${name}" >&2
+    echo "---- relay-mac-${appearance}.log ----" >&2
+    tail -50 "/tmp/relay-mac-${appearance}.log" >&2 || true
   fi
+  kill "${pid}" >/dev/null 2>&1 || true
   pkill -x RelayMac >/dev/null 2>&1 || true
   sleep 1
 }

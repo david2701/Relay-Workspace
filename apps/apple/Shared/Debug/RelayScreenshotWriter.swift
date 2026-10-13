@@ -4,13 +4,9 @@ import SwiftUI
 #if DEBUG
 #if canImport(AppKit)
 import AppKit
-import CoreGraphics
-#endif
-#if canImport(UIKit)
-import UIKit
 #endif
 
-/// Writes PNG screenshots from inside the DEBUG app (no Accessibility TCC needed on CI).
+/// Writes PNG screenshots from inside the DEBUG app via SwiftUI ImageRenderer.
 enum RelayScreenshotWriter {
     static func outputDirectories() -> [URL] {
         var dirs: [URL] = [
@@ -37,46 +33,25 @@ enum RelayScreenshotWriter {
 
     #if canImport(AppKit)
     @MainActor
-    static func captureMacWindow(named name: String) {
-        NSApp.activate(ignoringOtherApps: true)
-        guard let window = NSApp.windows.first(where: { $0.isVisible }) ?? NSApp.windows.first else {
-            NSLog("RelayScreenshotWriter: no Mac window for \(name)")
-            return
-        }
-        window.makeKeyAndOrderFront(nil)
-        let windowID = CGWindowID(window.windowNumber)
-        let image: CGImage?
-        if #available(macOS 14.0, *) {
-            image = CGWindowListCreateImage(
-                .null,
-                .optionIncludingWindow,
-                windowID,
-                [.boundsIgnoreFraming, .bestResolution]
-            )
-        } else {
-            image = CGWindowListCreateImage(
-                .null,
-                .optionIncludingWindow,
-                windowID,
-                [.boundsIgnoreFraming, .bestResolution]
-            )
-        }
-        guard let cgImage = image else {
-            NSLog("RelayScreenshotWriter: CGWindowListCreateImage failed for \(name)")
-            return
-        }
-        let rep = NSBitmapImageRep(cgImage: cgImage)
-        guard let data = rep.representation(using: .png, properties: [:]) else {
-            NSLog("RelayScreenshotWriter: PNG encode failed for \(name)")
+    static func captureMacView<V: View>(named name: String, size: CGSize, content: V) {
+        let rooted = content
+            .frame(width: size.width, height: size.height)
+            .background(Color(nsColor: .windowBackgroundColor))
+        let renderer = ImageRenderer(content: rooted)
+        renderer.scale = 2
+        guard let nsImage = renderer.nsImage,
+              let tiff = nsImage.tiffRepresentation,
+              let rep = NSBitmapImageRep(data: tiff),
+              let data = rep.representation(using: .png, properties: [:])
+        else {
+            NSLog("RelayScreenshotWriter: ImageRenderer failed for \(name)")
             return
         }
         writePNG(named: name, data: data)
     }
-    #endif
 
     @MainActor
-    static func scheduleMacCapturesIfNeeded() {
-        #if canImport(AppKit)
+    static func scheduleMacCapturesIfNeeded(viewModel: AttentionViewModel) {
         guard PenpotSampleData.shouldLoadForUIScreenshots else { return }
         let appearance: String
         switch RelayScreenshotAppearance.preferredColorScheme {
@@ -84,17 +59,27 @@ enum RelayScreenshotWriter {
         default: appearance = "light"
         }
         let name = "mac-attention-\(appearance)"
-        DispatchQueue.main.asyncAfter(deadline: .now() + 1.8) {
-            captureMacWindow(named: name)
-            // Signal completion for the capture script.
+        let scheme = RelayScreenshotAppearance.preferredColorScheme
+        DispatchQueue.main.asyncAfter(deadline: .now() + 1.2) {
+            let root = MacAttentionRootView(viewModel: viewModel)
+                .preferredColorScheme(scheme)
+            captureMacView(
+                named: name,
+                size: CGSize(width: 1180, height: 760),
+                content: root
+            )
             let marker = URL(fileURLWithPath: "/tmp/relay-apple-screenshots/\(name).done")
             try? FileManager.default.createDirectory(
                 at: marker.deletingLastPathComponent(),
                 withIntermediateDirectories: true
             )
             try? Data().write(to: marker)
+            // Allow the capture script to observe the file, then quit cleanly.
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.4) {
+                NSApp.terminate(nil)
+            }
         }
-        #endif
     }
+    #endif
 }
 #endif
