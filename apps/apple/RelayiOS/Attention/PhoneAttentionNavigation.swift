@@ -85,6 +85,7 @@ struct PhoneAttentionHeader: View {
                 Text(AttentionStrings.title)
                     .font(.largeTitle.weight(.bold))
                     .foregroundStyle(RelayTheme.ink)
+                    .accessibilityIdentifier("attention-title")
                 HStack(spacing: 4) {
                     Image(systemName: viewModel.isOffline ? "icloud.slash" : "checkmark.circle")
                         .font(.caption)

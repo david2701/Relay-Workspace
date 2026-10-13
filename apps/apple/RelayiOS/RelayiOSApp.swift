@@ -10,6 +10,9 @@ struct RelayiOSApp: App {
             PhoneRootView(viewModel: viewModel)
                 .background(RelayTheme.paper)
                 .onAppear { viewModel.bootstrap() }
+                #if DEBUG
+                .preferredColorScheme(RelayScreenshotAppearance.preferredColorScheme)
+                #endif
         }
     }
 }

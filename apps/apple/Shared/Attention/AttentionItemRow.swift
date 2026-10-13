@@ -40,6 +40,7 @@ struct AttentionItemRow: View {
             )
         }
         .buttonStyle(.plain)
+        .accessibilityIdentifier("attention-item-\(item.id)")
         .accessibilityLabel(
             AttentionPresentation.accessibilityLabel(
                 item: item,

@@ -38,6 +38,16 @@
                ReferencedContainer = "container:Relay.xcodeproj">
             </BuildableReference>
          </TestableReference>
+         <TestableReference
+            skipped = "NO">
+            <BuildableReference
+               BuildableIdentifier = "primary"
+               BlueprintIdentifier = "A20000000000000000000005"
+               BuildableName = "RelayMacUITests.xctest"
+               BlueprintName = "RelayMacUITests"
+               ReferencedContainer = "container:Relay.xcodeproj">
+            </BuildableReference>
+         </TestableReference>
       </Testables>
    </TestAction>
    <LaunchAction

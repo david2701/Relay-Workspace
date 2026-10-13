@@ -11,6 +11,9 @@ struct RelayMacApp: App {
                 .frame(minWidth: 960, minHeight: 640)
                 .background(RelayTheme.paper)
                 .onAppear { viewModel.bootstrap() }
+                #if DEBUG
+                .preferredColorScheme(RelayScreenshotAppearance.preferredColorScheme)
+                #endif
         }
         .defaultSize(width: 1180, height: 760)
         Settings {

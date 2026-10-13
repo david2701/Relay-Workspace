@@ -23,6 +23,7 @@ struct AttentionListContent: View {
             .padding(.horizontal, 12)
             .padding(.vertical, 8)
         }
+        .accessibilityIdentifier("attention-list")
     }
 
     @ViewBuilder

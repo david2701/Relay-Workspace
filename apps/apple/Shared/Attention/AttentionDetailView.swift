@@ -30,6 +30,7 @@ struct AttentionDetailView: View {
             .frame(maxWidth: .infinity, alignment: .leading)
         }
         .background(RelayTheme.paper)
+        .accessibilityIdentifier("attention-detail")
         .accessibilityLabel(AttentionStrings.title)
     }
 

@@ -10,6 +10,8 @@
 		A10000000000000000000001 /* RelayMac.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = RelayMac.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		A10000000000000000000002 /* RelayiOS.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = RelayiOS.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		A10000000000000000000003 /* RelayAppleTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = RelayAppleTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
+		A10000000000000000000004 /* RelayiOSUITests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = RelayiOSUITests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
+		A10000000000000000000005 /* RelayMacUITests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = RelayMacUITests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 /* End PBXFileReference section */
 
 /* Begin PBXFileSystemSynchronizedBuildFileExceptionSet section */
@@ -56,6 +58,16 @@
 			path = RelayAppleTests;
 			sourceTree = "<group>";
 		};
+		A12000000000000000000005 /* RelayiOSUITests */ = {
+			isa = PBXFileSystemSynchronizedRootGroup;
+			path = RelayiOSUITests;
+			sourceTree = "<group>";
+		};
+		A12000000000000000000006 /* RelayMacUITests */ = {
+			isa = PBXFileSystemSynchronizedRootGroup;
+			path = RelayMacUITests;
+			sourceTree = "<group>";
+		};
 /* End PBXFileSystemSynchronizedRootGroup section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -80,6 +92,20 @@
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
+		A13000000000000000000004 /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		A13000000000000000000005 /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
 /* End PBXFrameworksBuildPhase section */
 
 /* Begin PBXGroup section */
@@ -90,6 +116,8 @@
 				A12000000000000000000002 /* RelayiOS */,
 				A12000000000000000000003 /* Shared */,
 				A12000000000000000000004 /* RelayAppleTests */,
+				A12000000000000000000005 /* RelayiOSUITests */,
+				A12000000000000000000006 /* RelayMacUITests */,
 				A14000000000000000000002 /* Products */,
 			);
 			sourceTree = "<group>";
@@ -100,6 +128,8 @@
 				A10000000000000000000001 /* RelayMac.app */,
 				A10000000000000000000002 /* RelayiOS.app */,
 				A10000000000000000000003 /* RelayAppleTests.xctest */,
+				A10000000000000000000004 /* RelayiOSUITests.xctest */,
+				A10000000000000000000005 /* RelayMacUITests.xctest */,
 			);
 			name = Products;
 			sourceTree = "<group>";
@@ -178,6 +208,52 @@
 			productReference = A10000000000000000000003 /* RelayAppleTests.xctest */;
 			productType = "com.apple.product-type.bundle.unit-test";
 		};
+		A20000000000000000000004 /* RelayiOSUITests */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = A30000000000000000000005 /* Build configuration list for PBXNativeTarget "RelayiOSUITests" */;
+			buildPhases = (
+				A21000000000000000000004 /* Sources */,
+				A13000000000000000000004 /* Frameworks */,
+				A22000000000000000000004 /* Resources */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+				A45000000000000000000001 /* PBXTargetDependency */,
+			);
+			fileSystemSynchronizedGroups = (
+				A12000000000000000000005 /* RelayiOSUITests */,
+			);
+			name = RelayiOSUITests;
+			packageProductDependencies = (
+			);
+			productName = RelayiOSUITests;
+			productReference = A10000000000000000000004 /* RelayiOSUITests.xctest */;
+			productType = "com.apple.product-type.bundle.ui-testing";
+		};
+		A20000000000000000000005 /* RelayMacUITests */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = A30000000000000000000006 /* Build configuration list for PBXNativeTarget "RelayMacUITests" */;
+			buildPhases = (
+				A21000000000000000000005 /* Sources */,
+				A13000000000000000000005 /* Frameworks */,
+				A22000000000000000000005 /* Resources */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+				A45000000000000000000002 /* PBXTargetDependency */,
+			);
+			fileSystemSynchronizedGroups = (
+				A12000000000000000000006 /* RelayMacUITests */,
+			);
+			name = RelayMacUITests;
+			packageProductDependencies = (
+			);
+			productName = RelayMacUITests;
+			productReference = A10000000000000000000005 /* RelayMacUITests.xctest */;
+			productType = "com.apple.product-type.bundle.ui-testing";
+		};
 /* End PBXNativeTarget section */
 
 /* Begin PBXProject section */
@@ -196,6 +272,14 @@
 					};
 					A20000000000000000000003 = {
 						CreatedOnToolsVersion = 16.0;
+					};
+					A20000000000000000000004 = {
+						CreatedOnToolsVersion = 16.0;
+						TestTargetID = A20000000000000000000002;
+					};
+					A20000000000000000000005 = {
+						CreatedOnToolsVersion = 16.0;
+						TestTargetID = A20000000000000000000001;
 					};
 				};
 			};
@@ -220,6 +304,8 @@
 				A20000000000000000000001 /* RelayMac */,
 				A20000000000000000000002 /* RelayiOS */,
 				A20000000000000000000003 /* RelayAppleTests */,
+				A20000000000000000000004 /* RelayiOSUITests */,
+				A20000000000000000000005 /* RelayMacUITests */,
 			);
 		};
 /* End PBXProject section */
@@ -246,6 +332,20 @@
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
+		A22000000000000000000004 /* Resources */ = {
+			isa = PBXResourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		A22000000000000000000005 /* Resources */ = {
+			isa = PBXResourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
 /* End PBXResourcesBuildPhase section */
 
 /* Begin PBXSourcesBuildPhase section */
@@ -264,6 +364,20 @@
 			runOnlyForDeploymentPostprocessing = 0;
 		};
 		A21000000000000000000003 /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		A21000000000000000000004 /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		A21000000000000000000005 /* Sources */ = {
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
@@ -451,6 +565,80 @@
 			};
 			name = Release;
 		};
+		A32000000000000000000007 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 1;
+				GENERATE_INFOPLIST_FILE = YES;
+				IPHONEOS_DEPLOYMENT_TARGET = 17.0;
+				MARKETING_VERSION = 0.3.0;
+				PRODUCT_BUNDLE_IDENTIFIER = app.relay.ios.uitests;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SDKROOT = iphoneos;
+				SUPPORTED_PLATFORMS = "iphoneos iphonesimulator";
+				SWIFT_STRICT_CONCURRENCY = minimal;
+				SWIFT_VERSION = 5.0;
+				TARGETED_DEVICE_FAMILY = 1;
+				TEST_TARGET_NAME = RelayiOS;
+			};
+			name = Debug;
+		};
+		A32000000000000000000008 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 1;
+				GENERATE_INFOPLIST_FILE = YES;
+				IPHONEOS_DEPLOYMENT_TARGET = 17.0;
+				MARKETING_VERSION = 0.3.0;
+				PRODUCT_BUNDLE_IDENTIFIER = app.relay.ios.uitests;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SDKROOT = iphoneos;
+				SUPPORTED_PLATFORMS = "iphoneos iphonesimulator";
+				SWIFT_STRICT_CONCURRENCY = minimal;
+				SWIFT_VERSION = 5.0;
+				TARGETED_DEVICE_FAMILY = 1;
+				TEST_TARGET_NAME = RelayiOS;
+			};
+			name = Release;
+		};
+		A32000000000000000000009 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				CODE_SIGN_IDENTITY = "-";
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 1;
+				GENERATE_INFOPLIST_FILE = YES;
+				MACOSX_DEPLOYMENT_TARGET = 14.0;
+				MARKETING_VERSION = 0.3.0;
+				PRODUCT_BUNDLE_IDENTIFIER = app.relay.mac.uitests;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SDKROOT = macosx;
+				SWIFT_STRICT_CONCURRENCY = minimal;
+				SWIFT_VERSION = 5.0;
+				TEST_TARGET_NAME = RelayMac;
+			};
+			name = Debug;
+		};
+		A32000000000000000000010 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				CODE_SIGN_IDENTITY = "-";
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 1;
+				GENERATE_INFOPLIST_FILE = YES;
+				MACOSX_DEPLOYMENT_TARGET = 14.0;
+				MARKETING_VERSION = 0.3.0;
+				PRODUCT_BUNDLE_IDENTIFIER = app.relay.mac.uitests;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SDKROOT = macosx;
+				SWIFT_STRICT_CONCURRENCY = minimal;
+				SWIFT_VERSION = 5.0;
+				TEST_TARGET_NAME = RelayMac;
+			};
+			name = Release;
+		};
 /* End XCBuildConfiguration section */
 
 /* Begin XCConfigurationList section */
@@ -490,7 +678,55 @@
 			defaultConfigurationIsVisible = 0;
 			defaultConfigurationName = Release;
 		};
+		A30000000000000000000005 /* Build configuration list for PBXNativeTarget "RelayiOSUITests" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				A32000000000000000000007 /* Debug */,
+				A32000000000000000000008 /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
+		A30000000000000000000006 /* Build configuration list for PBXNativeTarget "RelayMacUITests" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				A32000000000000000000009 /* Debug */,
+				A32000000000000000000010 /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
 /* End XCConfigurationList section */
+
+/* Begin PBXContainerItemProxy section */
+		A44000000000000000000001 /* PBXContainerItemProxy */ = {
+			isa = PBXContainerItemProxy;
+			containerPortal = A25000000000000000000001 /* Project object */;
+			proxyType = 1;
+			remoteGlobalIDString = A20000000000000000000002;
+			remoteInfo = RelayiOS;
+		};
+		A44000000000000000000002 /* PBXContainerItemProxy */ = {
+			isa = PBXContainerItemProxy;
+			containerPortal = A25000000000000000000001 /* Project object */;
+			proxyType = 1;
+			remoteGlobalIDString = A20000000000000000000001;
+			remoteInfo = RelayMac;
+		};
+/* End PBXContainerItemProxy section */
+
+/* Begin PBXTargetDependency section */
+		A45000000000000000000001 /* PBXTargetDependency */ = {
+			isa = PBXTargetDependency;
+			target = A20000000000000000000002 /* RelayiOS */;
+			targetProxy = A44000000000000000000001 /* PBXContainerItemProxy */;
+		};
+		A45000000000000000000002 /* PBXTargetDependency */ = {
+			isa = PBXTargetDependency;
+			target = A20000000000000000000001 /* RelayMac */;
+			targetProxy = A44000000000000000000002 /* PBXContainerItemProxy */;
+		};
+/* End PBXTargetDependency section */
 
 /* Begin XCLocalSwiftPackageReference section */
 		A41000000000000000000001 /* XCLocalSwiftPackageReference "RelayKit" */ = {

@@ -83,6 +83,12 @@ public final class AttentionViewModel: ObservableObject {
     }
 
     public func bootstrap() {
+        #if DEBUG
+        if PenpotSampleData.shouldLoadForUIScreenshots {
+            applyPenpotSamples()
+            return
+        }
+        #endif
         if let saved = UserDefaults.standard.string(forKey: RelayDefaults.apiBaseURLPreferenceKey),
            !saved.isEmpty {
             baseURLString = saved
@@ -94,6 +100,12 @@ public final class AttentionViewModel: ObservableObject {
     }
 
     public func refresh() async {
+        #if DEBUG
+        if PenpotSampleData.shouldLoadForUIScreenshots {
+            applyPenpotSamples()
+            return
+        }
+        #endif
         let previousInbox = inbox
         if previousInbox == nil {
             loadState = .loading
@@ -127,6 +139,20 @@ public final class AttentionViewModel: ObservableObject {
             }
         }
     }
+
+    #if DEBUG
+    private func applyPenpotSamples() {
+        let fetchedInbox = PenpotSampleData.inbox
+        let agents = PenpotSampleData.agents
+        inbox = fetchedInbox
+        agentsById = Dictionary(uniqueKeysWithValues: agents.map { ($0.id, $0) })
+        lastSuccessAt = Date()
+        isOffline = false
+        actionError = nil
+        loadState = .ready
+        selectedItemId = AttentionPresentation.flattenedItemIds(from: fetchedInbox).first
+    }
+    #endif
 
     public func selectItem(id: String?) {
         selectedItemId = id
