@@ -10,6 +10,14 @@ import UIKit
 public extension RelayColor {
     /// Asset-free dynamic SwiftUI color: light/dark resolved via platform dynamic provider.
     static func swiftUIColor(light: RelayColor, dark: RelayColor) -> Color {
+        #if DEBUG
+        // ImageRenderer / headless Mac CI does not honor NSColor dynamic appearance.
+        // When capturing Atención screenshots, pin tokens to -RelayAppearance.
+        if PenpotSampleData.shouldLoadForUIScreenshots {
+            let useDark = RelayScreenshotAppearance.preferredColorScheme == .dark
+            return (useDark ? dark : light).color
+        }
+        #endif
         #if canImport(AppKit) && !targetEnvironment(macCatalyst)
         return Color(
             nsColor: NSColor(name: nil, dynamicProvider: { appearance in
