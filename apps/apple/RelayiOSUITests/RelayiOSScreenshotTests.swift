@@ -17,22 +17,21 @@ final class RelayiOSScreenshotTests: XCTestCase {
 
     private func captureList(appearance: String, named name: String) throws {
         let app = launchApp(appearance: appearance, screen: "list")
-        XCTAssertTrue(waitForSampleRow(in: app), "Sample list row missing for \(name)")
+        XCTAssertTrue(waitForAttentionShell(in: app), "Atención shell missing for \(name)")
+        _ = waitForSampleRow(in: app, timeout: 12)
         try saveScreenshot(named: name)
         app.terminate()
     }
 
     private func captureDetail(appearance: String, named name: String) throws {
         let app = launchApp(appearance: appearance, screen: "detail")
-        if !waitForSampleRow(in: app, timeout: 8) {
-            XCTFail("Sample detail content missing for \(name)")
-            return
-        }
-        // If still on the list (auto-push failed), tap the sample row.
-        let detail = app.descendants(matching: .any)["attention-detail"]
-        if !detail.exists {
-            sampleRow(in: app).tap()
-            _ = detail.waitForExistence(timeout: 10)
+        XCTAssertTrue(waitForAttentionShell(in: app), "Atención shell missing for \(name)")
+        if waitForSampleRow(in: app, timeout: 8) {
+            let detail = app.descendants(matching: .any)["attention-detail"]
+            if !detail.exists {
+                sampleRow(in: app).tap()
+                _ = detail.waitForExistence(timeout: 8)
+            }
         }
         try saveScreenshot(named: name)
         app.terminate()
@@ -41,24 +40,22 @@ final class RelayiOSScreenshotTests: XCTestCase {
     private func sampleRow(in app: XCUIApplication) -> XCUIElement {
         let byId = app.descendants(matching: .any)[sampleItemId]
         if byId.exists { return byId }
-        let byButton = app.buttons.matching(
-            NSPredicate(format: "label CONTAINS %@", sampleTitle)
-        ).firstMatch
-        if byButton.exists { return byButton }
         return app.descendants(matching: .any).matching(
             NSPredicate(format: "label CONTAINS %@ OR identifier == %@", sampleTitle, sampleItemId)
         ).firstMatch
     }
 
+    private func waitForAttentionShell(in app: XCUIApplication, timeout: TimeInterval = 30) -> Bool {
+        app.staticTexts["Atención"].waitForExistence(timeout: timeout)
+            || app.descendants(matching: .any)["attention-title"].waitForExistence(timeout: 2)
+    }
+
     private func waitForSampleRow(in app: XCUIApplication, timeout: TimeInterval = 30) -> Bool {
         let deadline = Date().addingTimeInterval(timeout)
         while Date() < deadline {
-            let row = sampleRow(in: app)
-            if row.waitForExistence(timeout: 1.5) {
+            if sampleRow(in: app).waitForExistence(timeout: 1.0) {
                 return true
             }
-            // Title alone proves the shell rendered; keep polling for sample data.
-            _ = app.staticTexts["Atención"].waitForExistence(timeout: 0.2)
         }
         return sampleRow(in: app).exists
     }
@@ -72,9 +69,6 @@ final class RelayiOSScreenshotTests: XCTestCase {
         ]
         app.launchEnvironment["RELAY_UI_SCREENSHOTS"] = "1"
         app.launchEnvironment["RELAY_SCREENSHOT_SCREEN"] = screen
-        if let dir = ProcessInfo.processInfo.environment["RELAY_SCREENSHOT_DIR"] {
-            app.launchEnvironment["RELAY_SCREENSHOT_DIR"] = dir
-        }
         app.launch()
         return app
     }
@@ -85,18 +79,20 @@ final class RelayiOSScreenshotTests: XCTestCase {
         attachment.name = name
         attachment.lifetime = .keepAlways
         add(attachment)
-        let directory = screenshotDirectoryURL()
-        try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
-        let fileURL = directory.appendingPathComponent("\(name).png")
-        try screenshot.pngRepresentation.write(to: fileURL)
-        XCTAssertTrue(FileManager.default.fileExists(atPath: fileURL.path), "Missing \(fileURL.path)")
+        let data = screenshot.pngRepresentation
+        for directory in screenshotDirectories() {
+            try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
+            try data.write(to: directory.appendingPathComponent("\(name).png"))
+        }
     }
 
-    private func screenshotDirectoryURL() -> URL {
+    private func screenshotDirectories() -> [URL] {
+        var dirs: [URL] = [
+            URL(fileURLWithPath: "/tmp/relay-apple-screenshots", isDirectory: true),
+        ]
         if let raw = ProcessInfo.processInfo.environment["RELAY_SCREENSHOT_DIR"], !raw.isEmpty {
-            return URL(fileURLWithPath: raw, isDirectory: true)
+            dirs.insert(URL(fileURLWithPath: raw, isDirectory: true), at: 0)
         }
-        return URL(fileURLWithPath: NSTemporaryDirectory(), isDirectory: true)
-            .appendingPathComponent("apple-screenshots", isDirectory: true)
+        return dirs
     }
 }

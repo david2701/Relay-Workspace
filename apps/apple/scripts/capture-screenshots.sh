@@ -1,14 +1,17 @@
 #!/usr/bin/env bash
 # Capture Atención screenshots for iPhone simulator + macOS.
-# Primary: XCUITest (XCTAttachment + PNG files). Fallback: simctl / screencapture.
+# Primary: XCUITest (XCTAttachment + PNG files under /tmp/relay-apple-screenshots).
+# Fallback: simctl (iPhone) / screencapture (Mac).
 set -euo pipefail
 
 ROOT="$(cd "$(dirname "$0")/../../.." && pwd)"
 PROJECT="${ROOT}/apps/apple/Relay.xcodeproj"
 OUT="${RELAY_SCREENSHOT_DIR:-${ROOT}/artifacts/apple-screenshots}"
-mkdir -p "${OUT}"
+TMP_SHOTS="/tmp/relay-apple-screenshots"
+mkdir -p "${OUT}" "${TMP_SHOTS}"
 export RELAY_SCREENSHOT_DIR="${OUT}"
 export RELAY_UI_SCREENSHOTS=1
+rm -f "${TMP_SHOTS}"/*.png "${OUT}"/*.png 2>/dev/null || true
 
 resolve_iphone_udid() {
   local preferred=("iPhone 16" "iPhone 16 Pro" "iPhone 15" "iPhone 15 Pro")
@@ -33,12 +36,25 @@ resolve_iphone_udid() {
   echo "${udid}"
 }
 
+collect_png() {
+  local name="$1"
+  if [[ -f "${OUT}/${name}.png" ]]; then
+    return 0
+  fi
+  if [[ -f "${TMP_SHOTS}/${name}.png" ]]; then
+    cp "${TMP_SHOTS}/${name}.png" "${OUT}/${name}.png"
+    return 0
+  fi
+  return 1
+}
+
 have_png() {
   local name="$1"
+  collect_png "${name}" || true
   [[ -f "${OUT}/${name}.png" ]] && file "${OUT}/${name}.png" | grep -qi 'PNG'
 }
 
-echo "=== Screenshot output: ${OUT} ==="
+echo "=== Screenshot output: ${OUT} (tmp ${TMP_SHOTS}) ==="
 UDID="$(resolve_iphone_udid)"
 IOS_DEST="platform=iOS Simulator,id=${UDID}"
 echo "iOS destination: ${IOS_DEST}"
@@ -58,11 +74,14 @@ xcodebuild \
   -only-testing:RelayiOSUITests/RelayiOSScreenshotTests \
   2>&1 | tee /tmp/xcode-ios-screenshots.log || true
 
+collect_png iphone-attention-light || true
+collect_png iphone-attention-dark || true
+collect_png iphone-attention-detail-light || true
+
 if ! have_png iphone-attention-light || ! have_png iphone-attention-dark || ! have_png iphone-attention-detail-light; then
   echo "=== simctl fallback for iPhone screenshots ==="
   xcrun simctl boot "${UDID}" >/dev/null 2>&1 || true
   xcrun simctl bootstatus "${UDID}" -b
-  # Ensure Debug build is installed.
   DERIVED="$(ls -d "${HOME}/Library/Developer/Xcode/DerivedData"/Relay-*/Build/Products/Debug-iphonesimulator/RelayiOS.app 2>/dev/null | head -n 1 || true)"
   if [[ -z "${DERIVED}" ]]; then
     xcodebuild \
@@ -88,7 +107,6 @@ if ! have_png iphone-attention-light || ! have_png iphone-attention-dark || ! ha
       -RelayUIScreenshots \
       -RelayAppearance "${appearance}" \
       -RelayScreenshotScreen "${screen}"
-    # Give SwiftUI a moment to settle with DEBUG samples.
     sleep 4
     xcrun simctl io "${UDID}" screenshot "${OUT}/${name}.png"
     xcrun simctl terminate "${UDID}" app.relay.ios >/dev/null 2>&1 || true
@@ -113,8 +131,11 @@ xcodebuild \
   -only-testing:RelayMacUITests/RelayMacScreenshotTests \
   2>&1 | tee /tmp/xcode-mac-screenshots.log || true
 
+collect_png mac-attention-light || true
+collect_png mac-attention-dark || true
+
 if ! have_png mac-attention-light || ! have_png mac-attention-dark; then
-  echo "=== macOS screencapture fallback ==="
+  echo "=== macOS XCUIScreen/screencapture fallback ==="
   MAC_APP="$(ls -d "${HOME}/Library/Developer/Xcode/DerivedData"/Relay-*/Build/Products/Debug/RelayMac.app 2>/dev/null | head -n 1 || true)"
   if [[ -z "${MAC_APP}" ]]; then
     xcodebuild \
@@ -133,19 +154,30 @@ if ! have_png mac-attention-light || ! have_png mac-attention-dark; then
     local name="$2"
     pkill -x RelayMac >/dev/null 2>&1 || true
     sleep 1
+    # Launch via open; args after --args reach the app.
     open "${MAC_APP}" --args -RelayUIScreenshots -RelayAppearance "${appearance}"
-    # Wait for the process + first window.
-    for _ in $(seq 1 30); do
+    for _ in $(seq 1 40); do
       if pgrep -x RelayMac >/dev/null 2>&1; then
         break
       fi
-      sleep 0.5
+      sleep 0.25
     done
-    sleep 4
-    local wid
-    wid="$(osascript -e 'tell application "System Events" to tell process "RelayMac" to get unix id' 2>/dev/null || true)"
-    # Prefer window id capture when available.
-    local window_id
+    # Activate and wait for a window via System Events.
+    osascript <<'APPLESCRIPT' >/dev/null 2>&1 || true
+tell application "System Events"
+  repeat 40 times
+    if exists process "RelayMac" then exit repeat
+    delay 0.25
+  end repeat
+  if exists process "RelayMac" then
+    tell process "RelayMac"
+      set frontmost to true
+    end tell
+  end if
+end tell
+APPLESCRIPT
+    sleep 3
+    local window_id=""
     window_id="$(osascript <<'APPLESCRIPT' 2>/dev/null || true
 tell application "System Events"
   if not (exists process "RelayMac") then return ""
@@ -160,15 +192,35 @@ APPLESCRIPT
     if [[ -n "${window_id}" ]]; then
       screencapture -x -l"${window_id}" "${OUT}/${name}.png"
     else
-      # Full display fallback (still a PNG for CI artifact).
-      screencapture -x "${OUT}/${name}.png"
+      # Capture the main display after bringing the app forward.
+      screencapture -x -m "${OUT}/${name}.png"
     fi
     pkill -x RelayMac >/dev/null 2>&1 || true
-    echo "mac capture ${name} (pid hint=${wid:-none}, window=${window_id:-none})"
+    echo "mac capture ${name} (window=${window_id:-none})"
   }
 
   have_png mac-attention-light || capture_mac light mac-attention-light
   have_png mac-attention-dark || capture_mac dark mac-attention-dark
+fi
+
+# Reject byte-identical Mac light/dark if both came from a failed fallback.
+if have_png mac-attention-light && have_png mac-attention-dark; then
+  if cmp -s "${OUT}/mac-attention-light.png" "${OUT}/mac-attention-dark.png"; then
+    echo "WARNING: Mac light/dark screenshots are byte-identical; re-running Mac UI test only." >&2
+    rm -f "${OUT}/mac-attention-light.png" "${OUT}/mac-attention-dark.png" "${TMP_SHOTS}"/mac-attention-*.png
+    xcodebuild \
+      -project "${PROJECT}" \
+      -scheme RelayMac \
+      -destination 'platform=macOS' \
+      -configuration Debug \
+      CODE_SIGN_IDENTITY=- \
+      CODE_SIGNING_REQUIRED=NO \
+      test \
+      -only-testing:RelayMacUITests/RelayMacScreenshotTests \
+      2>&1 | tee /tmp/xcode-mac-screenshots-retry.log || true
+    collect_png mac-attention-light || true
+    collect_png mac-attention-dark || true
+  fi
 fi
 
 expected=(
@@ -181,6 +233,7 @@ expected=(
 
 echo "=== PNGs in ${OUT} ==="
 ls -la "${OUT}" || true
+ls -la "${TMP_SHOTS}" || true
 for name in "${expected[@]}"; do
   if [[ ! -f "${OUT}/${name}" ]]; then
     echo "ERROR: required screenshot missing: ${name}" >&2
@@ -192,3 +245,4 @@ for name in "${expected[@]}"; do
   fi
 done
 echo "All required Apple screenshots present."
+md5sum "${OUT}"/*.png || md5 "${OUT}"/*.png
