@@ -1,20 +1,16 @@
-# GitHub Actions–compatible source for the same gate pipeline.
-# On Origin-hosted repos, CI runs via Depot (see .depot/workflows/ci.yml).
-# Docs: https://cursor.com/docs/origin/apps · https://depot.dev/docs/ci/integrations/origin
-# Local mirror: `pnpm verify` → scripts/ci.sh (same step order).
-
 name: ci
 
 on:
-  pull_request:
   push:
-    branches: [main]
+    branches: [dev]
+  pull_request:
+    branches: [dev]
 
 jobs:
-  gates:
-    name: gates
+  verify:
+    name: verify
     runs-on: ubuntu-latest
-    timeout-minutes: 30
+    timeout-minutes: 45
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -22,46 +18,99 @@ jobs:
       - name: Setup pnpm
         uses: pnpm/action-setup@v4
         with:
-          version: 10.17.1
+          package_json_file: package.json
 
       - name: Setup Node
         uses: actions/setup-node@v4
         with:
-          node-version: 24.21
+          node-version: 24
           cache: pnpm
 
-      - name: pnpm install --frozen-lockfile
+      - name: Install dependencies
         run: pnpm install --frozen-lockfile
 
-      - name: build
-        run: pnpm build
+      - name: Verify
+        run: pnpm verify
 
-      - name: typecheck
-        run: pnpm typecheck
+  android:
+    name: android
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
 
-      - name: lint
-        run: pnpm lint
+      - name: Setup JDK
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "17"
 
-      - name: test
-        run: pnpm test
+      - name: Android Gradle checks
+        working-directory: apps/android
+        run: |
+          if [[ ! -f ./gradlew ]]; then
+            echo "No Android Gradle project found at apps/android; skipping android job."
+            exit 0
+          fi
+          chmod +x ./gradlew
+          ./gradlew :app:lintDebug :app:testDebugUnitTest :app:assembleRelease
 
-      - name: contrast
-        run: pnpm contrast
+  apple:
+    name: apple
+    runs-on: macos-latest
+    timeout-minutes: 60
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
 
-      - name: Install Playwright Chromium
-        run: pnpm exec playwright install --with-deps chromium
-
-      - name: test:e2e
-        run: pnpm test:e2e
-
-      - name: check:mcp-docs
-        run: pnpm check:mcp-docs
-
-      - name: check:i18n-missing-keys
-        run: pnpm run check:i18n-missing-keys
-
-      - name: check:hardcoded-strings
-        run: pnpm run check:hardcoded-strings
-
-      - name: check:client-names
-        run: pnpm run check:client-names
+      - name: Apple checks
+        run: |
+          set -euo pipefail
+          if [[ ! -d apps/apple ]]; then
+            echo "apps/apple is missing; skipping apple job."
+            exit 0
+          fi
+          echo "=== Swift package tests ==="
+          while IFS= read -r -d '' package_swift; do
+            package_dir="$(dirname "$package_swift")"
+            echo "swift test in ${package_dir}"
+            (cd "$package_dir" && swift test)
+          done < <(find apps/apple -name Package.swift -print0)
+          if [[ ! -d apps/apple/Relay.xcodeproj ]]; then
+            echo "No Relay.xcodeproj under apps/apple; Swift packages done."
+            exit 0
+          fi
+          echo "=== xcodebuild (iOS Simulator) ==="
+          xcodebuild \
+            -project apps/apple/Relay.xcodeproj \
+            -scheme RelayiOS \
+            -destination 'generic/platform=iOS Simulator' \
+            -configuration Debug \
+            CODE_SIGNING_ALLOWED=NO \
+            build
+          echo "=== xcodebuild (macOS) ==="
+          xcodebuild \
+            -project apps/apple/Relay.xcodeproj \
+            -scheme RelayMac \
+            -destination 'generic/platform=macOS' \
+            -configuration Debug \
+            CODE_SIGNING_ALLOWED=NO \
+            build
+          echo "=== Widget / extension schemes (if any) ==="
+          widget_schemes="$(xcodebuild -project apps/apple/Relay.xcodeproj -list 2>/dev/null | awk '/Schemes:/{f=1;next} f&&NF{print} f&&!NF{exit}' | grep -Ei 'Widget|Extension' || true)"
+          if [[ -z "${widget_schemes}" ]]; then
+            echo "No widget/extension schemes present; nothing extra to build."
+          else
+            while IFS= read -r scheme; do
+              [[ -z "${scheme}" ]] && continue
+              echo "Building scheme: ${scheme}"
+              xcodebuild \
+                -project apps/apple/Relay.xcodeproj \
+                -scheme "${scheme}" \
+                -destination 'generic/platform=iOS Simulator' \
+                -configuration Debug \
+                CODE_SIGNING_ALLOWED=NO \
+                build
+            done <<< "${widget_schemes}"
+          fi
