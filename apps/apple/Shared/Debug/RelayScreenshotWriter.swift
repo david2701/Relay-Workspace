@@ -58,23 +58,49 @@ enum RelayScreenshotWriter {
         case .dark: appearance = "dark"
         default: appearance = "light"
         }
-        let name = "mac-attention-\(appearance)"
+        let screen = PenpotSampleData.screenshotScreen
+        let name: String
+        if screen == "detail" {
+            name = "mac-attention-detail-\(appearance)"
+        } else {
+            name = "mac-attention-\(appearance)"
+        }
         let scheme = RelayScreenshotAppearance.preferredColorScheme
         DispatchQueue.main.asyncAfter(deadline: .now() + 1.2) {
-            let root = MacAttentionRootView(viewModel: viewModel)
+            if screen == "detail", let item = viewModel.selectedItem {
+                let detail = AttentionDetailView(
+                    item: item,
+                    agentsById: viewModel.agentsById,
+                    decisionDraft: Binding(
+                        get: { viewModel.decisionDraft },
+                        set: { viewModel.decisionDraft = $0 }
+                    ),
+                    onReturn: {},
+                    onTakeMyself: {},
+                    showsPhoneActions: false
+                )
                 .preferredColorScheme(scheme)
-            captureMacView(
-                named: name,
-                size: CGSize(width: 1180, height: 760),
-                content: root
-            )
+                // Detail pane with selected Penpot item (`attention-detail` a11y id on the view).
+                captureMacView(
+                    named: name,
+                    size: CGSize(width: 720, height: 760),
+                    content: detail
+                )
+            } else {
+                let root = MacAttentionRootView(viewModel: viewModel)
+                    .preferredColorScheme(scheme)
+                captureMacView(
+                    named: name,
+                    size: CGSize(width: 1180, height: 760),
+                    content: root
+                )
+            }
             let marker = URL(fileURLWithPath: "/tmp/relay-apple-screenshots/\(name).done")
             try? FileManager.default.createDirectory(
                 at: marker.deletingLastPathComponent(),
                 withIntermediateDirectories: true
             )
             try? Data().write(to: marker)
-            // Allow the capture script to observe the file, then quit cleanly.
             DispatchQueue.main.asyncAfter(deadline: .now() + 0.4) {
                 NSApp.terminate(nil)
             }
