@@ -4,7 +4,7 @@
 #   iphone-attention-light|dark|detail-light
 #   mac-attention-light|dark|detail-light
 # iPhone: XCUITest only (must succeed; no || true / no simctl fallback).
-# Mac: in-app ImageRenderer primary path (Mac XCUITest a11y is unreliable on CI).
+# Mac: in-app NSHostingView capture (Mac XCUITest a11y is unreliable on CI).
 set -euo pipefail
 
 ROOT="$(cd "$(dirname "$0")/../../.." && pwd)"
@@ -225,7 +225,7 @@ do
   collect_png "${name}"
 done
 
-echo "=== Mac in-app ImageRenderer screenshots (primary; not XCUITest fallback) ==="
+echo "=== Mac in-app NSHostingView screenshots (primary; not XCUITest fallback) ==="
 # Rebuild a launchable Debug binary (ENABLE_DEBUG_DYLIB=NO) for CI capture.
 # Prefer incremental rebuild; fall back to clean if a debug dylib is still present.
 echo "Building RelayMac without debug dylib for in-app capture…"
@@ -270,6 +270,8 @@ capture_mac_inapp() {
   local pid=$!
   if wait_for_png "${name}" 60; then
     echo "Mac in-app capture ok: ${name} (pid ${pid})"
+    echo "---- relay-mac-${name}.log (tail) ----"
+    tail -n 40 "/tmp/relay-mac-${name}.log" || true
   else
     echo "::error::Mac in-app capture timed out: ${name}"
     echo "---- relay-mac-${name}.log ----" >&2
@@ -350,6 +352,105 @@ if cmp -s "${OUT}/mac-attention-light.png" "${OUT}/mac-attention-dark.png"; then
   echo "ERROR: Mac light/dark screenshots are byte-identical" >&2
   exit 1
 fi
+
+# Reject known ImageRenderer garbage (system yellow #FFCC00 / red #FF383C) and blank paper-only detail.
+python3 - "${OUT}" <<'PY'
+import struct, sys, zlib
+from collections import Counter
+from pathlib import Path
+
+out = Path(sys.argv[1])
+
+def pixels(path):
+    data = path.read_bytes()
+    assert data[:8] == b"\x89PNG\r\n\x1a\n"
+    i = 8
+    idat = b""
+    w = h = ct = None
+    while i < len(data):
+        ln = struct.unpack(">I", data[i : i + 4])[0]
+        typ = data[i + 4 : i + 8]
+        chunk = data[i + 8 : i + 8 + ln]
+        i += 12 + ln
+        if typ == b"IHDR":
+            w, h, _bit, ct = struct.unpack(">IIBB", chunk[:10])
+        elif typ == b"IDAT":
+            idat += chunk
+        elif typ == b"IEND":
+            break
+    raw = zlib.decompress(idat)
+    bpp = 4 if ct == 6 else 3 if ct == 2 else None
+    if bpp is None:
+        raise SystemExit(f"unsupported PNG color type {ct} in {path.name}")
+    stride = w * bpp
+    prev = bytearray(stride)
+    rows = []
+    o = 0
+    for _y in range(h):
+        ft = raw[o]
+        o += 1
+        row = bytearray(raw[o : o + stride])
+        o += stride
+        if ft == 1:
+            for x in range(stride):
+                row[x] = (row[x] + (row[x - bpp] if x >= bpp else 0)) & 255
+        elif ft == 2:
+            for x in range(stride):
+                row[x] = (row[x] + prev[x]) & 255
+        elif ft == 3:
+            for x in range(stride):
+                left = row[x - bpp] if x >= bpp else 0
+                row[x] = (row[x] + ((left + prev[x]) // 2)) & 255
+        elif ft == 4:
+            def paeth(a, b, c):
+                p = a + b - c
+                pa, pb, pc = abs(p - a), abs(p - b), abs(p - c)
+                return a if pa <= pb and pa <= pc else b if pb <= pc else c
+
+            for x in range(stride):
+                a = row[x - bpp] if x >= bpp else 0
+                b = prev[x]
+                c = prev[x - bpp] if x >= bpp else 0
+                row[x] = (row[x] + paeth(a, b, c)) & 255
+        elif ft != 0:
+            raise SystemExit(f"bad PNG filter {ft} in {path.name}")
+        rows.append(row)
+        prev = row
+    counts = Counter()
+    for y in range(0, h, 8):
+        for x in range(0, w, 8):
+            j = x * bpp
+            counts[(rows[y][j], rows[y][j + 1], rows[y][j + 2])] += 1
+    return w, h, counts
+
+def check(name, expect_paper):
+    path = out / name
+    w, h, counts = pixels(path)
+    total = sum(counts.values())
+    top = counts.most_common(5)
+    print(f"{name}: {w}x{h} top={top[:3]}")
+    yellow = sum(v for c, v in counts.items() if c[0] > 250 and 190 < c[1] < 220 and c[2] < 40)
+    red = sum(v for c, v in counts.items() if c[0] > 250 and c[1] < 80 and c[2] < 80)
+    if (yellow + red) / total > 0.5:
+        raise SystemExit(
+            f"ERROR: {name} looks like ImageRenderer garbage "
+            f"(system yellow/red dominate: {(yellow + red) / total:.0%})"
+        )
+    paper = sum(v for c, v in counts.items() if abs(c[0] - expect_paper[0]) <= 3 and abs(c[1] - expect_paper[1]) <= 3 and abs(c[2] - expect_paper[2]) <= 3)
+    if paper / total < 0.05:
+        raise SystemExit(
+            f"ERROR: {name} missing expected paper tone {expect_paper} "
+            f"(share={paper / total:.1%}); top={top}"
+        )
+    # Detail must not be a flat empty paper fill.
+    if "detail" in name and top and top[0][1] / total > 0.92:
+        raise SystemExit(f"ERROR: {name} is nearly blank paper-only ({top[0][1] / total:.0%} one color)")
+
+check("mac-attention-light.png", (251, 250, 247))
+check("mac-attention-dark.png", (20, 19, 16))
+check("mac-attention-detail-light.png", (251, 250, 247))
+print("Mac PNG content checks passed.")
+PY
 
 echo "All required Apple screenshots present (6 PNGs)."
 echo "Simulator used: ${IOS_DEVICE_NAME} (${UDID}) runtime=${IOS_RUNTIME}"

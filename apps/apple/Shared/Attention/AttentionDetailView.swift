@@ -8,30 +8,40 @@ struct AttentionDetailView: View {
     let onReturn: () -> Void
     let onTakeMyself: () -> Void
     var showsPhoneActions: Bool = false
+    /// Skip ScrollView so off-screen Mac screenshot captures rasterize text.
+    var eagerLayout: Bool = false
 
     var body: some View {
-        ScrollView {
-            VStack(alignment: .leading, spacing: 20) {
-                statusBadge
-                Text(item.title)
-                    .font(.title.weight(.bold))
-                    .foregroundStyle(RelayTheme.ink)
-                    .accessibilityAddTraits(.isHeader)
-                if item.status == .needsYou {
-                    needsYouCard
-                }
-                handoffSection
-                goalSection
-                reminderSection
-                contextSection
+        Group {
+            if eagerLayout {
+                detailStack
+            } else {
+                ScrollView { detailStack }
             }
-            .padding(24)
-            .frame(maxWidth: 720, alignment: .leading)
-            .frame(maxWidth: .infinity, alignment: .leading)
         }
         .background(RelayTheme.paper)
         .accessibilityIdentifier("attention-detail")
         .accessibilityLabel(AttentionStrings.title)
+    }
+
+    private var detailStack: some View {
+        VStack(alignment: .leading, spacing: 20) {
+            statusBadge
+            Text(item.title)
+                .font(.title.weight(.bold))
+                .foregroundStyle(RelayTheme.ink)
+                .accessibilityAddTraits(.isHeader)
+            if item.status == .needsYou {
+                needsYouCard
+            }
+            handoffSection
+            goalSection
+            reminderSection
+            contextSection
+        }
+        .padding(24)
+        .frame(maxWidth: 720, alignment: .leading)
+        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
     }
 
     private var statusBadge: some View {

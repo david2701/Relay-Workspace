@@ -6,26 +6,44 @@ struct AttentionListContent: View {
     var expandNeedsYouInline: Bool
     var showsKeyboardHints: Bool
     var onOpenDetail: ((WorkItem) -> Void)?
+    /// When true, use eager VStack so off-screen Mac screenshot captures rasterize rows.
+    var eagerLayout: Bool = false
 
     var body: some View {
         ScrollView {
-            LazyVStack(alignment: .leading, spacing: 14) {
-                if viewModel.loadState == .offline {
-                    OfflineBannerView {
-                        Task { await viewModel.refresh() }
-                    }
-                    .padding(.horizontal, 4)
-                }
-                ForEach(viewModel.sections) { section in
-                    sectionBlock(section)
-                }
-            }
-            .padding(.horizontal, 12)
-            .padding(.vertical, 8)
-            .accessibilityIdentifier("attention-list")
+            listStack
+                .padding(.horizontal, 12)
+                .padding(.vertical, 8)
+                .accessibilityIdentifier("attention-list")
         }
         .accessibilityElement(children: .contain)
         .accessibilityIdentifier("attention-list-scroll")
+    }
+
+    @ViewBuilder
+    private var listStack: some View {
+        if eagerLayout {
+            VStack(alignment: .leading, spacing: 14) {
+                listBody
+            }
+        } else {
+            LazyVStack(alignment: .leading, spacing: 14) {
+                listBody
+            }
+        }
+    }
+
+    @ViewBuilder
+    private var listBody: some View {
+        if viewModel.loadState == .offline {
+            OfflineBannerView {
+                Task { await viewModel.refresh() }
+            }
+            .padding(.horizontal, 4)
+        }
+        ForEach(viewModel.sections) { section in
+            sectionBlock(section)
+        }
     }
 
     @ViewBuilder

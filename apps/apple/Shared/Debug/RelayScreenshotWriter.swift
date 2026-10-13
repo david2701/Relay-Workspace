@@ -6,7 +6,9 @@ import SwiftUI
 import AppKit
 #endif
 
-/// Writes PNG screenshots from inside the DEBUG app via SwiftUI ImageRenderer.
+/// Writes PNG screenshots from inside the DEBUG app.
+/// Mac uses NSHostingView bitmap capture — ImageRenderer + NavigationSplitView
+/// produces garbage (system yellow/red) on headless CI.
 enum RelayScreenshotWriter {
     private static var didSchedule = false
 
@@ -48,36 +50,117 @@ enum RelayScreenshotWriter {
         colorScheme: ColorScheme?,
         content: V
     ) {
-        // RelayTheme uses NSColor dynamicProvider — ImageRenderer follows NSApp.appearance,
-        // not SwiftUI preferredColorScheme alone. Force aqua/darkAqua for distinct light/dark PNGs.
+        let scheme = colorScheme ?? .light
+        RelayScreenshotPalette.forceDark = (scheme == .dark)
+
         let previousAppearance = NSApp.appearance
-        switch colorScheme {
+        switch scheme {
         case .dark:
             NSApp.appearance = NSAppearance(named: .darkAqua)
-        case .light:
-            NSApp.appearance = NSAppearance(named: .aqua)
         default:
-            break
+            NSApp.appearance = NSAppearance(named: .aqua)
         }
         defer { NSApp.appearance = previousAppearance }
 
-        let scheme = colorScheme ?? .light
         let rooted = content
             .environment(\.colorScheme, scheme)
             .preferredColorScheme(scheme)
             .frame(width: size.width, height: size.height)
             .background(RelayTheme.paper)
-        let renderer = ImageRenderer(content: rooted)
-        renderer.scale = 2
-        guard let nsImage = renderer.nsImage,
-              let tiff = nsImage.tiffRepresentation,
-              let rep = NSBitmapImageRep(data: tiff),
-              let data = rep.representation(using: .png, properties: [:])
-        else {
-            log("ImageRenderer failed for \(name)")
+
+        // Off-screen hosting view — reliable for ScrollView / split layouts on CI.
+        let hosting = NSHostingView(rootView: rooted)
+        hosting.appearance = NSApp.appearance
+        hosting.frame = CGRect(origin: .zero, size: size)
+        // Attach briefly so AppKit finishes layout before rasterizing.
+        let window = NSWindow(
+            contentRect: CGRect(origin: .zero, size: size),
+            styleMask: [.borderless],
+            backing: .buffered,
+            defer: false
+        )
+        window.isReleasedWhenClosed = false
+        window.contentView = hosting
+        window.orderOut(nil)
+        hosting.layoutSubtreeIfNeeded()
+
+        let bounds = hosting.bounds
+        guard let rep = hosting.bitmapImageRepForCachingDisplay(in: bounds) else {
+            log("bitmapImageRep unavailable for \(name)")
+            window.contentView = nil
+            window.close()
             return
         }
+        hosting.cacheDisplay(in: bounds, to: rep)
+        window.contentView = nil
+        window.close()
+
+        guard let data = rep.representation(using: .png, properties: [:]) else {
+            log("PNG encode failed for \(name)")
+            return
+        }
+        log(
+            "captured \(name) scheme=\(scheme == .dark ? "dark" : "light") "
+                + "forceDark=\(String(describing: RelayScreenshotPalette.forceDark)) "
+                + "bytes=\(data.count)"
+        )
         writePNG(named: name, data: data)
+    }
+
+    /// Flat HStack canvas — avoids NavigationSplitView, which ImageRenderer/hosting
+    /// often rasterizes as system yellow/red garbage on headless runners.
+    @MainActor
+    private static func listCanvas(viewModel: AttentionViewModel) -> some View {
+        HStack(spacing: 0) {
+            VStack(spacing: 0) {
+                MacAttentionHeader(viewModel: viewModel)
+                AttentionListContent(
+                    viewModel: viewModel,
+                    expandNeedsYouInline: true,
+                    showsKeyboardHints: true,
+                    eagerLayout: true
+                )
+                .frame(maxWidth: .infinity, maxHeight: .infinity)
+                QuickCaptureField(
+                    text: Binding(
+                        get: { viewModel.quickCaptureText },
+                        set: { viewModel.quickCaptureText = $0 }
+                    ),
+                    placeholder: AttentionStrings.capturePlaceholder,
+                    showsShortcutBadge: true,
+                    onSubmit: {}
+                )
+                .padding(12)
+            }
+            .frame(width: 420)
+            .background(RelayTheme.paper)
+
+            Rectangle()
+                .fill(RelayTheme.line)
+                .frame(width: 1)
+
+            Group {
+                if let item = viewModel.selectedItem {
+                    AttentionDetailView(
+                        item: item,
+                        agentsById: viewModel.agentsById,
+                        decisionDraft: Binding(
+                            get: { viewModel.decisionDraft },
+                            set: { viewModel.decisionDraft = $0 }
+                        ),
+                        onReturn: {},
+                        onTakeMyself: {},
+                        showsPhoneActions: false,
+                        eagerLayout: true
+                    )
+                } else {
+                    AttentionDetailPlaceholder()
+                }
+            }
+            .frame(maxWidth: .infinity, maxHeight: .infinity)
+            .background(RelayTheme.paper)
+        }
+        .background(RelayTheme.paper)
     }
 
     /// Schedule Mac PNG captures. Safe to call from AppDelegate (preferred on CI)
@@ -106,7 +189,7 @@ enum RelayScreenshotWriter {
         } else {
             name = "mac-attention-\(appearance)"
         }
-        let scheme = RelayScreenshotAppearance.preferredColorScheme
+        let scheme = RelayScreenshotAppearance.preferredColorScheme ?? .light
         log("scheduling \(name) screen=\(screen) appearance=\(appearance)")
         RelayScreenshotPalette.forceDark = (appearance == "dark")
         log("palette forceDark=\(String(describing: RelayScreenshotPalette.forceDark))")
@@ -115,8 +198,12 @@ enum RelayScreenshotWriter {
         if viewModel.selectedItemId == nil, let first = viewModel.itemIds.first {
             viewModel.selectItem(id: first)
         }
+        log(
+            "viewModel loadState=\(String(describing: viewModel.loadState)) "
+                + "items=\(viewModel.itemIds.count) selected=\(viewModel.selectedItemId ?? "nil")"
+        )
 
-        // Short delay so SwiftUI/ImageRenderer layout settles on CI.
+        // Short delay so hosting view layout settles on CI.
         DispatchQueue.main.asyncAfter(deadline: .now() + 0.8) {
             NSApp.activate(ignoringOtherApps: true)
             if screen == "detail" {
@@ -125,6 +212,7 @@ enum RelayScreenshotWriter {
                     NSApp.terminate(nil)
                     return
                 }
+                // Non-scrolling stack so text rasterizes fully off-screen.
                 let detail = AttentionDetailView(
                     item: item,
                     agentsById: viewModel.agentsById,
@@ -134,7 +222,8 @@ enum RelayScreenshotWriter {
                     ),
                     onReturn: {},
                     onTakeMyself: {},
-                    showsPhoneActions: false
+                    showsPhoneActions: false,
+                    eagerLayout: true
                 )
                 .preferredColorScheme(scheme)
                 captureMacView(
@@ -144,13 +233,11 @@ enum RelayScreenshotWriter {
                     content: detail
                 )
             } else {
-                let root = MacAttentionRootView(viewModel: viewModel)
-                    .preferredColorScheme(scheme)
                 captureMacView(
                     named: name,
                     size: CGSize(width: 1180, height: 760),
                     colorScheme: scheme,
-                    content: root
+                    content: listCanvas(viewModel: viewModel).preferredColorScheme(scheme)
                 )
             }
             let marker = URL(fileURLWithPath: "/tmp/relay-apple-screenshots/\(name).done")
