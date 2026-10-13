@@ -130,19 +130,24 @@ if ! have_png iphone-attention-light || ! have_png iphone-attention-dark || ! ha
   have_png iphone-attention-detail-light || capture_ios light detail iphone-attention-detail-light
 fi
 
-echo "=== Mac in-app window screenshots ==="
-MAC_APP="$(ls -d "${HOME}/Library/Developer/Xcode/DerivedData"/Relay-*/Build/Products/Debug/RelayMac.app 2>/dev/null | head -n 1 || true)"
+echo "=== Mac in-app ImageRenderer screenshots ==="
+# Debug dylib executor cannot be launched outside Xcode; build a normal Debug binary.
+xcodebuild \
+  -project "${PROJECT}" \
+  -scheme RelayMac \
+  -destination 'platform=macOS' \
+  -configuration Debug \
+  CODE_SIGN_IDENTITY=- \
+  CODE_SIGNING_REQUIRED=NO \
+  ENABLE_DEBUG_DYLIB=NO \
+  build | tee /tmp/xcode-mac-noddebug.log
+grep -q "BUILD SUCCEEDED" /tmp/xcode-mac-noddebug.log
+MAC_APP="$(ls -d "${HOME}/Library/Developer/Xcode/DerivedData"/Relay-*/Build/Products/Debug/RelayMac.app 2>/dev/null | head -n 1)"
 if [[ -z "${MAC_APP}" ]]; then
-  xcodebuild \
-    -project "${PROJECT}" \
-    -scheme RelayMac \
-    -destination 'platform=macOS' \
-    -configuration Debug \
-    CODE_SIGN_IDENTITY=- \
-    CODE_SIGNING_REQUIRED=NO \
-    build
-  MAC_APP="$(ls -d "${HOME}/Library/Developer/Xcode/DerivedData"/Relay-*/Build/Products/Debug/RelayMac.app 2>/dev/null | head -n 1)"
+  echo "ERROR: RelayMac.app missing after ENABLE_DEBUG_DYLIB=NO build" >&2
+  exit 1
 fi
+echo "Using ${MAC_APP}"
 
 capture_mac_inapp() {
   local appearance="$1"
@@ -151,17 +156,19 @@ capture_mac_inapp() {
   pkill -x RelayMac >/dev/null 2>&1 || true
   sleep 1
   rm -f "${TMP_SHOTS}/${name}.png" "${TMP_SHOTS}/${name}.done" "${OUT}/${name}.png"
-  # Launch binary directly so RELAY_SCREENSHOT_DIR is inherited.
+  # Launch the normal Debug binary with inherited env for output dir.
   RELAY_SCREENSHOT_DIR="${OUT}" RELAY_UI_SCREENSHOTS=1 \
     "${bin}" -RelayUIScreenshots -RelayAppearance "${appearance}" \
     >/tmp/relay-mac-${appearance}.log 2>&1 &
   local pid=$!
-  if wait_for_png "${name}" 45; then
+  if wait_for_png "${name}" 60; then
     echo "Mac in-app capture ok: ${name} (pid ${pid})"
   else
     echo "Mac in-app capture timed out: ${name}" >&2
     echo "---- relay-mac-${appearance}.log ----" >&2
-    tail -50 "/tmp/relay-mac-${appearance}.log" >&2 || true
+    cat "/tmp/relay-mac-${appearance}.log" >&2 || true
+    echo "---- process check ----" >&2
+    ps -p "${pid}" -o pid,stat,command >&2 || true
   fi
   kill "${pid}" >/dev/null 2>&1 || true
   pkill -x RelayMac >/dev/null 2>&1 || true
