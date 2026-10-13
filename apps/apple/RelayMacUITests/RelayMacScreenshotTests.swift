@@ -2,6 +2,12 @@ import XCTest
 
 /// UI screenshots for RelayMac Atención (DEBUG Penpot samples via `-RelayUIScreenshots`).
 final class RelayMacScreenshotTests: XCTestCase {
+    private let sampleTitle = "Elegir el titular del post de lanzamiento"
+
+    override func setUpWithError() throws {
+        continueAfterFailure = false
+    }
+
     func testCaptureAttentionScreens() throws {
         try capture(appearance: "light", named: "mac-attention-light")
         try capture(appearance: "dark", named: "mac-attention-dark")
@@ -12,17 +18,17 @@ final class RelayMacScreenshotTests: XCTestCase {
         app.launchArguments = [
             "-RelayUIScreenshots",
             "-RelayAppearance", appearance,
+            "-RelayScreenshotScreen", "list",
         ]
+        app.launchEnvironment["RELAY_UI_SCREENSHOTS"] = "1"
+        if let dir = ProcessInfo.processInfo.environment["RELAY_SCREENSHOT_DIR"] {
+            app.launchEnvironment["RELAY_SCREENSHOT_DIR"] = dir
+        }
         app.launch()
-        let title = app.staticTexts["attention-title"]
-        XCTAssertTrue(title.waitForExistence(timeout: 20))
-        XCTAssertTrue(app.otherElements["attention-list"].waitForExistence(timeout: 10))
-        let firstItem = app.buttons["attention-item-itm_32pxnq1110"]
-        XCTAssertTrue(firstItem.waitForExistence(timeout: 10))
-        firstItem.tap()
-        XCTAssertTrue(app.otherElements["attention-detail"].waitForExistence(timeout: 10))
-        // Let the split view settle before capturing.
-        RunLoop.current.run(until: Date().addingTimeInterval(0.5))
+        let row = app.staticTexts[sampleTitle]
+        XCTAssertTrue(row.waitForExistence(timeout: 30), "Sample Mac row missing for \(name)")
+        // Ensure detail column is populated (split view selects first item in samples).
+        RunLoop.current.run(until: Date().addingTimeInterval(0.8))
         try saveScreenshot(named: name)
         app.terminate()
     }

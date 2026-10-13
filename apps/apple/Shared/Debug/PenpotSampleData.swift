@@ -6,9 +6,24 @@ import RelayKit
 /// Never compiled into Release. Source: RelayKit test fixtures (demo seed).
 enum PenpotSampleData {
     static let uiScreenshotsLaunchArgument = "-RelayUIScreenshots"
+    static let screenshotScreenLaunchArgument = "-RelayScreenshotScreen"
 
     static var shouldLoadForUIScreenshots: Bool {
-        ProcessInfo.processInfo.arguments.contains(uiScreenshotsLaunchArgument)
+        if ProcessInfo.processInfo.arguments.contains(uiScreenshotsLaunchArgument) {
+            return true
+        }
+        let env = ProcessInfo.processInfo.environment["RELAY_UI_SCREENSHOTS"] ?? ""
+        return env == "1" || env.lowercased() == "true"
+    }
+
+    /// Optional screen hint for CI capture: `list` (default) or `detail`.
+    static var screenshotScreen: String {
+        let args = ProcessInfo.processInfo.arguments
+        if let index = args.firstIndex(of: screenshotScreenLaunchArgument),
+           args.index(after: index) < args.count {
+            return args[args.index(after: index)].lowercased()
+        }
+        return (ProcessInfo.processInfo.environment["RELAY_SCREENSHOT_SCREEN"] ?? "list").lowercased()
     }
 
     static var inbox: InboxQueryResult {

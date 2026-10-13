@@ -22,8 +22,10 @@ struct AttentionListContent: View {
             }
             .padding(.horizontal, 12)
             .padding(.vertical, 8)
+            .accessibilityIdentifier("attention-list")
         }
-        .accessibilityIdentifier("attention-list")
+        .accessibilityElement(children: .contain)
+        .accessibilityIdentifier("attention-list-scroll")
     }
 
     @ViewBuilder

@@ -38,6 +38,18 @@ public final class AttentionViewModel: ObservableObject {
         } else {
             self.client = RelayClient.localDefault()
         }
+        #if DEBUG
+        if PenpotSampleData.shouldLoadForUIScreenshots {
+            let fetchedInbox = PenpotSampleData.inbox
+            let agents = PenpotSampleData.agents
+            self.inbox = fetchedInbox
+            self.agentsById = Dictionary(uniqueKeysWithValues: agents.map { ($0.id, $0) })
+            self.lastSuccessAt = Date()
+            self.isOffline = false
+            self.loadState = .ready
+            self.selectedItemId = AttentionPresentation.flattenedItemIds(from: fetchedInbox).first
+        }
+        #endif
     }
 
     public var sections: [AttentionSection] {

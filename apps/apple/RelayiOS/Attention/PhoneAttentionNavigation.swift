@@ -23,7 +23,23 @@ struct PhoneAttentionNavigation: View {
         .safeAreaInset(edge: .bottom) {
             Color.clear.frame(height: 120)
         }
+        .onAppear {
+            #if DEBUG
+            openScreenshotDetailIfNeeded()
+            #endif
+        }
     }
+
+    #if DEBUG
+    private func openScreenshotDetailIfNeeded() {
+        guard PenpotSampleData.shouldLoadForUIScreenshots else { return }
+        guard PenpotSampleData.screenshotScreen == "detail" else { return }
+        guard let itemId = viewModel.selectedItemId ?? viewModel.itemIds.first else { return }
+        if path.isEmpty {
+            path.append(itemId)
+        }
+    }
+    #endif
 }
 
 struct PhoneAttentionListView: View {
