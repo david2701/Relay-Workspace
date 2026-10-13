@@ -8,6 +8,8 @@ import AppKit
 
 /// Writes PNG screenshots from inside the DEBUG app via SwiftUI ImageRenderer.
 enum RelayScreenshotWriter {
+    private static var didSchedule = false
+
     static func outputDirectories() -> [URL] {
         var dirs: [URL] = [
             URL(fileURLWithPath: "/tmp/relay-apple-screenshots", isDirectory: true),
@@ -18,15 +20,22 @@ enum RelayScreenshotWriter {
         return dirs
     }
 
+    static func log(_ message: String) {
+        let line = "RelayScreenshotWriter: \(message)\n"
+        fputs(line, stderr)
+        fflush(stderr)
+        NSLog("%@", "RelayScreenshotWriter: \(message)")
+    }
+
     static func writePNG(named name: String, data: Data) {
         for directory in outputDirectories() {
             do {
                 try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
                 let url = directory.appendingPathComponent("\(name).png")
                 try data.write(to: url, options: .atomic)
-                NSLog("RelayScreenshotWriter wrote \(url.path)")
+                log("wrote \(url.path) (\(data.count) bytes)")
             } catch {
-                NSLog("RelayScreenshotWriter failed \(name): \(error)")
+                log("failed \(name): \(error)")
             }
         }
     }
@@ -44,15 +53,26 @@ enum RelayScreenshotWriter {
               let rep = NSBitmapImageRep(data: tiff),
               let data = rep.representation(using: .png, properties: [:])
         else {
-            NSLog("RelayScreenshotWriter: ImageRenderer failed for \(name)")
+            log("ImageRenderer failed for \(name)")
             return
         }
         writePNG(named: name, data: data)
     }
 
+    /// Schedule Mac PNG captures. Safe to call from AppDelegate (preferred on CI)
+    /// or SwiftUI onAppear; only the first call runs.
     @MainActor
     static func scheduleMacCapturesIfNeeded(viewModel: AttentionViewModel) {
-        guard PenpotSampleData.shouldLoadForUIScreenshots else { return }
+        guard PenpotSampleData.shouldLoadForUIScreenshots else {
+            log("skip — UI screenshot launch args not present")
+            return
+        }
+        guard !didSchedule else {
+            log("skip — already scheduled")
+            return
+        }
+        didSchedule = true
+
         let appearance: String
         switch RelayScreenshotAppearance.preferredColorScheme {
         case .dark: appearance = "dark"
@@ -66,14 +86,19 @@ enum RelayScreenshotWriter {
             name = "mac-attention-\(appearance)"
         }
         let scheme = RelayScreenshotAppearance.preferredColorScheme
-        // Give Penpot sample bootstrap a beat before ImageRenderer snapshot.
-        DispatchQueue.main.asyncAfter(deadline: .now() + 1.8) {
-            if viewModel.selectedItemId == nil, let first = viewModel.itemIds.first {
-                viewModel.selectItem(id: first)
-            }
+        log("scheduling \(name) screen=\(screen) appearance=\(appearance)")
+
+        viewModel.bootstrap()
+        if viewModel.selectedItemId == nil, let first = viewModel.itemIds.first {
+            viewModel.selectItem(id: first)
+        }
+
+        // Short delay so SwiftUI/ImageRenderer layout settles on CI.
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.8) {
+            NSApp.activate(ignoringOtherApps: true)
             if screen == "detail" {
                 guard let item = viewModel.selectedItem else {
-                    NSLog("RelayScreenshotWriter: no selected item for detail capture")
+                    log("no selected item for detail capture")
                     NSApp.terminate(nil)
                     return
                 }
@@ -89,7 +114,6 @@ enum RelayScreenshotWriter {
                     showsPhoneActions: false
                 )
                 .preferredColorScheme(scheme)
-                // Detail pane with selected Penpot item (`attention-detail` a11y id on the view).
                 captureMacView(
                     named: name,
                     size: CGSize(width: 720, height: 760),
@@ -110,7 +134,8 @@ enum RelayScreenshotWriter {
                 withIntermediateDirectories: true
             )
             try? Data().write(to: marker)
-            DispatchQueue.main.asyncAfter(deadline: .now() + 0.4) {
+            log("done marker \(marker.path)")
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) {
                 NSApp.terminate(nil)
             }
         }

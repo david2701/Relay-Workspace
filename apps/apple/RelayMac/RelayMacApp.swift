@@ -1,8 +1,31 @@
 import SwiftUI
 import RelayKit
+#if canImport(AppKit)
+import AppKit
+#endif
+
+#if DEBUG
+/// CI/headless Mac screenshot hook — runs even when SwiftUI WindowGroup onAppear is skipped.
+final class RelayMacScreenshotDelegate: NSObject, NSApplicationDelegate {
+    private let screenshotViewModel = AttentionViewModel(platform: .mac)
+
+    func applicationDidFinishLaunching(_ notification: Notification) {
+        fputs("RelayMacScreenshotDelegate: applicationDidFinishLaunching\n", stderr)
+        fflush(stderr)
+        NSApp.setActivationPolicy(.regular)
+        NSApp.activate(ignoringOtherApps: true)
+        DispatchQueue.main.async {
+            RelayScreenshotWriter.scheduleMacCapturesIfNeeded(viewModel: self.screenshotViewModel)
+        }
+    }
+}
+#endif
 
 @main
 struct RelayMacApp: App {
+    #if DEBUG
+    @NSApplicationDelegateAdaptor(RelayMacScreenshotDelegate.self) private var screenshotDelegate
+    #endif
     @StateObject private var viewModel = AttentionViewModel(platform: .mac)
 
     var body: some Scene {
@@ -13,6 +36,7 @@ struct RelayMacApp: App {
                 .onAppear {
                     viewModel.bootstrap()
                     #if DEBUG
+                    // Secondary path when a window does appear (local runs).
                     RelayScreenshotWriter.scheduleMacCapturesIfNeeded(viewModel: viewModel)
                     #endif
                 }
