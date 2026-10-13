@@ -630,7 +630,12 @@ export default function App() {
     let result = sections;
     if (view === "all" && todoGroupBy === "due") {
       const items = sections.flatMap((s) => s.items);
-      const buckets = groupByDue(items, new Date());
+      // Prefer inbox server_time so client buckets match group_counts even when
+      // the page clock is frozen (Playwright) or skewed vs the API host.
+      const groupNow = inbox?.server_time
+        ? new Date(inbox.server_time)
+        : new Date();
+      const buckets = groupByDue(items, groupNow);
       const byKey = new Map<string, (typeof buckets)[number]>(
         buckets.map((g) => [g.key, g]),
       );
@@ -651,6 +656,27 @@ export default function App() {
             items: byKey.get(c.key)?.items ?? [],
             count: c.count,
           }));
+        // Keep any loaded rows whose client bucket still disagrees with the
+        // server keys (should be rare once groupNow uses server_time).
+        const placed = new Set(
+          result.flatMap((s) => s.items.map((item) => item.id)),
+        );
+        for (const bucket of buckets) {
+          const orphans = bucket.items.filter((item) => !placed.has(item.id));
+          if (orphans.length === 0) continue;
+          const existing = result.find((s) => s.key === bucket.key);
+          if (existing) {
+            existing.items = [...existing.items, ...orphans];
+          } else {
+            result.push({
+              key: bucket.key,
+              labelKey: bucket.labelKey,
+              label: t(bucket.labelKey),
+              items: orphans,
+              count: orphans.length,
+            });
+          }
+        }
       } else {
         result = buckets.map((g) => ({
           key: g.key,

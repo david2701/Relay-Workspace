@@ -23,9 +23,11 @@ export function readSqliteDataVersion(db: RelayDb): number {
 export function openDatabase(dbPath: string): RelayDb {
   mkdirSync(dirname(dbPath), { recursive: true });
   const db = new DatabaseSync(dbPath);
+  // busy_timeout must be set before WAL/migrate — concurrent opens otherwise
+  // fail immediately with "database is locked" (CI item_events workers).
+  db.exec("PRAGMA busy_timeout = 30000;");
   db.exec("PRAGMA journal_mode = WAL;");
   db.exec("PRAGMA foreign_keys = ON;");
-  db.exec("PRAGMA busy_timeout = 30000;");
   migrate(db);
   seedAgents(db);
   cleanupExpiredIdempotencyKeys(db);

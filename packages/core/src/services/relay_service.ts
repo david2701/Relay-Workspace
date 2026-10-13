@@ -630,6 +630,14 @@ export class RelayService {
     return this.items.listPage(params);
   }
 
+  /** Work items after a legacy ISO or composite `(updated_at, id)` since cursor. */
+  listUpdatedSince(
+    since: string,
+    params: PageParams = {},
+  ): ListPageResult<WorkItem> {
+    return this.items.listUpdatedSince(since, params);
+  }
+
   getItem(id: string): WorkItem {
     const item = this.items.get(id);
     if (!item) throw new NotFoundError("WorkItem", id);
@@ -972,6 +980,14 @@ export class RelayService {
     return this.notes.listPage(params);
   }
 
+  /** Notes after a legacy ISO or composite `(updated_at, id)` since cursor. */
+  listNotesUpdatedSince(
+    since: string,
+    params: PageParams = {},
+  ): ListPageResult<Note> {
+    return this.notes.listUpdatedSince(since, params);
+  }
+
   getNote(id: string): Note {
     const note = this.notes.get(id);
     if (!note) throw new NotFoundError("Note", id);
@@ -1235,6 +1251,14 @@ export class RelayService {
       });
       return next;
     });
+  }
+
+  /** Test/seed helper: set a note `updated_at` without changing wall clock. */
+  stampNoteUpdatedAt(id: string, updatedAt: string): Note {
+    const current = this.getNote(id);
+    const next: Note = { ...current, updated_at: updatedAt };
+    this.notes.upsert(next);
+    return next;
   }
 
   /** Test/seed helper */

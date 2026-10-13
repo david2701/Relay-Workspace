@@ -1,67 +1,131 @@
-# GitHub Actions–compatible source for the same gate pipeline.
-# On Origin-hosted repos, CI runs via Depot (see .depot/workflows/ci.yml).
-# Docs: https://cursor.com/docs/origin/apps · https://depot.dev/docs/ci/integrations/origin
-# Local mirror: `pnpm verify` → scripts/ci.sh (same step order).
-
 name: ci
 
 on:
-  pull_request:
   push:
-    branches: [main]
+    branches: [dev]
+  pull_request:
+    branches: [dev]
 
 jobs:
-  gates:
-    name: gates
+  verify:
+    name: verify
     runs-on: ubuntu-latest
-    timeout-minutes: 30
+    timeout-minutes: 45
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
 
       - name: Setup pnpm
-        uses: pnpm/action-setup@v4
+        uses: pnpm/action-setup@b906affcce14559ad1aafd4ab0e942779e9f58b1 # v4
         with:
-          version: 10.17.1
+          package_json_file: package.json
 
       - name: Setup Node
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
         with:
-          node-version: 24.21
+          node-version: 24
           cache: pnpm
 
-      - name: pnpm install --frozen-lockfile
+      - name: Install dependencies
         run: pnpm install --frozen-lockfile
 
-      - name: build
-        run: pnpm build
+      - name: Verify
+        run: pnpm verify
 
-      - name: typecheck
-        run: pnpm typecheck
+  android:
+    name: android
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    steps:
+      - name: Checkout
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
 
-      - name: lint
-        run: pnpm lint
+      - name: Setup JDK
+        uses: actions/setup-java@cf277c60eb25467037889841efdb72551f06f6c3 # v4
+        with:
+          distribution: temurin
+          java-version: "17"
 
-      - name: test
-        run: pnpm test
+      - name: Android Gradle checks
+        working-directory: apps/android
+        run: |
+          set -euo pipefail
+          if [[ ! -f ./gradlew ]]; then
+            echo "ERROR: apps/android Gradle project is required but ./gradlew is missing."
+            exit 1
+          fi
+          chmod +x ./gradlew
+          echo "Running: ./gradlew :app:lintDebug :app:testDebugUnitTest :app:assembleRelease"
+          ./gradlew :app:lintDebug :app:testDebugUnitTest :app:assembleRelease --console=plain
+          echo "Android Gradle tasks finished (:app:lintDebug :app:testDebugUnitTest :app:assembleRelease)."
 
-      - name: contrast
-        run: pnpm contrast
+  apple:
+    name: apple
+    runs-on: macos-latest
+    timeout-minutes: 60
+    steps:
+      - name: Checkout
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
 
-      - name: Install Playwright Chromium
-        run: pnpm exec playwright install --with-deps chromium
-
-      - name: test:e2e
-        run: pnpm test:e2e
-
-      - name: check:mcp-docs
-        run: pnpm check:mcp-docs
-
-      - name: check:i18n-missing-keys
-        run: pnpm run check:i18n-missing-keys
-
-      - name: check:hardcoded-strings
-        run: pnpm run check:hardcoded-strings
-
-      - name: check:client-names
-        run: pnpm run check:client-names
+      - name: Apple checks
+        run: |
+          set -euo pipefail
+          if [[ ! -d apps/apple ]]; then
+            echo "ERROR: apps/apple is required but the directory is missing."
+            exit 1
+          fi
+          echo "=== Swift package tests ==="
+          found_pkg=0
+          while IFS= read -r -d '' package_swift; do
+            found_pkg=1
+            package_dir="$(dirname "$package_swift")"
+            echo "swift test in ${package_dir}"
+            (cd "$package_dir" && swift test)
+          done < <(find apps/apple -name Package.swift -print0)
+          if [[ "${found_pkg}" -eq 0 ]]; then
+            echo "ERROR: no Package.swift under apps/apple."
+            exit 1
+          fi
+          if [[ ! -d apps/apple/Relay.xcodeproj ]]; then
+            echo "ERROR: apps/apple/Relay.xcodeproj is required but missing."
+            exit 1
+          fi
+          echo "=== xcodebuild (iOS Simulator) ==="
+          xcodebuild \
+            -project apps/apple/Relay.xcodeproj \
+            -scheme RelayiOS \
+            -destination 'generic/platform=iOS Simulator' \
+            -configuration Debug \
+            CODE_SIGNING_ALLOWED=NO \
+            build | tee /tmp/xcode-ios.log
+          grep -q "BUILD SUCCEEDED" /tmp/xcode-ios.log
+          echo "xcodebuild RelayiOS: BUILD SUCCEEDED"
+          echo "=== xcodebuild (macOS) ==="
+          xcodebuild \
+            -project apps/apple/Relay.xcodeproj \
+            -scheme RelayMac \
+            -destination 'generic/platform=macOS' \
+            -configuration Debug \
+            CODE_SIGNING_ALLOWED=NO \
+            build | tee /tmp/xcode-mac.log
+          grep -q "BUILD SUCCEEDED" /tmp/xcode-mac.log
+          echo "xcodebuild RelayMac: BUILD SUCCEEDED"
+          echo "=== Widget / extension schemes (if any) ==="
+          widget_schemes="$(xcodebuild -project apps/apple/Relay.xcodeproj -list 2>/dev/null | awk '/Schemes:/{f=1;next} f&&NF{print} f&&!NF{exit}' | grep -Ei 'Widget|Extension' || true)"
+          if [[ -z "${widget_schemes}" ]]; then
+            echo "No widget/extension schemes present; nothing extra to build."
+          else
+            while IFS= read -r scheme; do
+              [[ -z "${scheme}" ]] && continue
+              echo "Building scheme: ${scheme}"
+              xcodebuild \
+                -project apps/apple/Relay.xcodeproj \
+                -scheme "${scheme}" \
+                -destination 'generic/platform=iOS Simulator' \
+                -configuration Debug \
+                CODE_SIGNING_ALLOWED=NO \
+                build | tee "/tmp/xcode-${scheme}.log"
+              grep -q "BUILD SUCCEEDED" "/tmp/xcode-${scheme}.log"
+              echo "xcodebuild ${scheme}: BUILD SUCCEEDED"
+            done <<< "${widget_schemes}"
+          fi

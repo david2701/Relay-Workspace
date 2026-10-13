@@ -185,7 +185,7 @@ fun AttentionScreen(
             navigator.currentDestination?.pane == ListDetailPaneScaffoldRole.Detail
     val effectiveNavSuiteType =
         if (showingCompactDetail) NavigationSuiteType.None else navSuiteType
-        NavigationSuiteScaffold(
+    NavigationSuiteScaffold(
         modifier = modifier
             .fillMaxSize()
             .testTag("attention_screen"),
