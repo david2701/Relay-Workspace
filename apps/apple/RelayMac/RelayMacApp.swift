@@ -10,7 +10,12 @@ struct RelayMacApp: App {
             MacAttentionRootView(viewModel: viewModel)
                 .frame(minWidth: 960, minHeight: 640)
                 .background(RelayTheme.paper)
-                .onAppear { viewModel.bootstrap() }
+                .onAppear {
+                    viewModel.bootstrap()
+                    #if DEBUG
+                    RelayScreenshotWriter.scheduleMacCapturesIfNeeded()
+                    #endif
+                }
                 #if DEBUG
                 .preferredColorScheme(RelayScreenshotAppearance.preferredColorScheme)
                 #endif
