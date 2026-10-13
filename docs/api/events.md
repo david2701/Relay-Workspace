@@ -116,7 +116,22 @@ Global stream for sync / SSE replay.
 `GET /api/inbox` responses include `seq` (latest global event seq).
 
 - Preferred delta: `?after_seq=N` (items with any event `seq > N`).
-- Legacy: `?since=<ISO>` still compares `updated_at` as text.
+- Legacy / wall-clock: `?since=<cursor>` selects rows with
+  `(updated_at, id)` **strictly after** the cursor
+  (`updated_at > ? OR (updated_at = ? AND id > ?)`), ordered by
+  `updated_at ASC, id ASC`.
+
+`since` accepts:
+
+1. **Composite cursor** (preferred for paging): base64url JSON
+   `{"updated_at":"<ISO>","id":"<id>"}` — same encoding as list `next_cursor`.
+2. **Legacy ISO / `sync_cursor` string**: treated as
+   `{ updated_at: <string>, id: "" }`, so same-millisecond rows are not
+   dropped. Plain ISO clients keep working without changes.
+
+`listUpdatedSince` / note sync use the same composite bound. Responses may
+still stamp `sync_cursor` as a wall-clock ISO for backward compatibility;
+clients that page same-ms twins should pass the composite `next_cursor`.
 
 ## MCP
 

@@ -4,7 +4,12 @@ import type {
   InboxSyncResult,
 } from "../schemas/inbox.js";
 import type { WorkItem } from "../schemas/work_item.js";
-import { decodeCursor, encodeCursor } from "./cursor.js";
+import {
+  decodeCursor,
+  encodeCursor,
+  isAfterSinceCursor,
+  parseSinceCursor,
+} from "./cursor.js";
 import { countDueGroups } from "./date_groups.js";
 import { nowIso } from "./time.js";
 import {
@@ -358,10 +363,16 @@ export function buildInboxSync(args: InboxSyncArgs): InboxSyncResult {
   const counters = { needs_you: countNeedsYou(args.items) };
   const full = buildFullView(args.items, args.view, now, timeZone);
   const inView = new Set(full.items.map((i) => i.id));
+  const sinceCursor = parseSinceCursor(args.since ?? "");
   const changed =
     args.changedIds !== undefined
       ? args.items.filter((i) => args.changedIds!.has(i.id))
-      : args.items.filter((i) => i.updated_at > (args.since ?? ""));
+      : args.items.filter((i) =>
+          isAfterSinceCursor(
+            { id: i.id, updated_at: i.updated_at },
+            sinceCursor,
+          ),
+        );
   const upserts: WorkItem[] = [];
   const removed_ids: string[] = [];
   for (const item of changed) {

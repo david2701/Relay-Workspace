@@ -40,3 +40,29 @@ export function decodeCursor(value: string): ItemCursor | null {
     return null;
   }
 }
+
+/**
+ * Parse a `since=` / listUpdatedSince cursor.
+ *
+ * - Composite (preferred): base64url JSON `{ "updated_at", "id" }` from
+ *   {@link encodeCursor} — exclusive lower bound on `(updated_at, id)`.
+ * - Legacy ISO / wall-clock string: treated as `{ updated_at: value, id: "" }`
+ *   so same-millisecond rows are still returned (`id > ""`).
+ *
+ * Clients may keep sending plain ISO `sync_cursor` values; servers accept both.
+ */
+export function parseSinceCursor(value: string): ItemCursor {
+  const composite = decodeCursor(value);
+  if (composite) return composite;
+  return { updated_at: value, id: "" };
+}
+
+/** True when `(updated_at, id)` is strictly after the since cursor. */
+export function isAfterSinceCursor(
+  row: ItemCursor,
+  since: ItemCursor,
+): boolean {
+  if (row.updated_at > since.updated_at) return true;
+  if (row.updated_at < since.updated_at) return false;
+  return row.id > since.id;
+}

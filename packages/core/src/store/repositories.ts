@@ -1,4 +1,8 @@
-import { decodeCursor, encodeCursor } from "../domain/cursor.js";
+import {
+  decodeCursor,
+  encodeCursor,
+  parseSinceCursor,
+} from "../domain/cursor.js";
 import type { PageMeta, PageParams } from "../domain/page.js";
 import type { Agent } from "../schemas/agent.js";
 import type { ItemNoteLink, Note } from "../schemas/note.js";
@@ -147,15 +151,40 @@ export class WorkItemRepository {
     return { items, meta: { next_cursor, has_more, total_count } };
   }
 
-  listUpdatedSince(since: string): WorkItem[] {
-    const rows = this.db
+  /**
+   * Rows with `(updated_at, id)` strictly after `since`.
+   * `since` may be a legacy ISO string or a composite cursor (see parseSinceCursor).
+   */
+  listUpdatedSince(
+    since: string,
+    params: PageParams = {},
+  ): ListPageResult<WorkItem> {
+    const cursor = parseSinceCursor(since);
+    const allRows = this.db
       .prepare(
         `SELECT * FROM work_items
          WHERE updated_at > ?
+            OR (updated_at = ? AND id > ?)
          ORDER BY updated_at ASC, id ASC`,
       )
-      .all(since) as ItemRow[];
-    return rows.map(rowToItem);
+      .all(cursor.updated_at, cursor.updated_at, cursor.id) as ItemRow[];
+    const total_count = allRows.length;
+    if (params.limit === undefined) {
+      return {
+        items: allRows.map(rowToItem),
+        meta: { next_cursor: null, has_more: false, total_count },
+      };
+    }
+    const limit = params.limit;
+    const has_more = allRows.length > limit;
+    const page = has_more ? allRows.slice(0, limit) : allRows;
+    const items = page.map(rowToItem);
+    const last = items[items.length - 1];
+    const next_cursor =
+      has_more && last
+        ? encodeCursor({ id: last.id, updated_at: last.updated_at })
+        : null;
+    return { items, meta: { next_cursor, has_more, total_count } };
   }
 
   maxUpdatedAt(): string | null {
@@ -338,14 +367,39 @@ export class NoteRepository {
     return { items, meta: { next_cursor, has_more, total_count } };
   }
 
-  listUpdatedSince(since: string): Note[] {
-    return this.db
+  /**
+   * Notes with `(updated_at, id)` strictly after `since`.
+   * `since` may be a legacy ISO string or a composite cursor (see parseSinceCursor).
+   */
+  listUpdatedSince(
+    since: string,
+    params: PageParams = {},
+  ): ListPageResult<Note> {
+    const cursor = parseSinceCursor(since);
+    const allRows = this.db
       .prepare(
         `SELECT * FROM notes
          WHERE updated_at > ?
+            OR (updated_at = ? AND id > ?)
          ORDER BY updated_at ASC, id ASC`,
       )
-      .all(since) as Note[];
+      .all(cursor.updated_at, cursor.updated_at, cursor.id) as Note[];
+    const total_count = allRows.length;
+    if (params.limit === undefined) {
+      return {
+        items: allRows,
+        meta: { next_cursor: null, has_more: false, total_count },
+      };
+    }
+    const limit = params.limit;
+    const has_more = allRows.length > limit;
+    const items = has_more ? allRows.slice(0, limit) : allRows;
+    const last = items[items.length - 1];
+    const next_cursor =
+      has_more && last
+        ? encodeCursor({ id: last.id, updated_at: last.updated_at })
+        : null;
+    return { items, meta: { next_cursor, has_more, total_count } };
   }
 
   get(id: string): Note | null {
