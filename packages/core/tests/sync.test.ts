@@ -66,8 +66,12 @@ describe("inbox sync delta", () => {
   it("listUpdatedSince returns only newer rows", () => {
     const actor = { type: "user" as const, id: USER_ACTOR_ID };
     const first = svc.createItem({ title: "First" }, actor, "ui");
-    const since = first.updated_at;
     const second = svc.createItem({ title: "Second" }, actor, "ui");
+    // Deterministic stamps — wall-clock createItem can share one millisecond.
+    const since = "2026-06-01T12:00:00.000Z";
+    const later = "2026-06-01T12:00:01.000Z";
+    svc.stampItemUpdatedAt(first.id, since, actor);
+    svc.stampItemUpdatedAt(second.id, later, actor);
     const page = svc.listItems({ limit: 100 });
     expect(page.meta.total_count).toBe(2);
     const newer = page.items.filter((i) => i.updated_at > since);
