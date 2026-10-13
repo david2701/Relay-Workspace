@@ -66,8 +66,17 @@ enum RelayScreenshotWriter {
             name = "mac-attention-\(appearance)"
         }
         let scheme = RelayScreenshotAppearance.preferredColorScheme
-        DispatchQueue.main.asyncAfter(deadline: .now() + 1.2) {
-            if screen == "detail", let item = viewModel.selectedItem {
+        // Give Penpot sample bootstrap a beat before ImageRenderer snapshot.
+        DispatchQueue.main.asyncAfter(deadline: .now() + 1.8) {
+            if viewModel.selectedItemId == nil, let first = viewModel.itemIds.first {
+                viewModel.selectItem(id: first)
+            }
+            if screen == "detail" {
+                guard let item = viewModel.selectedItem else {
+                    NSLog("RelayScreenshotWriter: no selected item for detail capture")
+                    NSApp.terminate(nil)
+                    return
+                }
                 let detail = AttentionDetailView(
                     item: item,
                     agentsById: viewModel.agentsById,
