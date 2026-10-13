@@ -186,3 +186,4 @@ jobs:
           name: apple-screenshots
           path: artifacts/apple-screenshots/*.png
           if-no-files-found: error
+          retention-days: 14
