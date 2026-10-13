@@ -61,11 +61,53 @@ jobs:
 
   apple:
     name: apple
-    runs-on: macos-14
+    runs-on: macos-latest
     timeout-minutes: 90
     steps:
       - name: Checkout
         uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+
+      - name: Select Xcode 16+
+        run: |
+          set -euo pipefail
+          echo "Available Xcode apps:"
+          ls /Applications | grep -i Xcode || true
+          xcodebuild -version || true
+          # Prefer newest Xcode 16+ (project uses PBXFileSystemSynchronizedRootGroup).
+          selected=""
+          for candidate in \
+            /Applications/Xcode_16.4.app \
+            /Applications/Xcode_16.3.app \
+            /Applications/Xcode_16.2.app \
+            /Applications/Xcode_16.1.app \
+            /Applications/Xcode_16.0.app \
+            /Applications/Xcode_16.app \
+            /Applications/Xcode.app
+          do
+            if [[ -d "${candidate}" ]]; then
+              selected="${candidate}"
+              break
+            fi
+          done
+          if [[ -z "${selected}" ]]; then
+            # Fall back to highest Xcode_*.app that reports major >= 16.
+            while IFS= read -r app; do
+              ver="$("${app}/Contents/Developer/usr/bin/xcodebuild" -version 2>/dev/null | awk '/Xcode/{print $2; exit}')"
+              major="${ver%%.*}"
+              if [[ -n "${major}" && "${major}" -ge 16 ]]; then
+                selected="${app}"
+                break
+              fi
+            done < <(ls -1d /Applications/Xcode*.app 2>/dev/null | sort -V -r)
+          fi
+          if [[ -z "${selected}" ]]; then
+            echo "ERROR: need Xcode 16+ for Relay.xcodeproj synchronized groups." >&2
+            exit 1
+          fi
+          echo "Selecting ${selected}"
+          sudo xcode-select -s "${selected}/Contents/Developer"
+          xcodebuild -version
+          sw_vers
 
       - name: Apple checks
         run: |
