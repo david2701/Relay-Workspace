@@ -57,29 +57,28 @@ struct AttentionDetailView: View {
         .foregroundStyle(item.status == .needsYou ? RelayTheme.onHl : RelayTheme.ink)
     }
 
+    /// Accent rule must not be a greedy `RoundedRectangle` sibling inside `ScrollView`:
+    /// shapes expand to the proposed height and, with default `HStack` center alignment,
+    /// leave empty gaps above/below the content (~50pt). Drive height from content only
+    /// (same hug as TRASPASO) and paint the rule as a leading overlay.
     private var needsYouCard: some View {
-        VStack(alignment: .leading, spacing: 12) {
-            HStack(spacing: 0) {
-                RoundedRectangle(cornerRadius: 1, style: .continuous)
-                    .fill(RelayTheme.attentionRule)
-                    .frame(width: RelayTheme.needsYouRuleWidth)
-                VStack(alignment: .leading, spacing: 8) {
-                    Text(AttentionPresentation.metaLine(item: item, agentsById: agentsById))
-                        .font(.caption)
-                        .foregroundStyle(RelayTheme.inkMuted)
-                    if let body = AttentionPresentation.bodyText(item: item) {
-                        Text(body)
-                            .font(.body)
-                            .foregroundStyle(RelayTheme.ink)
-                    }
-                    dueReminderRow
-                    if showsPhoneActions {
-                        phoneActionBlock
-                    }
-                }
-                .padding(14)
+        VStack(alignment: .leading, spacing: 8) {
+            Text(AttentionPresentation.metaLine(item: item, agentsById: agentsById))
+                .font(.caption)
+                .foregroundStyle(RelayTheme.inkMuted)
+            if let body = AttentionPresentation.bodyText(item: item) {
+                Text(body)
+                    .font(.body)
+                    .foregroundStyle(RelayTheme.ink)
+            }
+            dueReminderRow
+            if showsPhoneActions {
+                phoneActionBlock
             }
         }
+        .padding(14)
+        .padding(.leading, RelayTheme.needsYouRuleWidth)
+        .frame(maxWidth: .infinity, alignment: .leading)
         .background(
             RoundedRectangle(cornerRadius: 14, style: .continuous)
                 .fill(RelayTheme.raised)
@@ -88,6 +87,13 @@ struct AttentionDetailView: View {
                         .stroke(RelayTheme.line, lineWidth: 1)
                 )
         )
+        .overlay(alignment: .leading) {
+            RoundedRectangle(cornerRadius: 1, style: .continuous)
+                .fill(RelayTheme.attentionRule)
+                .frame(width: RelayTheme.needsYouRuleWidth)
+                .accessibilityHidden(true)
+        }
+        .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
     }
 
     private var phoneActionBlock: some View {
@@ -223,20 +229,23 @@ struct AttentionDetailView: View {
         }
     }
 
+    @ViewBuilder
     private var dueReminderRow: some View {
-        HStack(spacing: 12) {
-            if let dueAt = item.dueAt {
-                Text(RelativeTimeFormat.formatDue(iso: dueAt).text)
-                    .font(.caption.weight(.medium))
-                    .foregroundStyle(RelayTheme.accentInk)
-            }
-            if let reminderAt = item.reminderAt {
-                HStack(spacing: 3) {
-                    Image(systemName: "bell")
-                    Text(RelativeTimeFormat.formatReminder(iso: reminderAt).text)
+        if item.dueAt != nil || item.reminderAt != nil {
+            HStack(spacing: 12) {
+                if let dueAt = item.dueAt {
+                    Text(RelativeTimeFormat.formatDue(iso: dueAt).text)
+                        .font(.caption.weight(.medium))
+                        .foregroundStyle(RelayTheme.accentInk)
                 }
-                .font(.caption)
-                .foregroundStyle(RelayTheme.inkMuted)
+                if let reminderAt = item.reminderAt {
+                    HStack(spacing: 3) {
+                        Image(systemName: "bell")
+                        Text(RelativeTimeFormat.formatReminder(iso: reminderAt).text)
+                    }
+                    .font(.caption)
+                    .foregroundStyle(RelayTheme.inkMuted)
+                }
             }
         }
     }
